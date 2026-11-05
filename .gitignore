@@ -1,0 +1,7 @@
+dados/
+.env
+.env.bak-*
+__pycache__/
+*.pyc
+.pytest_cache/
+*.tar.gz

@@ -1,0 +1,74 @@
+/* atende-leads — tema INEMA (dark âmbar). Fontes locais se existirem; senão sans-serif. */
+:root{
+  --bg:#0c0c10;--bg2:#14141b;--card:#16161e;--line:#272730;--txt:#e9e9ee;--mut:#9a9aa6;
+  --amb:#FACC15;--amb-txt:#1a1206;--ok:#4ade80;--bad:#f87171;--warn:#fbbf24;
+  --titulo:"Sora",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --corpo:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--txt);font-family:var(--corpo);font-size:16px;line-height:1.5}
+h1,h2,h3,.marca,button,.chip,.aba{font-family:var(--titulo)}
+h1{font-size:1.6rem;margin:0 0 16px;letter-spacing:-.01em}
+h2{font-size:1.2rem;margin:24px 0 12px}
+h3{font-size:1rem;margin:0 0 8px}
+a{color:var(--amb)}
+.mut{color:var(--mut)}
+.topo{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px max(16px,calc((100% - 1160px)/2));
+  border-bottom:1px solid var(--line);background:var(--bg2);position:sticky;top:0;z-index:5}
+.marca{font-weight:700;font-size:1.05rem}
+.marca b{color:var(--amb)}
+.chip{font-size:.75rem;letter-spacing:.14em;text-transform:uppercase;color:var(--amb);border:1px solid var(--line);
+  padding:4px 10px;border-radius:999px}
+main{max-width:1160px;margin:0 auto;padding:20px 16px 60px}
+.estreito{max-width:640px}
+.cartao{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin:12px 0}
+.grade{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}
+.rotulo{font-size:.75rem;letter-spacing:.14em;text-transform:uppercase;color:var(--mut);margin:0 0 6px}
+.status-grande{font-family:var(--titulo);font-size:1.3rem;margin:0 0 8px}
+label{display:flex;flex-direction:column;gap:6px;font-size:.9rem;color:var(--mut);margin:8px 0}
+input,select,textarea{font:inherit;color:var(--txt);background:var(--bg2);border:1px solid var(--line);border-radius:10px;
+  padding:10px 12px;min-width:0;width:100%}
+textarea{min-height:90px;font-family:ui-monospace,"JetBrains Mono",monospace;font-size:.85rem}
+input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid var(--amb);outline-offset:2px}
+button,.botao{font:inherit;font-family:var(--titulo);font-weight:600;font-size:.95rem;border-radius:10px;padding:10px 14px;
+  border:1px solid var(--line);background:var(--card);color:var(--txt);cursor:pointer;text-decoration:none;display:inline-block}
+button:hover{border-color:var(--amb)}
+.primario{background:var(--amb);color:var(--amb-txt);border-color:var(--amb)}
+.primario:hover{filter:brightness(1.05)}
+.secundario{background:transparent}
+.perigo{border-color:var(--bad);color:var(--bad);background:transparent}
+button:disabled{opacity:.5;cursor:wait}
+.acoes{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+.aviso{min-height:1.5em;color:var(--amb)}
+.erro{color:var(--bad)}
+.linha{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.linha>*{flex:1}
+.linha>button{flex:0 0 auto}
+.tag{display:inline-block;font-size:.75rem;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--mut)}
+.tag.quente{border-color:var(--bad);color:var(--bad)}
+.tag.morno{border-color:var(--warn);color:var(--warn)}
+.tag.livre{border-color:var(--ok);color:var(--ok)}
+.tag.atendendo{border-color:var(--amb);color:var(--amb)}
+.tag.alerta{background:var(--bad);color:#1a0505;border-color:var(--bad)}
+table{width:100%;border-collapse:collapse;font-size:.9rem}
+th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--mut);font-weight:600}
+.tabela{overflow:auto}
+.abas{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 16px}
+.aba{background:transparent;border:1px solid var(--line);border-radius:999px;padding:6px 14px;font-size:.9rem}
+.aba.ativa{background:var(--amb);color:var(--amb-txt);border-color:var(--amb)}
+.numero{font-family:var(--titulo);font-size:1.8rem;font-weight:700;color:var(--amb)}
+[hidden]{display:none!important}
+/* chat */
+.chat{display:flex;flex-direction:column;height:calc(100vh - 58px);max-width:720px;margin:0 auto}
+.chat-log{flex:1;overflow:auto;padding:16px}
+.bolha{max-width:85%;padding:10px 14px;border-radius:14px;margin:8px 0;background:var(--card);border:1px solid var(--line);
+  white-space:pre-wrap;overflow-wrap:anywhere}
+.bolha.minha{margin-left:auto;background:var(--amb);color:var(--amb-txt);border-color:var(--amb)}
+.bolha.humano{border-color:var(--amb)}
+.bolha small{display:block;font-size:.75rem;color:var(--mut);margin-bottom:2px}
+.chat-form{display:flex;gap:8px;padding:12px 16px;border-top:1px solid var(--line);background:var(--bg2)}
+.widget .topo{padding:10px 14px}
+.widget .chat{height:calc(100vh - 48px)}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;margin:0;font-size:.85rem}
+@media (max-width:600px){h1{font-size:1.3rem}.topo{padding:12px}main{padding:16px 12px 48px}.linha{flex-direction:column;align-items:stretch}}

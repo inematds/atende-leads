@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Equipe · atendimento</title>
+<link rel="stylesheet" href="/web/style.css">
+</head>
+<body>
+<header class="topo"><span class="marca">atende<b>·</b>leads</span><span class="chip" id="quem">Equipe</span></header>
+<main>
+  <section id="login" class="estreito">
+    <h1>Painel da equipe</h1>
+    <form id="form-login" class="cartao">
+      <label>Seu código <input id="codigo" type="password" autocomplete="off" required></label>
+      <div class="acoes"><button class="primario" type="submit">Entrar</button></div>
+      <p class="mut">O código fica só nesta aba. Fechou a aba, entra de novo.</p>
+      <p id="erro-login" class="erro" role="alert"></p>
+    </form>
+  </section>
+  <section id="painel" hidden>
+    <div class="cartao">
+      <p class="rotulo">Meu status</p>
+      <p class="status-grande" id="meu-status">—</p>
+      <div class="acoes">
+        <button data-status="livre">🟢 Livre</button>
+        <button data-status="ocupado">🔴 Ocupado</button>
+        <button data-status="fora">⚫ Fora</button>
+      </div>
+      <p id="aviso" class="aviso" role="status"></p>
+    </div>
+    <h2>Ofertas e alertas</h2>
+    <div id="ofertas" class="grade"></div>
+    <h2>Meus atendimentos</h2>
+    <div id="chamados" class="grade"></div>
+    <h2>Retornos de hoje</h2>
+    <div id="retornos"></div>
+    <section id="ficha" class="cartao" hidden>
+      <div class="linha"><h2 id="ficha-titulo" style="margin:0">Ficha</h2><button id="fechar-ficha" class="secundario">Fechar</button></div>
+      <div id="ficha-dados"></div>
+      <h3 style="margin-top:16px">Mensagens</h3>
+      <div id="ficha-msgs" class="chat-log" style="max-height:340px"></div>
+      <div id="ficha-acoes" hidden>
+        <form id="form-responder" class="linha">
+          <input id="resposta" placeholder="Responder ao lead" required>
+          <button class="primario" type="submit">Enviar</button>
+        </form>
+        <h3 style="margin-top:16px">Fechar atendimento</h3>
+        <form id="form-fechar">
+          <div class="linha">
+            <label>Resultado
+              <select id="f-resultado">
+                <option value="vendeu">✅ Vendeu</option><option value="retornar">📅 Retornar</option>
+                <option value="negociando">🤔 Negociando</option><option value="sem_interesse">❌ Sem interesse</option>
+                <option value="invalido">🚫 Inválido</option>
+              </select></label>
+            <label data-campo="valor">Valor (R$) <input id="f-valor" type="number" min="0" step="0.01"></label>
+            <label data-campo="produto">Produto <select id="f-produto"></select></label>
+            <label data-campo="retornar_em" hidden>Retornar em <input id="f-retornar" type="datetime-local"></label>
+            <label data-campo="motivo" hidden>Motivo <select id="f-motivo"></select></label>
+          </div>
+          <label>Nota (opcional) <input id="f-nota" maxlength="500"></label>
+          <div class="acoes">
+            <button class="primario" type="submit">Fechar atendimento</button>
+            <button type="button" id="devolver" class="secundario">↩️ Devolver ao bot</button>
+          </div>
+        </form>
+      </div>
+    </section>
+  </section>
+</main>
+<script src="/web/comum.js"></script>
+<script src="/web/equipe.js"></script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+{
+  "nome": "Loja Teste",
+  "token_gestor": "segredo-teste",
+  "url_publica": "https://loja.exemplo.test",
+  "horarios": {
+    "seg": [["08:00", "18:00"]],
+    "ter": [["08:00", "18:00"]],
+    "qua": [["08:00", "18:00"]],
+    "qui": [["08:00", "18:00"]],
+    "sex": [["08:00", "18:00"]],
+    "sab": [["09:00", "13:00"]],
+    "dom": []
+  },
+  "prazos": {"oferta_min": 2, "alerta_quente_min": 2, "alerta_normal_min": 5, "lembrete_min": 30},
+  "equipe": [
+    {"id": "ana", "nome": "Ana", "telefone": "5541999990010", "codigo": "ana-1234"},
+    {"id": "bruno", "nome": "Bruno", "telefone": "5541999990020", "codigo": "bruno-5678"},
+    {"id": "carla", "nome": "Carla", "telefone": "5541999990030", "codigo": "carla-9012"}
+  ],
+  "produtos": [
+    {"id": "plano-anual", "nome": "Plano anual", "palavras": ["anual", "plano anual"], "preco": "R$ 1.200"},
+    {"id": "curso-ingles", "nome": "Curso de inglês", "palavras": ["ingles", "curso de ingles"], "preco": "R$ 300"}
+  ],
+  "faq": [
+    {"id": "horario", "perguntas": ["qual o horario de atendimento"], "resposta": "Atendemos de segunda a sexta, das 8h às 18h."},
+    {"id": "endereco", "perguntas": ["onde fica a loja"], "resposta": "Ficamos na Rua Exemplo, 100, Centro."}
+  ],
+  "cerebro": {"tipo": "regras"}
+}

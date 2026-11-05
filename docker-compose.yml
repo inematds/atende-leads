@@ -1,0 +1,80 @@
+# atende-leads — produção na VPS.
+#   docker compose up -d                       → só o atendimento (porta 127.0.0.1:8080)
+#   docker compose --profile evolution up -d   → + Evolution API v2 (WhatsApp) com Postgres e Redis
+# Copie .env.exemplo para .env (ou rode ./instalar-vps.sh) antes de subir.
+services:
+  atende:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      TZ: ${TZ:-America/Sao_Paulo}
+    volumes:
+      - ./dados:/dados
+    ports:
+      - "127.0.0.1:8080:8080"
+    networks: [interna]
+
+  # ---------- WhatsApp (perfil "evolution") ----------
+  # Imagem oficial evoapicloud/evolution-api (repositório evolution-foundation/evolution-api).
+  # v2.3.7 é a última estável; "latest" aponta para release candidate.
+  evolution-api:
+    image: evoapicloud/evolution-api:v2.3.7
+    profiles: [evolution]
+    restart: unless-stopped
+    depends_on: [evolution-postgres, evolution-redis]
+    environment:
+      SERVER_URL: ${EVOLUTION_SERVER_URL:-http://localhost:8081}
+      SERVER_PORT: "8080"
+      AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY:-}
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: postgresql://evolution:${EVOLUTION_DB_SENHA:-troque}@evolution-postgres:5432/evolution?schema=evolution_api
+      DATABASE_CONNECTION_CLIENT_NAME: evolution_exchange
+      DATABASE_SAVE_DATA_INSTANCE: "true"
+      DATABASE_SAVE_DATA_NEW_MESSAGE: "true"
+      CACHE_REDIS_ENABLED: "true"
+      CACHE_REDIS_URI: redis://evolution-redis:6379/6
+      CACHE_REDIS_PREFIX_KEY: evolution
+      CACHE_REDIS_SAVE_INSTANCES: "false"
+      CACHE_LOCAL_ENABLED: "false"
+      # Webhook global: toda mensagem recebida vai direto ao atendimento, pela rede interna.
+      WEBHOOK_GLOBAL_ENABLED: "true"
+      WEBHOOK_GLOBAL_URL: http://atende:8080/webhook/evolution/${WEBHOOK_SEGREDO:-troque}
+      WEBHOOK_GLOBAL_WEBHOOK_BY_EVENTS: "false"
+      WEBHOOK_EVENTS_MESSAGES_UPSERT: "true"
+      TZ: ${TZ:-America/Sao_Paulo}
+    volumes:
+      - evolution_instances:/evolution/instances
+    ports:
+      - "127.0.0.1:8081:8080"
+    networks: [interna]
+
+  evolution-postgres:
+    image: postgres:15
+    profiles: [evolution]
+    restart: unless-stopped
+    command: ["postgres", "-c", "max_connections=200", "-c", "listen_addresses=*"]
+    environment:
+      POSTGRES_DB: evolution
+      POSTGRES_USER: evolution
+      POSTGRES_PASSWORD: ${EVOLUTION_DB_SENHA:-troque}
+    volumes:
+      - evolution_postgres:/var/lib/postgresql/data
+    networks: [interna]
+
+  evolution-redis:
+    image: redis:7
+    profiles: [evolution]
+    restart: unless-stopped
+    command: ["redis-server", "--port", "6379", "--appendonly", "yes"]
+    volumes:
+      - evolution_redis:/data
+    networks: [interna]
+
+networks:
+  interna: {}
+
+volumes:
+  evolution_instances: {}
+  evolution_postgres: {}
+  evolution_redis: {}
