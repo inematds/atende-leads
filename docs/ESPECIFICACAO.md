@@ -155,7 +155,8 @@ Chamado: `{id, lead_id, motivo: pediu_humano|venda|precisa, prioridade: quente|n
 - `GET /meu/<token_lead>` → página "meu atendimento": nome do negócio, status do lead em texto (`Recebemos sua mensagem`, `Alguém da equipe vai falar com você`, `<nome> está te atendendo`, `Retorno marcado para DD/MM às HH:MM`, ...), nome do colaborador se houver, botão **Quero falar agora** e botão **Apagar meus dados**.
 - `GET /api/meu/<token_lead>` → **só** `{nome, status, colaborador, retornar_em}` (nunca o texto das mensagens). `POST /api/meu/<token_lead>/falar` → abre chamado `pediu_humano` (mesmas regras da seção 4 regra 4/5). `POST /api/meu/<token_lead>/apagar` com `{"confirmar": true}` → igual à regra 2; sem a confirmação → 422 e nada muda.
 - O chat web guarda a `sessao` no `localStorage` do navegador e manda em cada mensagem; as respostas da equipe chegam por `GET /api/web/<sessao>`.
-- O link `/meu/<token>` é enviado ao lead quando abre chamado (`Acompanhe aqui: {url_publica}/meu/<token>`).
+- O link `/meu/<token>` **não** é enviado por padrão (o lead já está na conversa). Com `"link_acompanhamento": true` no `negocio.json`, vai ao lead do **WhatsApp** quando abre chamado (`Acompanhe aqui: {url_publica}/meu/<token>`); nunca no chat do site.
+- Botões de contato: `📞 Ligar (telefone)` (ligação comum pela operadora, via `/ligar/<token>` → `tel:`) e `💬 WhatsApp (conversa ou chamada)` (`wa.me`; a chamada de WhatsApp é feita tocando no ícone dentro da conversa). A oferta traz essa explicação em duas linhas.
 
 ## 12. Painel da equipe (`/equipe`, rotas [E])
 

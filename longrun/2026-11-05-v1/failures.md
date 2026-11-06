@@ -98,3 +98,4 @@ Fora de escopo, mantido de propósito: `/entrar` do Telegram continua barrando a
 | 2026-11-05 | tests/test_polling.py::test_polling_409_chama_deletewebhook_de_novo (novo) | §16 409 Conflict | 409 → deleteWebhook de novo e retoma |
 | 2026-11-05 | tests/test_polling.py::test_polling_nao_exige_segredo_em_0000 (novo) | §1 trava de 0.0.0.0; §16 polling sem TELEGRAM_SEGREDO | webhook sem segredo recusa em 0.0.0.0; polling sobe |
 | 2026-11-05 | tests/conftest.py Externo (alterado) | §16 | Telegram falso responde getUpdates (fila `injetar`, offset, [] após o timeout ≤ 2 s) e deleteWebhook; `trava` virou Condition |
+| 2026-11-05 | tests/test_interfaces.py::test_link_acompanhe_desligado_por_padrao (era test_link_acompanhe_ao_abrir_chamado) | §11 link_acompanhamento | Nei: lead já está na conversa; link só no WhatsApp e só se ligado |

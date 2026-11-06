@@ -82,9 +82,10 @@ def test_meu_rotas_token_inexistente_404(api):
         assert api.req(metodo, rota, {}, token=None)[0] == 404
 
 
-def test_link_acompanhe_ao_abrir_chamado(api):
+def test_link_acompanhe_desligado_por_padrao(api):
+    # 05/11/2026 (Nei): o lead já está na conversa; o link "meu atendimento" não vai por padrão.
     r = api.msg_full(TEL, "quero falar com um atendente", nome="Maria Souza")
-    assert f"Acompanhe aqui: {URL_PUBLICA}/meu/{r['lead']['token']}" in "\n".join(r["respostas"])
+    assert "Acompanhe aqui" not in "\n".join(r["respostas"])
 
 
 # ------------------------------------------------------------ gestor

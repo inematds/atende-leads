@@ -86,12 +86,14 @@ def texto_ficha(c, ch, titulo):
     ult = ultimas_mensagens(c, lead['id'])
     if ult:
         linhas += ['', 'Últimas mensagens:'] + [f'• {m}' for m in ult]
+    linhas += ['', '📞 Ligar = ligação comum pelo telefone.',
+               '💬 WhatsApp = abre a conversa; para ligar, toque no ícone de chamada dentro do WhatsApp.']
     return '\n'.join(linhas)
 
 
 def botoes_contato(c, ch):
     lead = c.lead(ch['lead_id'])
-    return [tg.bt_url('📞 Ligar', link_ligar(c, ch)), tg.bt_url('💬 WhatsApp', f"https://wa.me/{lead['telefone']}")]
+    return [tg.bt_url('📞 Ligar (telefone)', link_ligar(c, ch)), tg.bt_url('💬 WhatsApp (conversa ou chamada)', f"https://wa.me/{lead['telefone']}")]
 
 
 def botoes_fechamento(c, ch):
@@ -145,14 +147,18 @@ def abrir(c, lead_id, motivo, resumo=None):
         (lead_id, motivo, prioridade(motivo, lead), 'aguardando', iso(agora),
          iso(agora) if no_horario else None, novo_token(), resumo)).lastrowid
     c.sujo = True
-    link = f"Acompanhe aqui: {c.url_publica()}/meu/{lead['token']}"
+    # Link "meu atendimento": desligado por padrão; ligado (link_acompanhamento) só vai no WhatsApp,
+    # nunca no chat do site (o lead já está na conversa).
+    extra = []
+    if c.cfg.get('link_acompanhamento') and not lead['sessao']:
+        extra = [f"Acompanhe aqui: {c.url_publica()}/meu/{lead['token']}"]
     if no_horario:
         ativar(c, ident)
-        return ident, ['Certo, vou chamar alguém da equipe para falar com você. Só um instante.', link]
+        return ident, ['Certo, vou chamar alguém da equipe para falar com você. Só um instante.'] + extra
     prox = horario.proximo_inicio(c, agora)
     quando = ddmm_hhmm(prox) if prox else 'no próximo expediente'
     return ident, [f'Agora estamos fora do horário de atendimento; vou chamar alguém da equipe assim que '
-                   f'abrirmos: {quando}.', link]
+                   f'abrirmos: {quando}.'] + extra
 
 
 def ativar(c, ident):

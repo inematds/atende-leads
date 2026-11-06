@@ -12,8 +12,9 @@
       AL.tag(ch.status) + '</div><p class="mut">' + AL.esc({pediu_humano: 'pediu humano', venda: 'chance de venda', precisa: 'precisa de atenção'}[ch.motivo]) +
       ' · nota ' + AL.esc(ch.nota) + (ch.interesse_nome ? ' · ' + AL.esc(ch.interesse_nome) : '') + ' · ' + ch.minutos + ' min</p>' +
       '<p>' + AL.esc(AL.fone(ch.telefone)) + '</p>' + (ch.resumo ? '<pre class="mut">' + AL.esc(ch.resumo) + '</pre>' : '') +
-      '<div class="acoes">' + botoes + '<a class="botao" href="' + AL.esc(ch.link_ligar) + '">📞 Ligar</a>' +
-      '<a class="botao" target="_blank" rel="noopener" href="https://wa.me/' + AL.esc(ch.telefone) + '">💬 WhatsApp</a></div></div>';
+      '<div class="acoes">' + botoes + '<a class="botao" href="' + AL.esc(ch.link_ligar) + '" title="Ligação comum pelo telefone">📞 Ligar (telefone)</a>' +
+      '<a class="botao" target="_blank" rel="noopener" href="https://wa.me/' + AL.esc(ch.telefone) + '" title="Abre a conversa; para ligar, toque no ícone de chamada dentro do WhatsApp">💬 WhatsApp (conversa ou chamada)</a></div>' +
+      '<p class="mut">📞 Ligar = ligação comum pelo telefone · 💬 WhatsApp = abre a conversa; para ligar, toque no ícone de chamada dentro do WhatsApp.</p></div>';
   }
 
   async function carregar() {

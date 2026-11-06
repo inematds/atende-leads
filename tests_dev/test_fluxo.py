@@ -40,7 +40,7 @@ def test_fluxo_completo():
         s.tg(upd_cb(BRUNO, 'st:livre'))
         st, r = s.msg('41999990001', 'quero falar com um atendente', nome='Maria Silva')
         assert st == 200 and 'vou chamar' in r['respostas'][0], r
-        assert any('Acompanhe aqui:' in x and '/meu/' in x for x in r['respostas'])
+        assert not any('Acompanhe aqui:' in x for x in r['respostas'])  # desligado por padrão (05/11)
         lead = r['lead']
         ch = chamado_de(s, lead['id'])
         assert ch['status'] == 'aguardando' and ch['ofertado_a'] == 'ana' and ch['motivo'] == 'pediu_humano'
