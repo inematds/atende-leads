@@ -105,8 +105,9 @@ def test_chamado_aguardando_responde_ja_avisei_e_nao_abre_outro(api):
     lead, _ = api.abrir()
     r = api.msg_full(TEL, "oi? alguém aí?")
     assert "já avisei" in "\n".join(r["respostas"])
-    r = api.msg_full(TEL, "quanto custa o plano anual")  # regra 4 vem antes da 6
-    assert "já avisei" in "\n".join(r["respostas"])
+    r = api.msg_full(TEL, "quanto custa o plano anual")  # regra 4 vem antes da 6, mas agora tira a dúvida
+    txt = "\n".join(r["respostas"])
+    assert "já avisei" not in txt and "R$" in txt  # 06/11/2026 (Nei): responde dúvidas enquanto espera
     assert len(api.chamados_do_lead(lead["id"])) == 1
 
 

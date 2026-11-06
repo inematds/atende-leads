@@ -151,3 +151,4 @@ Fora de escopo, mantido de propósito: `/entrar` do Telegram continua barrando a
 | 2026-11-06 | tests/test_aparencia.py (21) | §2 `aparencia`; §11 `/api/aparencia`, widget; §13 Cadastros em formulário | padrão público só com os 4 campos, tema/cor/nome, 8 inválidos → 422 sem gravar, contraste < 4,5 → 422 com mensagem, widget com a aparência, PUT no formato do formulário (novo código "gerar novo" entra e vale), 6 formas de formulário inválido → 422 |
 | 2026-11-06 | tests/test_conversa.py (+4) | §4 regra 12 | texto novo, `sim`/`quero`/`pode` abrem `precisa`, `não` não abre |
 | 2026-11-06 | tests/test_contatos.py (+1 assert) | §13 `assumir.tempos` | régua de pontos |
+| 2026-11-06 | tests/test_conversa.py::test_chamado_aguardando_responde_ja_avisei_e_nao_abre_outro | §4 regra 4 | Nei: enquanto espera, o agente responde dúvidas (preço agora responde) |

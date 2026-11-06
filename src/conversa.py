@@ -163,6 +163,26 @@ def palavras_significativas(texto):
     return {w for w in normalizar(texto).split() if len(w) >= 3 and w not in COMUNS}
 
 
+
+def _duvida_em_espera(c, t, texto):
+    """Resposta a dúvida enquanto o chamado espera dono. Não abre chamado nem inicia qualificação."""
+    if re.search(r'\b(alguem|ninguem|atendente|humano|pessoa)\b', t):  # "alguém aí?" → já avisei
+        return None
+    if base.pergunta_horario(t):
+        return base.resposta_horario(c, t, casar_faq(c, t))
+    faq = casar_faq(c, t)
+    if faq:
+        return faq
+    info = base.resposta_info(c, t)
+    if info and _numero(t) is None:
+        return info
+    prod = casar_produto(c, t)
+    if prod and prod.get('preco'):
+        return f"{prod['nome']}: {prod['preco']}. Alguém da equipe já vai falar com você sobre isso."
+    if len(t.split()) >= 3:  # "ok", "obrigado", "alguém aí?" não vão para a IA
+        return cerebro.responder_duvida(c, texto)
+    return None
+
 def casar_faq(c, t):
     palavras = set(t.split())
     melhor, resposta = 0.0, None
@@ -292,8 +312,12 @@ def decidir(c, lead, texto, t, primeiro, aberto):
         c.db.execute('UPDATE chamados SET ultimo_mov=?, lembrado=0 WHERE id=?', (iso(c.agora()), aberto['id']))
         sugestao.criar(c, aberto, lead, texto)  # sugestão de resposta ao dono (seção 7a), gerada fora do lock
         return []
-    # 4. chamado aguardando
+    # 4. chamado aguardando: enquanto ninguém assume, o agente continua tirando dúvidas
+    #    (horário, FAQ, informações, preço cadastrado, IA). Sem resposta → lembra que a equipe já foi avisada.
     if aberto:
+        r = _duvida_em_espera(c, t, texto)
+        if r:
+            return [r]
         return ['Eu já avisei a equipe; logo alguém fala com você por aqui.']
     e = estado(lead)
     # 4a. pergunta de horário/disponibilidade (antes de 5–7: "que hora tem atendimento humano?" não é pedido)
