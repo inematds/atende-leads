@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>atende-leads — o lead do WhatsApp na mão do colaborador livre</title>
+<meta name="description" content="Agente de leads no WhatsApp que responde, qualifica, dá nota e passa o lead ao colaborador livre há mais tempo pelo Telegram, com botões para assumir e ligar. Código aberto, Docker para VPS.">
+<link rel="alternate" hreflang="pt-BR" href="https://inematds.github.io/atende-leads/guia/">
+<link rel="alternate" hreflang="en" href="https://inematds.github.io/atende-leads/guia/en/">
+<link rel="alternate" hreflang="es" href="https://inematds.github.io/atende-leads/guia/es/">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0c0c10; --bg2:#14141b; --card:#16161e; --line:#272730;
+    --txt:#e9e9ee; --mut:#9a9aa6; --amb:#FACC15; --amb2:#f0c070; --sky:#38bdf8; --pro:#cbd5e1;
+    color-scheme:dark;
+  }
+  body.light{
+    --bg:#f6f7f9; --bg2:#eceef2; --card:#ffffff; --line:#e1e3ea;
+    --txt:#1a1a22; --mut:#5b5b68; --amb:#a16207; --amb2:#a16207; --sky:#0369a1; --pro:#b45309;
+    color-scheme:light;
+  }
+  body.light .hero .glow{opacity:.5}
+  body.light pre{background:#0e0e14;color:#d6d6e0}
+  body.light pre .c{color:#8a8a98}
+  body.light pre .k{color:#f0c070}
+  body.light .btn{background:#FACC15}
+  body.light .step .b{background:#FACC15}
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--txt);font:16px/1.65 Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  h1,h2,h3{font-family:Sora,sans-serif;line-height:1.15;margin:0}
+  a{color:var(--amb);text-decoration:none}
+  code,pre{font-family:"JetBrains Mono",monospace}
+  .wrap{max-width:1160px;margin:0 auto;padding:0 22px}
+  .mut{color:var(--mut)} .amb{color:var(--amb)}
+  .chip{display:inline-block;font-size:.75rem;letter-spacing:.14em;text-transform:uppercase;color:var(--amb);font-weight:600;font-family:Sora}
+  nav{position:sticky;top:0;z-index:30;backdrop-filter:blur(12px);background:rgba(12,12,16,.78);border-bottom:1px solid var(--line)}
+  body.light nav{background:rgba(246,247,249,.85)}
+  nav .wrap{display:flex;align-items:center;gap:22px;height:60px}
+  nav .brand{display:flex;align-items:center;gap:8px;font-family:Sora;font-weight:800;letter-spacing:-.02em;color:var(--amb)}
+  nav .brand .emoji{font-size:1.25rem}
+  nav .sep{color:var(--mut);opacity:.45}
+  nav .inema{color:var(--sky);font-weight:600;font-size:.88rem;font-family:Sora}
+  nav .inema:hover{filter:brightness(1.15)}
+  nav .pro{color:var(--pro);font-weight:600;font-size:.88rem;font-family:Sora}
+  nav .pro:hover{filter:brightness(1.15)}
+  nav .clubpro{display:inline-flex;align-items:center;gap:6px}
+  nav .links{margin-left:auto;display:flex;align-items:center;gap:20px;font-size:.92rem}
+  nav .links a.sec{color:var(--mut)} nav .links a.sec:hover{color:var(--txt)}
+  .lang{display:inline-flex;gap:2px;font-family:Sora;font-size:.78rem}
+  .lang a{color:var(--mut);padding:.2em .45em;border-radius:6px} .lang a.on{color:var(--amb);background:rgba(250,204,21,.12)}
+  .tgl{background:var(--bg2);border:1px solid var(--line);color:var(--txt);width:38px;height:38px;border-radius:10px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;font-size:1.05rem}
+  .tgl:hover{border-color:var(--amb)}
+  .btn{display:inline-block;background:var(--amb);color:#1a1206;font-weight:600;padding:.6em 1.05em;border-radius:10px;font-family:Sora}
+  .btn.ghost{background:transparent;color:var(--txt);border:1px solid var(--line)}
+  @media(max-width:900px){nav .links a.sec{display:none}}
+  @media(max-width:520px){nav .wrap{gap:8px;padding:8px 14px;height:auto;flex-wrap:wrap} nav .links{gap:8px;margin-left:0;width:100%;justify-content:space-between} nav .btn{padding:.45em .7em;font-size:.82rem} .tgl{width:34px;height:34px}}
+  .hero{position:relative;overflow:hidden;border-bottom:1px solid var(--line)}
+  .hero .glow{position:absolute;inset:-40% -20% auto auto;width:70%;height:600px;background:radial-gradient(closest-side,rgba(250,204,21,.16),transparent 70%);pointer-events:none}
+  .hero .wrap{display:grid;grid-template-columns:1fr 1fr;gap:40px;align-items:center;padding:74px 22px}
+  .hero h1{font-size:clamp(2.2rem,5vw,3.5rem);font-weight:800;letter-spacing:-.025em}
+  .hero p.lead{font-size:1.18rem;color:var(--mut);margin:1.1em 0 1.6em;max-width:38ch}
+  .hero .cta{display:flex;gap:12px;flex-wrap:wrap}
+  .hero figure{margin:0;border-radius:16px;overflow:hidden;border:1px solid var(--line);box-shadow:0 30px 80px -30px #000}
+  .hero figure img{width:100%;height:auto;display:block}
+  .resumo{padding:38px 0 34px;border-bottom:1px solid var(--line)}
+  .resumo p{font-size:1.12rem;line-height:1.7;max-width:74ch;margin:.55em 0 0}
+  @media(max-width:780px){.hero .wrap{grid-template-columns:1fr;padding:48px 22px}}
+  section{padding:62px 0;border-bottom:1px solid var(--line)}
+  section h2{font-size:clamp(1.5rem,3.4vw,2.1rem);font-weight:800;letter-spacing:-.02em}
+  section .sub{color:var(--mut);margin:.6em 0 2em;max-width:62ch}
+  .grid{display:grid;gap:16px}
+  .g3{grid-template-columns:repeat(3,1fr)} .g4{grid-template-columns:repeat(4,1fr)} .g2{grid-template-columns:repeat(2,1fr)}
+  @media(max-width:820px){.g3,.g4{grid-template-columns:1fr 1fr}}
+  @media(max-width:540px){.g2,.g3,.g4{grid-template-columns:1fr}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px}
+  .card h3{font-size:1.05rem;margin-bottom:.4em}
+  .card p{color:var(--mut);font-size:.92rem;margin:0}
+  .card ul{color:var(--mut);font-size:.92rem;margin:.4em 0 0;padding-left:1.1em}
+  .num{display:inline-flex;width:30px;height:30px;align-items:center;justify-content:center;border-radius:8px;background:rgba(250,204,21,.14);color:var(--amb);font-family:Sora;font-weight:800;font-size:.9rem;margin-bottom:.7em}
+  .flow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}
+  .flow span{background:var(--bg2);border:1px solid var(--line);border-radius:999px;padding:.45em .9em;font-size:.85rem;font-family:Sora;font-weight:600}
+  .flow .arr{color:var(--amb);border:none;background:none;padding:0 .1em}
+  pre{background:#0a0a0e;border:1px solid var(--line);border-radius:12px;padding:16px 18px;overflow:auto;font-size:.86rem;line-height:1.6;color:#d6d6e0}
+  pre .c{color:#6f6f7c} pre .k{color:var(--amb2)} pre .s{color:#9ece6a}
+  .step{display:grid;grid-template-columns:46px minmax(0,1fr);gap:16px;margin-bottom:26px}
+  .step>div,.card{min-width:0}
+  p code,li code,td code{overflow-wrap:anywhere}
+  .step .b{width:46px;height:46px;border-radius:12px;background:var(--amb);color:#1a1206;font-family:Sora;font-weight:800;font-size:1.25rem;display:flex;align-items:center;justify-content:center}
+  .step h3{font-size:1.12rem;margin-bottom:.3em}
+  .step p{color:var(--mut);margin:.2em 0 .7em}
+  .who{display:inline-block;font-size:.75rem;font-family:Sora;font-weight:600;letter-spacing:.06em;border:1px solid var(--line);border-radius:999px;padding:.15em .6em;margin-left:.4em;color:var(--mut);vertical-align:middle}
+  .legenda{display:flex;flex-wrap:wrap;gap:10px;margin:-1em 0 2em}
+  .ex{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  .ex.cel{grid-template-columns:repeat(3,1fr);align-items:start}
+  @media(max-width:820px){.ex.cel{grid-template-columns:1fr 1fr}}
+  @media(max-width:680px){.ex,.ex.cel{grid-template-columns:1fr}}
+  .ex figure{margin:0;border-radius:14px;overflow:hidden;border:1px solid var(--line);background:var(--card)}
+  .ex figure img{width:100%;height:auto;display:block}
+  .ex figcaption{padding:12px 14px;font-size:.88rem;color:var(--mut);background:var(--card)}
+  .ex h3{font-size:1.05rem;margin:28px 0 12px}
+  .phase{display:flex;gap:14px;padding:16px 0;border-bottom:1px solid var(--line)}
+  .phase:last-child{border:none}
+  .phase .tag{flex:0 0 92px;font-family:Sora;font-weight:800;color:var(--amb)}
+  .phase .d strong{display:block;margin-bottom:.2em}
+  .phase .d span{color:var(--mut);font-size:.92rem}
+  .aviso{background:var(--card);border:1px solid var(--line);border-left:3px solid var(--amb);border-radius:12px;padding:14px 18px;color:var(--mut);font-size:.95rem}
+  footer{padding:46px 0;text-align:center;color:var(--mut);font-size:.9rem}
+  .pill{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:.3em .8em;font-size:.78rem;color:var(--mut);margin:4px}
+</style>
+</head>
+<body>
+
+<nav><div class="wrap">
+  <a class="brand" href="#top"><span class="emoji">📲</span> atende-leads</a>
+  <span class="sep">|</span>
+  <span class="clubpro">
+    <a class="inema" href="https://inema.club" target="_blank" rel="noopener">INEMA.CLUB</a>
+    <span class="sep">-</span>
+    <a class="pro" href="https://inema.pro" target="_blank" rel="noopener">PRO</a>
+  </span>
+  <div class="links">
+    <a class="sec" href="#oque">O que é</a>
+    <a class="sec" href="#fluxo">Como funciona</a>
+    <a class="sec" href="#processo">Processo</a>
+    <a class="sec" href="#guia">Guia de uso</a>
+    <a class="sec" href="#deploy">Deploy</a>
+    <a class="sec" href="#exemplos">Telas</a>
+    <span class="lang"><a class="on" href="./">PT</a><a href="en/">EN</a><a href="es/">ES</a></span>
+    <button class="tgl" id="themeToggle" aria-label="Alternar tema" title="Alternar tema">🌙</button>
+    <a class="btn" href="https://github.com/inematds/atende-leads" target="_blank" rel="noopener">GitHub</a>
+  </div>
+</div></nav>
+
+<header class="hero" id="top">
+  <div class="glow"></div>
+  <div class="wrap">
+    <div>
+      <span class="chip">WhatsApp + Telegram · código aberto · v1.0.1</span>
+      <h1>Nenhum lead fica <span class="amb">esperando</span></h1>
+      <p class="lead">Um agente atende no WhatsApp, qualifica e passa o lead para o colaborador livre há mais tempo, pelo Telegram, com tudo o que ele precisa para ligar.</p>
+      <p class="mut" style="margin:-.6em 0 1.4em;font-size:.95rem">A instalação no servidor pede um técnico: veja <a href="#deploy">Deploy na VPS</a>.</p>
+      <div class="cta">
+        <a class="btn" href="#guia">Começar o guia</a>
+        <a class="btn ghost" href="https://github.com/inematds/atende-leads" target="_blank" rel="noopener">Ver no GitHub</a>
+      </div>
+    </div>
+    <figure><img src="assets/banner.jpg" alt="Banner do atende-leads: nenhum lead esperando, o agente atende no WhatsApp e chama quem está livre pelo Telegram"></figure>
+  </div>
+</header>
+
+<section id="resumo" class="resumo"><div class="wrap">
+  <span class="chip">Em resumo</span>
+  <p>O atende-leads é um sistema de atendimento de leads (clientes em potencial) pelo WhatsApp, feito para pequenos negócios como loja, escola, imobiliária ou prestador de serviço. Um agente responde às dúvidas, pergunta o que a pessoa procura e dá uma nota ao lead: quente, morno ou frio. Quando ela pede uma pessoa ou mostra que quer comprar, o sistema avisa pelo Telegram o colaborador que está livre há mais tempo, com os dados e um botão para ligar. Para usar, você precisa de um servidor (VPS) com Docker, um domínio, um número de WhatsApp só para o atendimento e um bot do Telegram.</p>
+</div></section>
+
+<section id="oque"><div class="wrap">
+  <span class="chip">O que é</span>
+  <h2>O agente atende, a equipe <span class="amb">fecha</span></h2>
+  <p class="sub">O agente cuida da primeira conversa. Quando há chance de venda ou alguém precisa de ajuda, o lead vai para uma pessoa da equipe, na vez certa, e ninguém fica esquecido na fila.</p>
+  <figure style="margin:0 0 26px;border-radius:16px;overflow:hidden;border:1px solid var(--line);box-shadow:0 30px 80px -30px #000"><img src="assets/banner-grade.jpg" alt="Do WhatsApp ao colaborador livre: agente no WhatsApp, qualifica e dá nota, colaborador livre, alerta no grupo, painel da equipe, fechamento" loading="lazy" style="width:100%;display:block"></figure>
+  <div class="grid g3">
+    <div class="card"><h3>💬 Agente no WhatsApp</h3><p>Responde o FAQ, mostra preço só do que está cadastrado, pergunta nome, o que procura e para quando, e dá a nota do lead (quente, morno ou frio). Funciona pela Evolution API.</p></div>
+    <div class="card"><h3>🙋 Chama um humano na hora certa</h3><p>Em 3 casos: o lead pede, o agente percebe que precisa (reclamação, problema, dois "não entendi") ou vê chance de venda (preço, "quero comprar", pagamento).</p></div>
+    <div class="card"><h3>📨 Oferta pelo Telegram</h3><p>Vai ao colaborador livre há mais tempo, no privado: nome, telefone, nota, interesse, resumo e últimas mensagens, com os botões ✅ Assumir · ↪️ Passar · 📞 Ligar · 💬 WhatsApp.</p></div>
+    <div class="card"><h3>🚨 Alerta no grupo</h3><p>Sem resposta em 2 min, a oferta passa ao próximo. Lead quente sem dono em 2 min (normal em 5) ou ninguém livre: alerta no grupo, e o primeiro que tocar em Assumir leva.</p></div>
+    <div class="card"><h3>📌 Painel fixo da equipe</h3><p>Uma mensagem fixada no grupo, <code>EQUIPE AGORA</code>, mostra quem está livre, atendendo, ocupado ou fora, e a fila de leads esperando. É editada a cada mudança.</p></div>
+    <div class="card"><h3>✅ Fechamento com resultado</h3><p>Vendeu (valor) · Retornar (data) · Negociando · Sem interesse (motivo) · Inválido, com nota em texto ou áudio (o áudio vira texto só com <code>WHISPER_CMD</code> configurado no <code>.env</code>). O colaborador volta ao fim da fila de livres.</p></div>
+  </div>
+  <div class="grid g3" style="margin-top:16px">
+    <div class="card"><h3>🖥️ Três painéis web</h3><p>Lead: chat, bolha para o site e página "meu atendimento". Equipe: <code>/equipe</code>. Gestor: <code>/gestor</code>, com ao vivo, hoje, leads, cadastros e exportação CSV.</p></div>
+    <div class="card"><h3>🔒 LGPD</h3><p>O lead pode mandar <code>PARAR</code> ou <code>apagar meus dados</code>. O grupo da equipe nunca recebe telefone nem texto do lead: só primeiro nome, motivo, nota e tempos.</p></div>
+    <div class="card"><h3>🧠 Cérebro por regras</h3><p>Por padrão o agente funciona por regras, sem custo e sem API. Opcional: Ollama local ou um endpoint compatível com OpenAI do próprio negócio, com volta às regras se falhar.</p></div>
+  </div>
+</div></section>
+
+<section id="fluxo"><div class="wrap">
+  <span class="chip">Como funciona</span>
+  <h2>Do "oi" no WhatsApp ao <span class="amb">fechamento</span></h2>
+  <p class="sub">Cada lead segue o mesmo caminho. O sistema guarda tudo num banco SQLite no seu servidor.</p>
+  <div class="flow">
+    <span>Lead no WhatsApp ou no site</span><span class="arr">→</span>
+    <span>Agente responde e qualifica</span><span class="arr">→</span>
+    <span>Gatilho</span><span class="arr">→</span>
+    <span>Oferta ao livre há mais tempo</span><span class="arr">→</span>
+    <span>Alerta 🚨 se ninguém assume</span><span class="arr">→</span>
+    <span>Colaborador assume e liga</span><span class="arr">→</span>
+    <span>Fecha com resultado</span>
+  </div>
+  <div class="grid g3" style="margin-top:28px">
+    <div class="card"><div class="num">1</div><h3>Os 3 gatilhos</h3><p><b>Pediu humano</b> ("atendente", "me liga"), <b>chance de venda</b> ("quanto custa", "quero comprar", "orçamento") ou <b>precisa de atenção</b> ("problema", "reclamação", "cancelar").</p></div>
+    <div class="card"><div class="num">2</div><h3>A ordem de vez</h3><p>Os colaboradores livres ficam em fila pelo horário em que ficaram livres. Quem fecha um atendimento volta ao fim da fila. Lead que volta em até 30 dias é oferecido primeiro a quem o atendeu.</p></div>
+    <div class="card"><div class="num">3</div><h3>Prazos</h3><p>Oferta: 2 min. Alerta: 2 min para lead quente, 5 min para normal. Lembrete de atendimento parado: 30 min. Tudo ajustável no cadastro.</p></div>
+  </div>
+</div></section>
+
+<section id="processo"><div class="wrap">
+  <span class="chip">O processo, do início ao fim</span>
+  <h2>13 passos, de quem <span class="amb">instala</span> a quem vende</h2>
+  <p class="sub">Quem faz cada passo:</p>
+  <div class="legenda"><span class="pill">🧠 o dono ou gestor</span><span class="pill">⚙️ o sistema</span><span class="pill">🤖 o agente</span></div>
+
+  <div class="step"><div class="b">1</div><div>
+    <h3>Instalar na VPS <span class="who">🧠 dono</span></h3>
+    <p>O script pergunta nome, domínio e Telegram; gera segredos, o <code>.env</code> e o <code>dados/negocio.json</code>; sobe o Docker. No fim mostra o token do gestor: guarde, é a senha do <code>/gestor</code>. Detalhes em <a href="#deploy">Deploy na VPS</a>.</p>
+<pre><span class="k">./instalar-vps.sh</span></pre>
+  </div></div>
+  <div class="step"><div class="b">2</div><div>
+    <h3>Conectar o WhatsApp <span class="who">🧠 dono</span></h3>
+    <p>Abra um túnel até a VPS, entre no painel da Evolution em <code>http://localhost:8081/manager</code>, crie a instância e leia o QR Code com o número do atendimento. Use um número só para isso.</p>
+<pre><span class="k">ssh</span> -L 8081:127.0.0.1:8081 usuario@vps</pre>
+  </div></div>
+  <div class="step"><div class="b">3</div><div>
+    <h3>Cadastrar <span class="who">🧠 gestor</span></h3>
+    <p>Em <code>/gestor</code> → Cadastros: equipe (nome, telefone, código), produtos com palavras e preço, FAQ, horários e prazos.</p>
+  </div></div>
+  <div class="step"><div class="b">4</div><div>
+    <h3>A equipe entra no bot <span class="who">🧠 equipe</span></h3>
+    <p>Cada colaborador manda <code>/entrar &lt;código&gt;</code> no privado do bot e toca 🟢 Livre. O código de cada um é o que o instalador imprimiu (no teste local, o do <code>negocio.json</code>, como <code>ana-1234</code>).</p>
+<pre><span class="k">/entrar</span> &lt;código&gt;</pre>
+  </div></div>
+  <div class="step"><div class="b">5</div><div>
+    <h3>O lead chega <span class="who">⚙️ sistema</span></h3>
+    <p>Pelo WhatsApp ou pela bolha de chat do site. Para pôr a bolha no seu site, cole esta linha antes do <code>&lt;/body&gt;</code> das páginas:</p>
+<pre>&lt;script src=<span class="s">"https://&lt;domínio&gt;/widget.js"</span> async&gt;&lt;/script&gt;</pre>
+  </div></div>
+  <div class="step"><div class="b">6</div><div>
+    <h3>O agente atende <span class="who">🤖 agente</span></h3>
+    <p>Responde o FAQ, informa o preço cadastrado, qualifica e dá a nota.</p>
+  </div></div>
+  <div class="step"><div class="b">7</div><div>
+    <h3>Gatilho <span class="who">⚙️ sistema</span></h3>
+    <p>Pediu humano, precisa de atenção ou chance de venda: abre o chamado e manda uma linha curta ao grupo, sem telefone.</p>
+  </div></div>
+  <div class="step"><div class="b">8</div><div>
+    <h3>Oferta <span class="who">⚙️ sistema</span></h3>
+    <p>Vai ao livre há mais tempo, no privado, com dados e botões. 2 min sem resposta: passa ao próximo.</p>
+  </div></div>
+  <div class="step"><div class="b">9</div><div>
+    <h3>Alerta 🚨 <span class="who">⚙️ sistema</span></h3>
+    <p>Mensagem no grupo quando estoura o prazo ou não há ninguém livre. O primeiro que tocar em Assumir leva.</p>
+  </div></div>
+  <div class="step"><div class="b">10</div><div>
+    <h3>O colaborador assume <span class="who">🧠 equipe</span></h3>
+    <p>Liga (📞), responde pelo WhatsApp (💬) ou responde no próprio bot, respondendo (reply) ao cartão do atendimento.</p>
+  </div></div>
+  <div class="step"><div class="b">11</div><div>
+    <h3>Fecha com o resultado <span class="who">🧠 equipe · ⚙️ sistema</span></h3>
+    <p>O colaborador escolhe o resultado; o sistema grava o histórico, agenda o retorno e devolve o colaborador à fila.</p>
+  </div></div>
+  <div class="step"><div class="b">12</div><div>
+    <h3>O gestor acompanha <span class="who">🧠 gestor</span></h3>
+    <p>Em <code>/gestor</code>: ao vivo, hoje, leads e exportar CSV.</p>
+  </div></div>
+  <div class="step"><div class="b">13</div><div>
+    <h3>Backup diário <span class="who">⚙️ cron</span></h3>
+    <p>Uma cópia do banco e do cadastro por dia, pelo cron único que o <code>instalar-vps.sh</code> instala, guardada em <code>/opt/atende-leads-backups/</code>.</p>
+<pre><span class="k">docker compose exec</span> -T atende ./atende backup ...</pre>
+  </div></div>
+</div></section>
+
+<section id="pre"><div class="wrap">
+  <span class="chip">Pré-requisitos</span>
+  <h2>O que você precisa ter</h2>
+  <p class="sub">Para testar no seu computador basta o Python 3. Para usar de verdade, com WhatsApp e Telegram, você precisa do resto.</p>
+  <div class="grid g3">
+    <div class="card"><h3>🐍 Python 3</h3><p>Só a biblioteca padrão: nada de <code>pip install</code> para rodar. Para rodar os testes, o <code>pytest</code>.</p><pre><span class="k">python3</span> --version</pre></div>
+    <div class="card"><h3>🐳 VPS com Docker</h3><p>Um servidor Linux com Docker e Docker Compose. O app escuta só em <code>127.0.0.1:8080</code>.</p><pre><span class="k">docker</span> compose version</pre></div>
+    <div class="card"><h3>🌐 Domínio com HTTPS</h3><p>Um proxy reverso (Caddy ou Nginx) do seu domínio para <code>127.0.0.1:8080</code>. Os webhooks precisam de HTTPS.</p></div>
+    <div class="card"><h3>📱 Número de WhatsApp</h3><p>Um número só para o atendimento, conectado pela Evolution API. Ela pode subir no mesmo compose (perfil <code>evolution</code>).</p></div>
+    <div class="card"><h3>✈️ Bot do Telegram</h3><p>Crie o bot no @BotFather e ponha no grupo da equipe como administrador, para ele fixar o painel.</p></div>
+    <div class="card"><h3>👥 A equipe</h3><p>Cada colaborador com Telegram e um código pessoal, que serve para o <code>/entrar</code> e para o painel <code>/equipe</code>.</p></div>
+  </div>
+  <div class="card" style="margin-top:16px"><h3>📖 Palavras que aparecem neste guia</h3><ul>
+    <li><b>Lead:</b> pessoa que entrou em contato e pode virar cliente.</li>
+    <li><b>FAQ:</b> lista de perguntas frequentes com a resposta pronta que o agente usa.</li>
+    <li><b>Chamado:</b> o pedido de atendimento humano aberto para um lead.</li>
+    <li><b>VPS:</b> servidor alugado na internet, onde o sistema fica ligado o tempo todo.</li>
+    <li><b>Evolution API:</b> programa que conecta um número de WhatsApp ao sistema (não é a API oficial da Meta). Cada número conectado nela é uma <b>instância</b>; <b>Baileys</b> é o modo de conexão pelo QR Code.</li>
+    <li><b>SQLite:</b> banco de dados num arquivo só (<code>dados/leads.db</code>), sem servidor à parte.</li>
+    <li><b>Ollama:</b> programa que roda modelos de IA no próprio computador ou servidor, opcional aqui.</li>
+    <li><b>Perfil do compose:</b> grupo de serviços do <code>docker-compose.yml</code> que só sobe quando pedido, como <code>--profile evolution</code>.</li>
+    <li><b>Webhook:</b> endereço do seu sistema que o WhatsApp (Evolution) e o Telegram chamam quando chega mensagem.</li>
+    <li><b>Proxy reverso:</b> programa (Caddy ou Nginx) que recebe o acesso pelo seu domínio com HTTPS e repassa ao sistema.</li>
+    <li><b>Cron:</b> agendador do Linux que roda um comando todo dia na mesma hora.</li>
+    <li><b>Token do gestor:</b> senha do painel <code>/gestor</code>; nas chamadas à API vai no cabeçalho <code>X-Token</code>.</li>
+  </ul></div>
+</div></section>
+
+<section id="guia"><div class="wrap">
+  <span class="chip">Guia de uso · passo a passo</span>
+  <h2>Teste no seu computador em <span class="amb">5 minutos</span></h2>
+  <p class="sub">Sem WhatsApp e sem Telegram configurados, as integrações ficam desligadas e os painéis web funcionam. É o jeito mais rápido de ver o sistema.</p>
+
+  <div class="step"><div class="b">1</div><div>
+    <h3>Baixe o projeto</h3>
+    <p>Clone o repositório e entre na pasta.</p>
+<pre><span class="k">git clone</span> <span class="s">https://github.com/inematds/atende-leads.git</span>
+<span class="k">cd</span> atende-leads</pre>
+  </div></div>
+  <div class="step"><div class="b">2</div><div>
+    <h3>Suba o servidor</h3>
+    <p>Na primeira vez, o sistema copia o <code>exemplos/negocio.json</code> para a pasta de dados. Se a porta 8080 estiver ocupada no seu computador, use outra (por exemplo <code>--porta 8090</code>) e troque nos endereços dos passos seguintes.</p>
+<pre><span class="k">./atende serve</span> --porta 8080 --dados dados</pre>
+  </div></div>
+  <div class="step"><div class="b">3</div><div>
+    <h3>Abra as três telas</h3>
+    <p>Chat do lead em <code>http://localhost:8080/</code>, equipe em <code>/equipe</code> (entra com o código do colaborador) e gestor em <code>/gestor</code> (entra com o <code>token_gestor</code> do <code>dados/negocio.json</code>).</p>
+<pre><span class="c"># no exemplo, o token do gestor é TROQUE-ESTE-TOKEN e o código da Ana é ana-1234</span>
+<span class="k">grep</span> -E <span class="s">'"token_gestor"|"codigo"'</span> dados/negocio.json</pre>
+  </div></div>
+  <div class="step"><div class="b">4</div><div>
+    <h3>Cadastre o seu negócio</h3>
+    <p>Pelo <code>/gestor</code> → Cadastros, ou editando o <code>dados/negocio.json</code>. O agente só fala preço que estiver aqui. O arquivo vem com dados de exemplo (a colaboradora Ana, o "Plano anual", um FAQ de loja): troque pelos seus antes de receber leads de verdade.</p>
+<pre>{
+  <span class="s">"nome"</span>: <span class="s">"Loja Exemplo"</span>,
+  <span class="s">"equipe"</span>: [ { <span class="s">"id"</span>: <span class="s">"ana"</span>, <span class="s">"nome"</span>: <span class="s">"Ana"</span>, <span class="s">"telefone"</span>: <span class="s">"5541999990010"</span>, <span class="s">"codigo"</span>: <span class="s">"ana-1234"</span> } ],
+  <span class="s">"produtos"</span>: [ { <span class="s">"id"</span>: <span class="s">"plano-anual"</span>, <span class="s">"nome"</span>: <span class="s">"Plano anual"</span>, <span class="s">"palavras"</span>: [<span class="s">"anual"</span>, <span class="s">"plano anual"</span>], <span class="s">"preco"</span>: <span class="s">"R$ 1.200"</span> } ],
+  <span class="s">"prazos"</span>: { <span class="s">"oferta_min"</span>: 2, <span class="s">"alerta_quente_min"</span>: 2, <span class="s">"alerta_normal_min"</span>: 5, <span class="s">"lembrete_min"</span>: 30 },
+  <span class="s">"cerebro"</span>: { <span class="s">"tipo"</span>: <span class="s">"regras"</span> }
+}</pre>
+  </div></div>
+  <div class="step"><div class="b">5</div><div>
+    <h3>Teste com o relógio parado</h3>
+    <p>Com <code>ATENDE_AGORA</code> o "agora" fica fixo, e você roda as tarefas de tempo (ofertas vencidas, alertas, lembretes) quando quiser. Pare antes o servidor do passo 2 (Ctrl+C) e rode o <code>curl</code> num segundo terminal, porque o <code>serve</code> ocupa o primeiro.</p>
+<pre><span class="k">ATENDE_AGORA=2026-11-09T10:00 ./atende serve</span> --porta 8080 --dados dados
+<span class="k">curl</span> -X POST -H <span class="s">"X-Token: TROQUE-ESTE-TOKEN"</span> <span class="s">http://localhost:8080/api/tarefas/rodar</span></pre>
+  </div></div>
+  <div class="step"><div class="b">6</div><div>
+    <h3>Rode os testes</h3>
+    <p>São 282 testes de contrato. O build e o container Docker só entram com <code>TESTAR_DOCKER=1</code>.</p>
+<pre><span class="k">python3 -m pytest</span> -q tests/</pre>
+  </div></div>
+
+  <h3 style="margin:34px 0 12px">Comandos do bot no Telegram</h3>
+  <div class="grid g2">
+    <div class="card"><h3>No privado do bot</h3><ul>
+      <li><code>/entrar &lt;código&gt;</code> liga o seu Telegram ao seu cadastro</li>
+      <li><code>/livre</code> · <code>/ocupado</code> · <code>/fora</code> mudam o seu status</li>
+      <li><code>/meus</code> seus atendimentos · <code>/retornos</code> retornos de hoje</li>
+      <li><code>/lead &lt;nome ou telefone&gt;</code> ficha curta</li>
+      <li><code>/fechar &lt;id&gt; vendeu &lt;valor&gt;</code> (ou <code>retornar</code>, <code>negociando</code>, <code>sem</code>, <code>invalido</code>)</li>
+    </ul></div>
+    <div class="card"><h3>No grupo da equipe</h3><ul>
+      <li><code>/status</code> manda o painel <code>EQUIPE AGORA</code> (só no grupo da equipe)</li>
+      <li>Linhas curtas de cada chamado e os alertas 🚨 com o botão ✅ Assumir</li>
+      <li>Nunca telefone nem texto do lead</li>
+    </ul></div>
+  </div>
+</div></section>
+
+<section id="deploy"><div class="wrap">
+  <span class="chip">Deploy na VPS</span>
+  <h2>No ar com <span class="amb">Docker</span></h2>
+  <p class="sub">Variáveis em <a href="https://github.com/inematds/atende-leads/blob/main/.env.exemplo" target="_blank" rel="noopener"><code>.env.exemplo</code></a>. Sem as variáveis de uma integração, ela fica desligada e o resto funciona (painéis web).</p>
+
+  <div class="step"><div class="b">1</div><div>
+    <h3>Subir</h3>
+    <p><b>Antes de instalar:</b> crie o bot no @BotFather e ponha no grupo da equipe. O instalador pede o token do bot e o ID do grupo (número que começa com <code>-100</code>). Para achar o ID, mande no grupo um comando para o bot, como <code>/start@nome_do_bot</code> (no modo de privacidade padrão, mensagem comum não chega ao bot), e abra o endereço abaixo; o <code>chat.id</code> do grupo aparece na resposta. Faça isso antes de registrar o webhook (passo 6), porque depois o <code>getUpdates</code> deixa de responder.</p>
+<pre><span class="k">curl</span> <span class="s">"https://api.telegram.org/bot&lt;TOKEN&gt;/getUpdates"</span></pre>
+    <p>Na VPS, como root (ou com <code>sudo</code>), com git, python3 e Docker instalados, clone o projeto e rode o instalador. Ele gera o <code>.env</code>, o token do gestor e os <b>códigos da equipe</b> (aleatórios), sobe o compose, com ou sem a Evolution, instala o cron do backup e imprime tudo no fim: guarde. O cadastro parte do exemplo (a colaboradora Ana, o "Plano anual", um FAQ de loja): troque pelos seus em <code>/gestor</code> → Cadastros antes de receber leads. A aplicação escuta só em <code>127.0.0.1:8080</code> e a Evolution em <code>127.0.0.1:8081</code>.</p>
+<pre><span class="k">git clone</span> <span class="s">https://github.com/inematds/atende-leads.git</span> /opt/atende-leads
+<span class="k">cd</span> /opt/atende-leads
+<span class="k">./instalar-vps.sh</span>
+<span class="c"># sem o instalador: cp .env.exemplo .env, troque todos os segredos do .env</span>
+<span class="c"># e o token_gestor e os códigos em dados/negocio.json; só então:</span>
+<span class="k">docker compose up -d --build</span>              <span class="c"># ou, com a Evolution junto:</span>
+<span class="k">docker compose --profile evolution up -d --build</span></pre>
+  </div></div>
+  <div class="step"><div class="b">2</div><div>
+    <h3>Segredos de exemplo não sobem na rede</h3>
+    <p>Se o <code>negocio.json</code> ainda tem <code>token_gestor</code> = <code>TROQUE-ESTE-TOKEN</code> ou algum código igual ao do <code>exemplos/negocio.json</code>, o servidor só aceita subir em <code>127.0.0.1</code>/<code>localhost</code>. Em <code>0.0.0.0</code> (como no Docker) ele recusa com a mensagem "rode ./instalar-vps.sh ou troque os segredos". Só para teste ou demonstração existe <code>ATENDE_PERMITIR_EXEMPLO=1</code> (nunca em produção).</p>
+  </div></div>
+  <div class="step"><div class="b">3</div><div>
+    <h3>HTTPS</h3>
+    <p>Proxy reverso (Caddy ou Nginx) do seu domínio para <code>127.0.0.1:8080</code>. O instalador já preenche <code>url_publica</code> no <code>negocio.json</code> com o domínio; confira. O limite de tentativas (5 senhas erradas por minuto) usa o IP do <code>X-Forwarded-For</code> só quando a conexão vem do proxy local.</p>
+<pre><span class="c"># Caddyfile</span>
+leads.seudominio.com { reverse_proxy 127.0.0.1:8080 }</pre>
+  </div></div>
+  <div class="step"><div class="b">4</div><div>
+    <h3>WhatsApp: ler o QR Code</h3>
+    <p>A porta da Evolution só escuta em <code>127.0.0.1</code>, então abra um túnel do seu computador e, com ele aberto, acesse <code>http://localhost:8081/manager</code>. Entre com a API Key global (<code>EVOLUTION_API_KEY</code> do <code>.env</code>), clique em <b>Instance +</b>, dê o nome de <code>EVOLUTION_INSTANCIA</code> (padrão <code>loja</code>), canal <b>Baileys</b>, salve, abra a instância e leia o QR Code pelo WhatsApp do celular (Aparelhos conectados → Conectar aparelho).</p>
+<pre><span class="k">ssh</span> -L 8081:127.0.0.1:8081 usuario@vps
+<span class="c"># sem o manager, pela API, na VPS:</span>
+<span class="k">curl</span> -X POST <span class="s">http://127.0.0.1:8081/instance/create</span> -H <span class="s">"apikey: &lt;EVOLUTION_API_KEY&gt;"</span> \
+  -H <span class="s">'Content-Type: application/json'</span> -d <span class="s">'{"instanceName":"loja","integration":"WHATSAPP-BAILEYS","qrcode":true}'</span></pre>
+  </div></div>
+  <div class="step"><div class="b">5</div><div>
+    <h3>Webhook da Evolution</h3>
+    <p>Evento <code>MESSAGES_UPSERT</code> para o endereço abaixo. Com o perfil <code>evolution</code>, o compose já aponta pela rede interna; com uma Evolution em outro servidor, preencha <code>EVOLUTION_URL</code> no <code>.env</code> e configure o webhook nela. Mensagens com <code>remoteJid</code> <code>@lid</code> usam o telefone de <code>remoteJidAlt</code>/<code>senderPn</code>; sem ele, aparecem em <b>descartes</b> no <code>/gestor</code>.</p>
+<pre><span class="s">https://&lt;domínio&gt;/webhook/evolution/&lt;WEBHOOK_SEGREDO&gt;</span></pre>
+  </div></div>
+  <div class="step"><div class="b">6</div><div>
+    <h3>Webhook do Telegram</h3>
+    <p>Com o bot no grupo da equipe como administrador (para fixar o painel), registre o webhook. O token e o <code>TELEGRAM_SEGREDO</code> estão no <code>.env</code> gerado pelo instalador (<code>grep TELEGRAM_ .env</code>).</p>
+<pre><span class="k">curl</span> <span class="s">"https://api.telegram.org/bot&lt;TOKEN&gt;/setWebhook?url=https://&lt;domínio&gt;/webhook/telegram&amp;secret_token=&lt;TELEGRAM_SEGREDO&gt;"</span></pre>
+  </div></div>
+  <div class="step"><div class="b">7</div><div>
+    <h3>Backup diário: um único cron</h3>
+    <p>O <code>instalar-vps.sh</code> já instala no crontab do root. Roda dentro do container e copia para fora do volume de dados, guardando 30 dias.</p>
+<pre>0 3 * * * cd /opt/atende-leads &amp;&amp; <span class="k">docker compose exec</span> -T atende ./atende backup --dados /dados --saida /dados/.backup-cron.tar.gz &amp;&amp; mkdir -p /opt/atende-leads-backups &amp;&amp; mv /opt/atende-leads/dados/.backup-cron.tar.gz /opt/atende-leads-backups/leads-$(date +\%F).tar.gz &amp;&amp; find /opt/atende-leads-backups -name 'leads-*.tar.gz' -mtime +30 -delete <span class="c"># atende-leads-backup</span></pre>
+  </div></div>
+  <div class="step"><div class="b">8</div><div>
+    <h3>Restaurar</h3>
+    <p>Pare o serviço antes: o <code>restaurar</code> recusa com o servidor no ar.</p>
+<pre><span class="k">docker compose stop</span> atende
+<span class="k">docker compose run</span> --rm -v /opt/atende-leads-backups:/backups atende \
+  ./atende restaurar --dados /dados --arquivo /backups/leads-AAAA-MM-DD.tar.gz
+<span class="k">docker compose start</span> atende</pre>
+  </div></div>
+  <p class="mut" style="margin:0 0 22px">Envios ao Telegram e ao WhatsApp saem por uma caixa de saída em segundo plano: se uma API travar, o atendimento e o <code>/api/saude</code> continuam respondendo.</p>
+
+  <div class="aviso"><b>Cuidados.</b> A Evolution não é a API oficial do WhatsApp: use um número dedicado e não faça disparo em massa para quem não falou com você. Os dados dos leads ficam no seu servidor (<code>dados/</code>); o backup contém dados pessoais, guarde com acesso restrito.</div>
+</div></section>
+
+<section id="exemplos"><div class="wrap">
+  <span class="chip">Telas</span>
+  <h2>Como fica na <span class="amb">prática</span></h2>
+  <p class="sub">Telas reais do sistema rodando com dados de exemplo (uma escola de idiomas fictícia, segunda-feira 10h). As do Telegram foram montadas com os textos exatos que o sistema enviou.</p>
+
+  <h3>No celular do lead</h3>
+  <div class="ex cel">
+    <figure><img src="assets/print-chat.jpg" alt="Chat web do lead: o agente pergunta o que procura, a urgência e chama a equipe" loading="lazy"><figcaption>Chat do lead: o agente qualifica (o que procura, para quando) e chama a equipe.</figcaption></figure>
+    <figure><img src="assets/print-meu.jpg" alt="Página meu atendimento: Ana está te atendendo" loading="lazy"><figcaption>Página "meu atendimento": quem atende, botão para falar agora e para apagar os dados.</figcaption></figure>
+    <figure><img src="assets/print-tg-painel.jpg" alt="Painel EQUIPE AGORA fixado no grupo do Telegram" loading="lazy"><figcaption>Painel fixo <code>EQUIPE AGORA</code> no grupo: status de cada um e a fila.</figcaption></figure>
+  </div>
+
+  <h3>No Telegram da equipe</h3>
+  <div class="ex">
+    <figure><img src="assets/print-tg-privado.jpg" alt="Oferta no privado do Telegram com os botões Assumir, Passar, Ligar e WhatsApp, e o cartão do atendimento com os botões de fechamento" loading="lazy"><figcaption>No privado: a oferta com dados e botões; depois de assumir, o cartão com os botões de fechamento.</figcaption></figure>
+    <figure><img src="assets/print-tg-grupo.jpg" alt="Grupo da equipe com as linhas curtas dos chamados e dois alertas com o botão Assumir" loading="lazy"><figcaption>No grupo: uma linha curta por chamado e o alerta 🚨 quando ninguém assume. Sem telefone.</figcaption></figure>
+  </div>
+
+  <h3>No painel da equipe e do gestor</h3>
+  <div class="ex">
+    <figure><img src="assets/print-equipe.jpg" alt="Painel da equipe: meu status, ofertas e alertas, meus atendimentos" loading="lazy"><figcaption><code>/equipe</code>: status, ofertas e alertas, atendimentos abertos e retornos de hoje.</figcaption></figure>
+    <figure><img src="assets/print-equipe-ficha.jpg" alt="Ficha do lead com mensagens, resposta ao lead e formulário de fechamento" loading="lazy"><figcaption>Ficha do lead: histórico, resposta ao lead e fechamento com resultado.</figcaption></figure>
+    <figure><img src="assets/print-gestor-aovivo.jpg" alt="Painel do gestor ao vivo: equipe agora, fila e em atendimento" loading="lazy"><figcaption><code>/gestor</code> ao vivo: equipe, fila com alertas e quem está atendendo, com transferência.</figcaption></figure>
+    <figure><img src="assets/print-gestor-hoje.jpg" alt="Painel do gestor hoje: leads novos, chamados, vendas e valor vendido" loading="lazy"><figcaption><code>/gestor</code> hoje: leads novos, chamados, vendas, valor vendido e números por colaborador.</figcaption></figure>
+  </div>
+</div></section>
+
+<section id="roadmap"><div class="wrap">
+  <span class="chip">Roteiro</span>
+  <h2>O que fica fora da v1</h2>
+  <p class="sub">A versão 1.0.1 faz o que está descrito acima. Estas ideias ficaram para depois.</p>
+  <div class="phase"><div class="tag">v1.0.1</div><div class="d"><strong>Hoje</strong><span>Agente por regras, roteamento pelo Telegram, alerta, painel fixo, fechamento, três painéis web, Docker e backup.</span></div></div>
+  <div class="phase"><div class="tag">Depois</div><div class="d"><strong>Fora da v1</strong><span>Agente de voz automático · responder o WhatsApp pelo painel · funil arrastável · CRM externo por webhook · metas e ranking · vários números · API oficial da Meta · pesquisa de satisfação.</span></div></div>
+</div></section>
+
+<footer>
+  <div class="wrap">
+    <div class="pill">Python 3 (biblioteca padrão)</div><div class="pill">SQLite</div><div class="pill">Evolution API</div><div class="pill">Telegram Bot API</div><div class="pill">Docker</div>
+    <p style="margin-top:18px">atende-leads · licença MIT, conteúdo aberto e gratuito ·
+      <a href="https://github.com/inematds/atende-leads">inematds/atende-leads</a> ·
+      <a href="https://inema.club">INEMA.CLUB</a></p>
+  </div>
+</footer>
+
+<script>
+  (function(){
+    var KEY='atende-leads-theme';
+    var b=document.body, t=document.getElementById('themeToggle');
+    if(localStorage.getItem(KEY)==='light'){ b.classList.add('light'); t.textContent='☀️'; }
+    t.addEventListener('click',function(){
+      var light=b.classList.toggle('light');
+      t.textContent=light?'☀️':'🌙';
+      localStorage.setItem(KEY, light?'light':'dark');
+    });
+  })();
+</script>
+</body>
+</html>
