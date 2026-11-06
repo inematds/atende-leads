@@ -67,3 +67,21 @@
 | 2026-11-05 | tests/test_revisao2.py::test_minutos_ate_assumir_conta_da_abertura_do_expediente (novo) | §9 minutos_ate_assumir; §13 hoje | item 8: chamado das 07:00, expediente 08:00, assumido 08:03 → 3 (e tempo médio 3) |
 
 Fora de escopo, mantido de propósito: `/entrar` do Telegram continua barrando até o código certo depois de 5 erros (balde por `from.id`, não por IP — não sofre do problema do proxy). `assumir_retorno` (botão `ra:`) e `transferir` chamam `assumir` sem a restrição (o retorno já é do colaborador; o gestor transfere).
+
+## Testes alterados/novos na correção da 3ª revisão independente (1.0.3)
+
+| data | teste | trecho do contrato | motivo |
+|---|---|---|---|
+| 2026-11-05 | tests/test_revisao3.py::test_instalador_reaproveita_segredos_do_env (novo) | §17 instalar-vps.sh reaproveita os segredos | rodar de novo trocava EVOLUTION_DB_SENHA/TELEGRAM_SEGREDO (Evolution parava, webhook do Telegram 401) |
+| 2026-11-05 | tests/test_revisao3.py::test_instalador_aborta_se_dados_nao_for_do_uid_1000 (novo, estático) | §17 chown ou aborta antes de subir | uid ≠ 1000 deixava dados/ 0700 de outro dono e subia mesmo assim |
+| 2026-11-05 | tests/test_revisao3.py::test_backup_pasta_700_arquivo_600 (novo, estático) | §17 backups 700/600 | backup com dados pessoais legível por outros |
+| 2026-11-05 | tests/test_revisao3.py::test_compose_evolution_nao_guarda_mensagens_nem_contatos (novo, arquivo) | §17 DATABASE_SAVE_* false (LGPD) | Evolution guardava cópia das mensagens que o "apagar" não limpa |
+| 2026-11-05 | tests/test_revisao3.py::test_saude_responde_com_servidor_lotado (novo) | §1 limite de conexões, exceto /api/saude | healthcheck dava 503 com 64 conexões presas |
+| 2026-11-05 | tests/test_revisao3.py::test_nome_invalido_do_chat_web_e_ignorado (novo) | §4 `nome` validado | nome do formulário entrava sem validação |
+| 2026-11-05 | tests/test_revisao3.py::test_avisos_vem_marcados_no_chat_web (novo) | §4 `tipo: aviso` em GET /api/web | lead web não via "Ana vai te atender agora." |
+| 2026-11-05 | tests/test_revisao3.py::test_telefone_estrangeiro_do_remotejid_sem_55 (novo) | §15 remoteJid sem 55 | número estrangeiro de 10–11 dígitos ganhava 55 |
+| 2026-11-05 | tests/test_revisao3.py::test_apagar_edita_mensagens_do_lead_no_privado (novo) | §4 regra 2 (💬/📅/Ainda com) | dados do lead ficavam no privado do dono |
+| 2026-11-05 | tests/test_revisao3.py::test_config_token_gestor_forte_e_arquivo_600 (novo) | §13 PUT config token 16+, arquivo 600 | token fraco aceito; negocio.json regravado 644 |
+| 2026-11-05 | tests/test_revisao3.py::test_webhook_que_quebra_vai_para_descartes (novo) | §13 descartes de webhook que desistiu | falha só ia ao log |
+| 2026-11-05 | tests/test_seguranca.py::test_csv_sem_injecao_de_formula (alterado) | §4 nome validado; §13 CSV prefixa `'` | a fórmula no `nome` agora é recusada; o escape do CSV passa a ser provado pelo id do colaborador |
+| 2026-11-05 | tests_dev/test_cerebro.py::test_openai_resumo_e_chave (alterado) + test_chave_so_vai_a_host_permitido (novo) | §14 CEREBRO_HOSTS_PERMITIDOS | chave só vai a host permitido |

@@ -1,12 +1,18 @@
 # atende-leads
 
+[![Atende Leads](guia/assets/banner.jpg)](https://inematds.github.io/atende-leads/guia/)
+
 **🇧🇷 [Português](README.md) · 🇺🇸 [English](README.en.md) · 🇪🇸 [Español](README.es.md)**
+
+## O que é
+
+Um sistema de código aberto que atende os leads que chegam pelo WhatsApp (e pelo chat do site): um agente responde, qualifica e, quando é hora de um humano, passa o lead ao colaborador livre há mais tempo pelo Telegram, com todos os dados e um botão para ligar. Roda numa VPS com Docker, sem custo de API, e os dados ficam no seu servidor.
 
 ## 📖 Guia de uso
 
 Guia completo (landing + passo a passo): **https://inematds.github.io/atende-leads/guia/**
 
-Atendimento de **leads pelo WhatsApp** com um agente que responde, qualifica e passa o lead para o **colaborador livre** pelo Telegram, com todos os dados e um botão para ligar. Python 3 só com biblioteca padrão, estado em SQLite, Docker para VPS. Código aberto, versão `1.0.2`.
+Atendimento de **leads pelo WhatsApp** com um agente que responde, qualifica e passa o lead para o **colaborador livre** pelo Telegram, com todos os dados e um botão para ligar. Python 3 só com biblioteca padrão, estado em SQLite, Docker para VPS. Código aberto, versão `1.0.3`.
 
 ## O que faz
 
@@ -46,7 +52,7 @@ Quem faz: 🧠 o dono/gestor · ⚙️ o sistema · 🤖 o agente.
 ```bash
 ./atende serve --porta 8080 --dados dados
 # chat do lead: http://localhost:8080/   equipe: /equipe   gestor: /gestor (token em dados/negocio.json)
-python3 -m pytest -q tests/        # contrato (302 testes; build e container Docker só com TESTAR_DOCKER=1)
+python3 -m pytest -q tests/        # contrato (313 testes; build e container Docker só com TESTAR_DOCKER=1)
 ```
 
 Relógio fixo para testar: `ATENDE_AGORA=2026-11-09T10:00 ./atende serve ...` e `POST /api/tarefas/rodar`.
@@ -56,12 +62,13 @@ Relógio fixo para testar: `ATENDE_AGORA=2026-11-09T10:00 ./atende serve ...` e 
 Todos os comandos abaixo usam o caminho **`/opt/atende-leads`** (o cron de backup também). Se instalar em outro lugar, troque o caminho em todos eles.
 
 0. **Baixar:** `git clone https://github.com/inematds/atende-leads /opt/atende-leads && cd /opt/atende-leads`
-1. **Subir:** `cd /opt/atende-leads && ./instalar-vps.sh`. Ele gera `.env` e `dados/negocio.json` com permissão só do dono (`umask 077`), o token do gestor e os **códigos da equipe** (aleatórios, `secrets.token_urlsafe`), dá a pasta `dados/` ao uid 1000 (o container **não roda como root**), sobe o compose e imprime tudo no fim. A aplicação escuta só em `127.0.0.1:8080` e a Evolution em `127.0.0.1:8081`.
-   - **Sem o instalador** (`docker compose up -d`, ou `docker compose --profile evolution up -d` com a Evolution no mesmo servidor): `cd /opt/atende-leads && cp .env.exemplo .env && mkdir -p dados && cp exemplos/negocio.json dados/` e **troque** o `token_gestor` e os códigos da equipe em `dados/negocio.json` (códigos com 12+ caracteres) e `WEBHOOK_SEGREDO`, `TELEGRAM_SEGREDO`, `EVOLUTION_API_KEY` e `EVOLUTION_DB_SENHA` no `.env`; depois `sudo chown -R 1000:1000 /opt/atende-leads/dados`. Com algum segredo de exemplo o container recusa subir (item 2).
+1. **Subir:** `cd /opt/atende-leads && ./instalar-vps.sh`. Ele gera `.env` e `dados/negocio.json` com permissão só do dono (`umask 077`), o token do gestor e os **códigos da equipe** (aleatórios, `secrets.token_urlsafe`), dá a pasta `dados/` ao uid 1000 (o container **não roda como root**; sem ser root, tenta `sudo -n chown -R 1000:1000 dados`, e se não conseguir **para antes de subir** e mostra o comando), sobe o compose e imprime tudo no fim. A aplicação escuta só em `127.0.0.1:8080` e a Evolution em `127.0.0.1:8081`.
+   - **Rodar de novo** (mudar domínio, ligar o Telegram) **não troca os segredos**: `WEBHOOK_SEGREDO`, `TELEGRAM_SEGREDO`, `EVOLUTION_API_KEY` e `EVOLUTION_DB_SENHA` que já estão no `.env` são reaproveitados (a saída diz quais); só os que faltam (ou ainda têm `troque`) são gerados. Trocar a senha do Postgres com o volume já criado derrubaria a Evolution, e um `TELEGRAM_SEGREDO` novo faria o webhook do Telegram dar 401. O token do gestor e os códigos da equipe também são mantidos.
+   - **Sem o instalador** (`docker compose up -d`, ou `docker compose --profile evolution up -d` com a Evolution no mesmo servidor): `cd /opt/atende-leads && cp .env.exemplo .env && mkdir -p dados && cp exemplos/negocio.json dados/` e **troque** o `token_gestor` e os códigos da equipe em `dados/negocio.json` (códigos com 12+ caracteres) e `WEBHOOK_SEGREDO`, `TELEGRAM_SEGREDO`, `EVOLUTION_API_KEY` e `EVOLUTION_DB_SENHA` no `.env`; com o perfil `evolution`, ponha também `EVOLUTION_URL=http://evolution-api:8080` (a URL interna; vazio = WhatsApp desligado); depois `sudo chown -R 1000:1000 /opt/atende-leads/dados`. Com algum segredo de exemplo o container recusa subir (item 2).
    - **Evolution externa** (já roda em outro servidor; não use o perfil `evolution`): no `.env`, `EVOLUTION_URL=https://<sua-evolution>`, `EVOLUTION_API_KEY=<API key dela>`, `EVOLUTION_INSTANCIA=<instância>`; e, no manager dela, o webhook `MESSAGES_UPSERT` para `https://<domínio>/webhook/evolution/<WEBHOOK_SEGREDO>` (item 5). Suba só `docker compose up -d`.
-   - **Atualizar uma instalação anterior à 1.0.2:** `cd /opt/atende-leads && git pull && sudo chown -R 1000:1000 dados && docker compose up -d --build`.
-2. **Segredos de exemplo não sobem na rede:** se o `negocio.json` ainda tem `token_gestor` = `TROQUE-ESTE-TOKEN` ou algum código igual ao do `exemplos/negocio.json`, ou se uma integração está ligada com `WEBHOOK_SEGREDO`/`TELEGRAM_SEGREDO` vazio, com menos de 16 caracteres ou contendo `troque`, o servidor só aceita subir em `127.0.0.1`/`localhost`. Em `0.0.0.0` (como no Docker) ele **recusa** com a mensagem "rode ./instalar-vps.sh ou troque os segredos". O `.env.exemplo` vem com `EVOLUTION_URL=` e `TELEGRAM_TOKEN=` vazios: as integrações ficam desligadas até você preencher. Para teste/demonstração apenas: `ATENDE_PERMITIR_EXEMPLO=1` no ambiente (nunca em produção).
-3. **HTTPS:** proxy reverso (Caddy ou Nginx) do seu domínio para `127.0.0.1:8080`. Ex. Caddy: `leads.seudominio.com { reverse_proxy 127.0.0.1:8080 }`. Ajuste `url_publica` no `negocio.json`. Limites por IP (5 senhas erradas por minuto → as erradas recebem 429, a certa sempre passa; 5 conversas novas do chat web em 10 min; 3 pedidos de atendimento pelo web por hora) usam o IP do `X-Forwarded-For` quando a conexão vem de um proxy confiável: `ATENDE_PROXY_CONFIAVEL` (CIDRs; padrão `127.0.0.1/32,::1/128,172.16.0.0/12,10.0.0.0/8,192.168.0.0/16`, que cobre o Caddy no host chegando pela bridge do Docker). Vazio = nunca confiar no `X-Forwarded-For`.
+   - **Atualizar uma instalação anterior:** `cd /opt/atende-leads && git pull && sudo chown -R 1000:1000 dados && docker compose up -d --build` (de antes da 1.0.2, o `chown` é obrigatório; com o cérebro `openai` e chave, acrescente `CEREBRO_HOSTS_PERMITIDOS` no `.env`).
+2. **Segredos de exemplo não sobem na rede:** se o `negocio.json` ainda tem `token_gestor` = `TROQUE-ESTE-TOKEN` ou algum código igual ao do `exemplos/negocio.json`, ou se uma integração está ligada com `WEBHOOK_SEGREDO`/`TELEGRAM_SEGREDO` vazio, com menos de 16 caracteres ou contendo `troque` (ou a Evolution ligada com `EVOLUTION_API_KEY` contendo `troque`), o servidor só aceita subir em `127.0.0.1`/`localhost`. Em `0.0.0.0` (como no Docker) ele **recusa** com a mensagem "rode ./instalar-vps.sh ou troque os segredos". O `.env.exemplo` vem com `EVOLUTION_URL=` e `TELEGRAM_TOKEN=` vazios: as integrações ficam desligadas até você preencher. Para teste/demonstração apenas: `ATENDE_PERMITIR_EXEMPLO=1` no ambiente (nunca em produção).
+3. **HTTPS:** proxy reverso (Caddy ou Nginx) do seu domínio para `127.0.0.1:8080`. Ex. Caddy: `leads.seudominio.com { reverse_proxy 127.0.0.1:8080 }`. Ajuste `url_publica` no `negocio.json`. Limites por IP (5 senhas erradas por minuto → as erradas recebem 429, a certa sempre passa; 5 conversas novas do chat web em 10 min; 3 pedidos de atendimento pelo web por hora) usam o IP do `X-Forwarded-For` quando a conexão vem de um proxy confiável: `ATENDE_PROXY_CONFIAVEL` (CIDRs; padrão `127.0.0.1/32,::1/128,172.16.0.0/12,10.0.0.0/8,192.168.0.0/16`, que cobre o Caddy no host chegando pela bridge do Docker). Vazio = nunca confiar no `X-Forwarded-For`. O chat web é público: além desses limites, o total de conversas novas também tem teto, e quem assume um lead é só o colaborador a quem ele foi ofertado ou, em alerta 🚨, quem tocar primeiro em Assumir.
 4. **WhatsApp (QR Code):** a porta da Evolution só escuta em `127.0.0.1`, então abra um túnel do seu computador:
    ```bash
    ssh -L 8081:127.0.0.1:8081 usuario@vps
@@ -70,9 +77,9 @@ Todos os comandos abaixo usam o caminho **`/opt/atende-leads`** (o cron de backu
 5. **Webhook da Evolution:** evento `MESSAGES_UPSERT` para `https://<domínio>/webhook/evolution/<WEBHOOK_SEGREDO>` (com o perfil `evolution` o compose já aponta pela rede interna). Mensagens com `remoteJid` `@lid` usam o telefone de `remoteJidAlt`/`senderPn`; sem ele, aparecem em **descartes** no `/gestor`.
 6. **Webhook do Telegram:** crie o bot no @BotFather, ponha no grupo da equipe como admin (para fixar o painel) e registre:
    `curl "https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://<domínio>/webhook/telegram&secret_token=<TELEGRAM_SEGREDO>"`
-7. **Backup diário — um único cron** (o `instalar-vps.sh` instala no crontab do root). Roda dentro do container e copia para **fora** do volume de dados:
+7. **Backup diário — um único cron** (o `instalar-vps.sh` instala no crontab do root). Roda dentro do container e copia para **fora** do volume de dados, numa pasta `700` com arquivos `600` (o backup tem dados pessoais):
    ```cron
-   0 3 * * * cd /opt/atende-leads && docker compose exec -T atende ./atende backup --dados /dados --saida /dados/.backup-cron.tar.gz && mkdir -p /opt/atende-leads-backups && mv /opt/atende-leads/dados/.backup-cron.tar.gz /opt/atende-leads-backups/leads-$(date +\%F).tar.gz && find /opt/atende-leads-backups -name 'leads-*.tar.gz' -mtime +30 -delete # atende-leads-backup
+   0 3 * * * cd /opt/atende-leads && docker compose exec -T atende ./atende backup --dados /dados --saida /dados/.backup-cron.tar.gz && install -d -m 700 /opt/atende-leads-backups && f=/opt/atende-leads-backups/leads-$(date +\%F).tar.gz && mv /opt/atende-leads/dados/.backup-cron.tar.gz $f && chmod 600 $f && find /opt/atende-leads-backups -name 'leads-*.tar.gz' -mtime +30 -delete # atende-leads-backup
    ```
 8. **Restaurar:** pare o serviço antes (o `restaurar` recusa com o servidor no ar):
    ```bash
@@ -83,12 +90,14 @@ Todos os comandos abaixo usam o caminho **`/opt/atende-leads`** (o cron de backu
    docker compose start atende
    ```
 
-Variáveis em [`.env.exemplo`](.env.exemplo) (inclui `ATENDE_PROXY_CONFIAVEL`, `ATENDE_MAX_CONEXOES` — conexões simultâneas, padrão 64, acima disso 503 — e `ATENDE_PERMITIR_EXEMPLO`, só para demonstração). Sem as de uma integração, ela fica desligada e o resto funciona (painéis web). Envios ao Telegram e ao WhatsApp saem por uma caixa de saída em segundo plano: se uma API travar, o atendimento e o `/api/saude` continuam respondendo.
+Variáveis em [`.env.exemplo`](.env.exemplo) (inclui `ATENDE_PROXY_CONFIAVEL`, `ATENDE_MAX_CONEXOES` — conexões simultâneas, padrão 64, acima disso 503, mas o `/api/saude` responde mesmo lotado —, `CEREBRO_HOSTS_PERMITIDOS` e `ATENDE_PERMITIR_EXEMPLO`, só para demonstração). Sem as de uma integração, ela fica desligada e o resto funciona (painéis web). Envios ao Telegram e ao WhatsApp saem por uma caixa de saída em segundo plano: se uma API travar, o atendimento e o `/api/saude` continuam respondendo.
 
 ## Cuidados
 
 - A Evolution não é a API oficial do WhatsApp: use um número dedicado e não faça disparo em massa para quem não falou com você.
 - Os dados de leads ficam no seu servidor (`dados/`). O backup contém dados pessoais: guarde com acesso restrito.
+- A Evolution do compose **não guarda** cópia das mensagens, contatos e conversas (`DATABASE_SAVE_*` = `false`, por LGPD): o que o atendimento precisa fica em `dados/leads.db`, que o "apagar meus dados" limpa.
+- **Quem tem o token do gestor pode mudar `cerebro.url`** no `/gestor`. Por isso a `CEREBRO_API_KEY` só é enviada a um host listado em `CEREBRO_HOSTS_PERMITIDOS` no `.env` (ex.: `CEREBRO_HOSTS_PERMITIDOS=api.seuprovedor.com`); vazio = a chave não vai a ninguém. Um token do gestor novo pelo `/gestor` precisa de 16+ caracteres e não pode ser o do exemplo.
 
 ## Roteiro (fora da v1)
 

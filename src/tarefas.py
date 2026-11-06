@@ -77,8 +77,9 @@ def retornos(c, agora):
         lead = c.lead(r['lead_id'])
         texto = f"📅 Retorno: {lead['nome'] or 'lead'} {formatar_telefone(lead['telefone'])}"
         if r['colaborador']:
-            equipe.privado(c, r['colaborador'], texto,
-                           [[tg.bt('✅ Assumir', f"ra:{r['chamado_id']}")], chamados.botoes_contato(c, ch)])
+            ref = equipe.privado(c, r['colaborador'], texto,
+                                 [[tg.bt('✅ Assumir', f"ra:{r['chamado_id']}")], chamados.botoes_contato(c, ch)])
+            chamados.guardar_msg(c, ref, r['chamado_id'], 'retorno')  # para o "apagar meus dados" editar
         c.db.execute('UPDATE retornos SET enviado=1 WHERE chamado_id=?', (r['chamado_id'],))
         n += 1
     return n

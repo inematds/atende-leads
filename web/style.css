@@ -66,6 +66,7 @@ th{color:var(--mut);font-weight:600}
   white-space:pre-wrap;overflow-wrap:anywhere}
 .bolha.minha{margin-left:auto;background:var(--amb);color:var(--amb-txt);border-color:var(--amb)}
 .bolha.humano{border-color:var(--amb)}
+.bolha.aviso{font-style:italic}
 .bolha small{display:block;font-size:.75rem;color:var(--mut);margin-bottom:2px}
 .chat-form{display:flex;gap:8px;padding:12px 16px;border-top:1px solid var(--line);background:var(--bg2)}
 .widget .topo{padding:10px 14px}

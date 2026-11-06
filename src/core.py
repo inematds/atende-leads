@@ -46,10 +46,15 @@ def contem(t, termo):
     return bool(termo) and termo in t
 
 
-def normalizar_telefone(valor):
+def normalizar_telefone(valor, internacional=False):
+    """internacional=True: número que já vem com o código do país (remoteJid do WhatsApp) — não ganha 55."""
     if not isinstance(valor, (str, int)) or isinstance(valor, bool):
         raise Erro(422, 'Telefone inválido')
     dig = re.sub(r'\D', '', str(valor))
+    if internacional:
+        if not 8 <= len(dig) <= 15:
+            raise Erro(422, 'Telefone inválido')
+        return dig
     if len(dig) in (10, 11):
         dig = '55' + dig
     if len(dig) < 12 or len(dig) > 13:
@@ -59,8 +64,10 @@ def normalizar_telefone(valor):
 
 def formatar_telefone(dig):
     dig = str(dig or '')
-    if not dig.isdigit() or len(dig) < 12:
+    if not dig.isdigit():
         return dig
+    if not (dig.startswith('55') and len(dig) in (12, 13)):
+        return '+' + dig if len(dig) >= 8 else dig
     pais, ddd, resto = dig[:2], dig[2:4], dig[4:]
     return f'+{pais} ({ddd}) {resto[:-4]}-{resto[-4:]}'
 
@@ -266,6 +273,7 @@ class App:
         arq = self.pasta / 'negocio.json'
         tmp = arq.with_suffix('.json.tmp')
         tmp.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding='utf-8')
+        os.chmod(tmp, 0o600)  # token do gestor e códigos da equipe: só o dono lê
         os.replace(tmp, arq)
         self.cfg = cfg
         self.sincronizar_equipe()

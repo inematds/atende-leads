@@ -8,7 +8,7 @@ import time
 
 import pytest
 
-from conftest import (CODIGOS, FIXTURE, GRUPO, RAIZ, SEGREDO_WH, TEL, TEL_D, TG_ID, TOKEN, Servidor, Tg,
+from conftest import (CODIGOS, FIXTURE, GRUPO, RAIZ, SEGREDO_WH, TEL, TEL2, TEL2_D, TEL_D, TG_ID, TOKEN, Servidor, Tg,
                       equipe_pronta, esperar, ok)
 
 
@@ -235,10 +235,21 @@ def test_status_em_outro_grupo_ignorado(api_int, externo, tg):
 # ------------------------------------------------------------ item 7: CSV
 
 def test_csv_sem_injecao_de_formula(api):
+    # 1.0.3: o nome do formulário passa pela validação de nome, então a fórmula nem vira nome...
     api.msg_full(TEL, "oi", nome='=HYPERLINK("http://x","clique")')
     _, linhas = api.csv()
     nome = next(l["nome"] for l in linhas if l["telefone"] == TEL_D)
-    assert nome.startswith("'=")
+    assert not nome.startswith("=")
+    # ...e texto livre que chega ao CSV por outro campo (id do colaborador, cadastrado no /gestor) ganha '.
+    st, cfg = api.get("/api/gestor/config")
+    cfg["equipe"].append({"id": "=HYPERLINK(1)", "nome": "Zé", "codigo": "ze-formula-codigo-1"})
+    assert api.put("/api/gestor/config", cfg)[0] == 200
+    assert api.post("/api/equipe/status", {"status": "livre"}, codigo="ze-formula-codigo-1")[0] == 200
+    lead, ch = api.abrir(TEL2)
+    assert api.post(f"/api/equipe/chamados/{ch}/assumir", {"colaborador": "=HYPERLINK(1)"})[0] == 200
+    _, linhas = api.csv()
+    dono = next(l for l in linhas if l["telefone"] == TEL2_D)
+    assert [v for v in dono.values() if "HYPERLINK" in v] == ["'=HYPERLINK(1)"]
 
 
 # ------------------------------------------------------------ item 8: @lid

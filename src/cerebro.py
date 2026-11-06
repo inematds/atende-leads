@@ -1,11 +1,13 @@
 """Cérebro do agente (seção 14). 'regras' cobre tudo; ollama/openai só resumem e tiram dúvida.
 
 Qualquer erro, timeout (15 s) ou resposta vazia cai na regra. A URL vem só do negocio.json
-e a chave só de CEREBRO_API_KEY. Nenhuma chamada acontece dentro do lock do banco.
+e a chave só de CEREBRO_API_KEY, enviada só a host de CEREBRO_HOSTS_PERMITIDOS. Nenhuma chamada acontece dentro do lock do banco.
 """
 import os
+from urllib.parse import urlsplit
 
 from . import rede
+from .core import log
 
 URGENCIA = {1: 'hoje', 2: 'este mês', 3: 'pesquisando'}
 ASSUNTO = {'pediu_humano': 'falar com alguém', 'venda': 'comprar', 'precisa': 'resolver um problema'}
@@ -77,6 +79,23 @@ def perguntar(c, sistema, usuario):
                     lambda: _perguntar(t, cfg, sistema, usuario))
 
 
+def hosts_permitidos():
+    return {h.strip().lower() for h in (os.environ.get('CEREBRO_HOSTS_PERMITIDOS') or '').split(',') if h.strip()}
+
+
+def host_permitido(url):
+    """A CEREBRO_API_KEY só vai a um host listado em CEREBRO_HOSTS_PERMITIDOS (vazio = a nenhum). Quem tem o
+    token do gestor pode mudar cerebro.url; sem esta lista, poderia apontar para um servidor seu e ler a chave."""
+    partes = urlsplit(url)
+    host = (partes.hostname or '').lower()
+    permitidos = hosts_permitidos()
+    if host and (host in permitidos or (partes.netloc or '').lower() in permitidos):
+        return True
+    if os.environ.get('CEREBRO_API_KEY'):
+        log(f'cérebro: CEREBRO_API_KEY não enviada a {host or "?"} (fora de CEREBRO_HOSTS_PERMITIDOS)')
+    return False
+
+
 def _perguntar(t, cfg, sistema, usuario):
     """Só rede: não toca no banco."""
     url = str(cfg.get('url') or '').rstrip('/')
@@ -96,7 +115,7 @@ def _perguntar(t, cfg, sistema, usuario):
                 destino = url + '/v1/chat/completions'
             headers = {}
             chave = os.environ.get('CEREBRO_API_KEY')
-            if chave:
+            if chave and host_permitido(destino):
                 headers['Authorization'] = f'Bearer {chave}'
             ok, r = rede.postar(destino, {'model': modelo, 'messages': msgs, 'temperature': 0.2}, headers,
                                 timeout=TIMEOUT)

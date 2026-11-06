@@ -48,12 +48,25 @@ def test_ollama_responde_duvida():
 def test_openai_resumo_e_chave():
     srv, url, vistos = falso_llm('Quer o plano anual\nUrgência: hoje')
     s = Servidor(cfg=cfg_exemplo(cerebro={'tipo': 'openai', 'url': url + '/v1', 'modelo': 'm'}),
-                 env={'CEREBRO_API_KEY': 'sk-falsa'})
+                 env={'CEREBRO_API_KEY': 'sk-falsa', 'CEREBRO_HOSTS_PERMITIDOS': '127.0.0.1'})
     try:
         st, r = s.msg('41999990071', 'quero falar com um atendente', nome='Lu')
         st, f = s.g('GET', f"/api/gestor/leads/{r['lead']['id']}")
         assert f['chamados'][-1]['resumo'].startswith('Quer o plano anual')
         assert vistos[-1][0] == '/v1/chat/completions' and vistos[-1][2].get('Authorization') == 'Bearer sk-falsa'
+    finally:
+        s.parar()
+        srv.shutdown()
+
+
+def test_chave_so_vai_a_host_permitido():
+    """Quem tem o token do gestor muda cerebro.url; a chave só segue para CEREBRO_HOSTS_PERMITIDOS."""
+    srv, url, vistos = falso_llm('Quer o plano anual')
+    s = Servidor(cfg=cfg_exemplo(cerebro={'tipo': 'openai', 'url': url + '/v1', 'modelo': 'm'}),
+                 env={'CEREBRO_API_KEY': 'sk-falsa', 'CEREBRO_HOSTS_PERMITIDOS': 'llm.exemplo.test'})
+    try:
+        s.msg('41999990074', 'quero falar com um atendente', nome='Lu')
+        assert vistos and all('Authorization' not in v[2] for v in vistos)
     finally:
         s.parar()
         srv.shutdown()

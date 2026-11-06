@@ -139,7 +139,7 @@
   <div class="glow"></div>
   <div class="wrap">
     <div>
-      <span class="chip">WhatsApp + Telegram · código aberto · v1.0.1</span>
+      <span class="chip">WhatsApp + Telegram · código aberto · v1.0.3</span>
       <h1>Nenhum lead fica <span class="amb">esperando</span></h1>
       <p class="lead">Um agente atende no WhatsApp, qualifica e passa o lead para o colaborador livre há mais tempo, pelo Telegram, com tudo o que ele precisa para ligar.</p>
       <p class="mut" style="margin:-.6em 0 1.4em;font-size:.95rem">A instalação no servidor pede um técnico: veja <a href="#deploy">Deploy na VPS</a>.</p>
@@ -331,7 +331,7 @@
   </div></div>
   <div class="step"><div class="b">6</div><div>
     <h3>Rode os testes</h3>
-    <p>São 282 testes de contrato. O build e o container Docker só entram com <code>TESTAR_DOCKER=1</code>.</p>
+    <p>São 313 testes de contrato. O build e o container Docker só entram com <code>TESTAR_DOCKER=1</code>.</p>
 <pre><span class="k">python3 -m pytest</span> -q tests/</pre>
   </div></div>
 
@@ -361,22 +361,24 @@
     <h3>Subir</h3>
     <p><b>Antes de instalar:</b> crie o bot no @BotFather e ponha no grupo da equipe. O instalador pede o token do bot e o ID do grupo (número que começa com <code>-100</code>). Para achar o ID, mande no grupo um comando para o bot, como <code>/start@nome_do_bot</code> (no modo de privacidade padrão, mensagem comum não chega ao bot), e abra o endereço abaixo; o <code>chat.id</code> do grupo aparece na resposta. Faça isso antes de registrar o webhook (passo 6), porque depois o <code>getUpdates</code> deixa de responder.</p>
 <pre><span class="k">curl</span> <span class="s">"https://api.telegram.org/bot&lt;TOKEN&gt;/getUpdates"</span></pre>
-    <p>Na VPS, como root (ou com <code>sudo</code>), com git, python3 e Docker instalados, clone o projeto e rode o instalador. Ele gera o <code>.env</code>, o token do gestor e os <b>códigos da equipe</b> (aleatórios), sobe o compose, com ou sem a Evolution, instala o cron do backup e imprime tudo no fim: guarde. O cadastro parte do exemplo (a colaboradora Ana, o "Plano anual", um FAQ de loja): troque pelos seus em <code>/gestor</code> → Cadastros antes de receber leads. A aplicação escuta só em <code>127.0.0.1:8080</code> e a Evolution em <code>127.0.0.1:8081</code>.</p>
+    <p>Na VPS, como root (ou com <code>sudo</code>), com git, python3 e Docker instalados, clone o projeto e rode o instalador. Ele gera o <code>.env</code> e o <code>dados/negocio.json</code> só para o dono (<code>umask 077</code>), o token do gestor e os <b>códigos da equipe</b> (aleatórios), passa a pasta <code>dados/</code> ao uid 1000 (o container não roda como root; sem ser root, tenta <code>sudo -n chown</code> e, se não conseguir, para antes de subir e mostra o comando), sobe o compose, com ou sem a Evolution, instala o cron do backup e imprime tudo no fim: guarde. <b>Rodar de novo</b> (mudar o domínio, ligar o Telegram) não troca os segredos: os que já estão no <code>.env</code> são reaproveitados e a saída diz quais; só os que faltam são gerados (uma senha nova do Postgres derrubaria a Evolution, e um <code>TELEGRAM_SEGREDO</code> novo faria o webhook do Telegram dar 401). O cadastro parte do exemplo (a colaboradora Ana, o "Plano anual", um FAQ de loja): troque pelos seus em <code>/gestor</code> → Cadastros antes de receber leads. A aplicação escuta só em <code>127.0.0.1:8080</code> e a Evolution em <code>127.0.0.1:8081</code>.</p>
 <pre><span class="k">git clone</span> <span class="s">https://github.com/inematds/atende-leads.git</span> /opt/atende-leads
 <span class="k">cd</span> /opt/atende-leads
 <span class="k">./instalar-vps.sh</span>
 <span class="c"># sem o instalador: cp .env.exemplo .env, troque todos os segredos do .env</span>
-<span class="c"># e o token_gestor e os códigos em dados/negocio.json; só então:</span>
+<span class="c"># e o token_gestor e os códigos em dados/negocio.json (12+ caracteres);</span>
+<span class="c"># com a Evolution junto, ponha EVOLUTION_URL=http://evolution-api:8080 no .env;</span>
+<span class="k">sudo chown</span> -R 1000:1000 /opt/atende-leads/dados   <span class="c"># o container roda como uid 1000</span>
 <span class="k">docker compose up -d --build</span>              <span class="c"># ou, com a Evolution junto:</span>
 <span class="k">docker compose --profile evolution up -d --build</span></pre>
   </div></div>
   <div class="step"><div class="b">2</div><div>
     <h3>Segredos de exemplo não sobem na rede</h3>
-    <p>Se o <code>negocio.json</code> ainda tem <code>token_gestor</code> = <code>TROQUE-ESTE-TOKEN</code> ou algum código igual ao do <code>exemplos/negocio.json</code>, o servidor só aceita subir em <code>127.0.0.1</code>/<code>localhost</code>. Em <code>0.0.0.0</code> (como no Docker) ele recusa com a mensagem "rode ./instalar-vps.sh ou troque os segredos". Só para teste ou demonstração existe <code>ATENDE_PERMITIR_EXEMPLO=1</code> (nunca em produção).</p>
+    <p>Se o <code>negocio.json</code> ainda tem <code>token_gestor</code> = <code>TROQUE-ESTE-TOKEN</code> ou algum código igual ao do <code>exemplos/negocio.json</code>, ou se uma integração está ligada com <code>WEBHOOK_SEGREDO</code>/<code>TELEGRAM_SEGREDO</code> vazio, com menos de 16 caracteres ou contendo <code>troque</code> (ou com <code>EVOLUTION_API_KEY</code> contendo <code>troque</code>), o servidor só aceita subir em <code>127.0.0.1</code>/<code>localhost</code>. Em <code>0.0.0.0</code> (como no Docker) ele recusa com a mensagem "rode ./instalar-vps.sh ou troque os segredos". Só para teste ou demonstração existe <code>ATENDE_PERMITIR_EXEMPLO=1</code> (nunca em produção).</p>
   </div></div>
   <div class="step"><div class="b">3</div><div>
     <h3>HTTPS</h3>
-    <p>Proxy reverso (Caddy ou Nginx) do seu domínio para <code>127.0.0.1:8080</code>. O instalador já preenche <code>url_publica</code> no <code>negocio.json</code> com o domínio; confira. O limite de tentativas (5 senhas erradas por minuto) usa o IP do <code>X-Forwarded-For</code> só quando a conexão vem do proxy local.</p>
+    <p>Proxy reverso (Caddy ou Nginx) do seu domínio para <code>127.0.0.1:8080</code>. O instalador já preenche <code>url_publica</code> no <code>negocio.json</code> com o domínio; confira. Os limites por IP (5 senhas erradas por minuto: as erradas recebem 429, a certa sempre passa; 5 conversas novas do chat web em 10 min, além de um teto no total; 3 pedidos de atendimento pelo web por hora) usam o IP do <code>X-Forwarded-For</code> só quando a conexão vem de um proxy confiável: <code>ATENDE_PROXY_CONFIAVEL</code> (CIDRs; o padrão cobre o loopback e as redes privadas, por onde o Caddy no host chega ao container). Vazio = nunca confiar no <code>X-Forwarded-For</code>. Quem assume um lead é só o colaborador a quem ele foi ofertado ou, em alerta 🚨, quem tocar primeiro em Assumir.</p>
 <pre><span class="c"># Caddyfile</span>
 leads.seudominio.com { reverse_proxy 127.0.0.1:8080 }</pre>
   </div></div>
@@ -400,8 +402,8 @@ leads.seudominio.com { reverse_proxy 127.0.0.1:8080 }</pre>
   </div></div>
   <div class="step"><div class="b">7</div><div>
     <h3>Backup diário: um único cron</h3>
-    <p>O <code>instalar-vps.sh</code> já instala no crontab do root. Roda dentro do container e copia para fora do volume de dados, guardando 30 dias.</p>
-<pre>0 3 * * * cd /opt/atende-leads &amp;&amp; <span class="k">docker compose exec</span> -T atende ./atende backup --dados /dados --saida /dados/.backup-cron.tar.gz &amp;&amp; mkdir -p /opt/atende-leads-backups &amp;&amp; mv /opt/atende-leads/dados/.backup-cron.tar.gz /opt/atende-leads-backups/leads-$(date +\%F).tar.gz &amp;&amp; find /opt/atende-leads-backups -name 'leads-*.tar.gz' -mtime +30 -delete <span class="c"># atende-leads-backup</span></pre>
+    <p>O <code>instalar-vps.sh</code> já instala no crontab do root. Roda dentro do container e copia para fora do volume de dados, numa pasta <code>700</code> com arquivos <code>600</code> (o backup tem dados pessoais), guardando 30 dias.</p>
+<pre>0 3 * * * cd /opt/atende-leads &amp;&amp; <span class="k">docker compose exec</span> -T atende ./atende backup --dados /dados --saida /dados/.backup-cron.tar.gz &amp;&amp; install -d -m 700 /opt/atende-leads-backups &amp;&amp; f=/opt/atende-leads-backups/leads-$(date +\%F).tar.gz &amp;&amp; mv /opt/atende-leads/dados/.backup-cron.tar.gz $f &amp;&amp; chmod 600 $f &amp;&amp; find /opt/atende-leads-backups -name 'leads-*.tar.gz' -mtime +30 -delete <span class="c"># atende-leads-backup</span></pre>
   </div></div>
   <div class="step"><div class="b">8</div><div>
     <h3>Restaurar</h3>
@@ -411,9 +413,9 @@ leads.seudominio.com { reverse_proxy 127.0.0.1:8080 }</pre>
   ./atende restaurar --dados /dados --arquivo /backups/leads-AAAA-MM-DD.tar.gz
 <span class="k">docker compose start</span> atende</pre>
   </div></div>
-  <p class="mut" style="margin:0 0 22px">Envios ao Telegram e ao WhatsApp saem por uma caixa de saída em segundo plano: se uma API travar, o atendimento e o <code>/api/saude</code> continuam respondendo.</p>
+  <p class="mut" style="margin:0 0 22px">Envios ao Telegram e ao WhatsApp saem por uma caixa de saída em segundo plano: se uma API travar, o atendimento e o <code>/api/saude</code> continuam respondendo. Acima de 64 conexões ao mesmo tempo (<code>ATENDE_MAX_CONEXOES</code>) o servidor responde 503, mas o <code>/api/saude</code> responde mesmo lotado. Para atualizar: <code>git pull &amp;&amp; sudo chown -R 1000:1000 dados &amp;&amp; docker compose up -d --build</code>.</p>
 
-  <div class="aviso"><b>Cuidados.</b> A Evolution não é a API oficial do WhatsApp: use um número dedicado e não faça disparo em massa para quem não falou com você. Os dados dos leads ficam no seu servidor (<code>dados/</code>); o backup contém dados pessoais, guarde com acesso restrito.</div>
+  <div class="aviso"><b>Cuidados.</b> A Evolution não é a API oficial do WhatsApp: use um número dedicado e não faça disparo em massa para quem não falou com você. Os dados dos leads ficam no seu servidor (<code>dados/</code>); o backup contém dados pessoais, guarde com acesso restrito. A Evolution do compose não guarda cópia das mensagens nem dos contatos (LGPD). Quem tem o token do gestor pode mudar o endereço do cérebro no <code>/gestor</code>: por isso a <code>CEREBRO_API_KEY</code> só vai a um host listado em <code>CEREBRO_HOSTS_PERMITIDOS</code> no <code>.env</code> (vazio = a chave não é enviada).</div>
 </div></section>
 
 <section id="exemplos"><div class="wrap">
@@ -446,8 +448,8 @@ leads.seudominio.com { reverse_proxy 127.0.0.1:8080 }</pre>
 <section id="roadmap"><div class="wrap">
   <span class="chip">Roteiro</span>
   <h2>O que fica fora da v1</h2>
-  <p class="sub">A versão 1.0.1 faz o que está descrito acima. Estas ideias ficaram para depois.</p>
-  <div class="phase"><div class="tag">v1.0.1</div><div class="d"><strong>Hoje</strong><span>Agente por regras, roteamento pelo Telegram, alerta, painel fixo, fechamento, três painéis web, Docker e backup.</span></div></div>
+  <p class="sub">A versão 1.0.3 faz o que está descrito acima. Estas ideias ficaram para depois.</p>
+  <div class="phase"><div class="tag">v1.0.3</div><div class="d"><strong>Hoje</strong><span>Agente por regras, roteamento pelo Telegram, alerta, painel fixo, fechamento, três painéis web, Docker e backup.</span></div></div>
   <div class="phase"><div class="tag">Depois</div><div class="d"><strong>Fora da v1</strong><span>Agente de voz automático · responder o WhatsApp pelo painel · funil arrastável · CRM externo por webhook · metas e ranking · vários números · API oficial da Meta · pesquisa de satisfação.</span></div></div>
 </div></section>
 

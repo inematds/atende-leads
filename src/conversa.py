@@ -87,7 +87,12 @@ def lead_sessao(c, sessao):
 def mensagens_web(c, sessao):
     """Chat web consulta as respostas da equipe pela própria sessão."""
     lead = lead_sessao(c, sessao)
-    msgs = [{'de': r['de'], 'texto': r['texto'], 'em': r['em']} for r in
+    # Avisos ao lead ("Ana vai te atender agora.", "Combinado! ...") saem pela caixa de saída com tipo `aviso`:
+    # marcados aqui para o chat web mostrá-los (as respostas do agente ele já mostra na hora).
+    avisos = {r['texto'] for r in c.db.execute("SELECT texto FROM saida WHERE lead_id=? AND tipo='aviso'",
+                                                (lead['id'],))}
+    msgs = [{'de': r['de'], 'texto': r['texto'], 'em': r['em'],
+             'tipo': 'aviso' if r['de'] == 'agente' and r['texto'] in avisos else r['de']} for r in
             c.db.execute("SELECT de, texto, em FROM mensagens WHERE lead_id=? ORDER BY id DESC LIMIT 50", (lead['id'],))]
     from . import paginas
     _t, colab, _r = paginas.status_lead(c, lead)
@@ -212,7 +217,7 @@ def parece_nome(nome):
 
 
 # ---------- entrada ----------
-def receber(c, telefone, texto, canal='web', nome=None, push_name=None, sessao=None):
+def receber(c, telefone, texto, canal='web', nome=None, push_name=None, sessao=None, internacional=False):
     if canal not in ('web', 'whatsapp'):
         canal = 'web'
     if canal == 'web' and sessao:
@@ -220,7 +225,7 @@ def receber(c, telefone, texto, canal='web', nome=None, push_name=None, sessao=N
         if not isinstance(texto, str) or not texto.strip():
             raise Erro(422, 'Texto obrigatório')
     else:
-        tel = normalizar_telefone(telefone)
+        tel = normalizar_telefone(telefone, internacional=internacional and canal == 'whatsapp')
         if not isinstance(texto, str) or not texto.strip():
             raise Erro(422, 'Texto obrigatório')
         lead = obter_lead(c, tel)[0] if canal == 'whatsapp' else novo_lead_web(c, tel)
@@ -228,8 +233,10 @@ def receber(c, telefone, texto, canal='web', nome=None, push_name=None, sessao=N
     c.db.execute('UPDATE leads SET ultimo_contato=?, canal=? WHERE id=?', (agora, canal, lead['id']))
     if isinstance(push_name, str) and push_name.strip():
         c.db.execute('UPDATE leads SET push_name=? WHERE id=?', (push_name.strip()[:60], lead['id']))
-    if isinstance(nome, str) and nome.strip() and not lead['nome']:
-        c.db.execute('UPDATE leads SET nome=? WHERE id=?', (nome.strip()[:80], lead['id']))
+    # Nome do formulário (chat web/simulação) passa pela mesma validação da qualificação; inválido é ignorado
+    # e o agente pergunta depois.
+    if isinstance(nome, str) and parece_nome(nome) and not lead['nome']:
+        c.db.execute('UPDATE leads SET nome=? WHERE id=?', (' '.join(nome.split())[:80], lead['id']))
     lead = c.lead(lead['id'])
     t = normalizar(texto)
     primeiro = not c.db.execute("SELECT 1 FROM mensagens WHERE lead_id=? AND de='lead' LIMIT 1",

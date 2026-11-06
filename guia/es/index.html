@@ -139,7 +139,7 @@
   <div class="glow"></div>
   <div class="wrap">
     <div>
-      <span class="chip">WhatsApp + Telegram · código abierto · v1.0.1</span>
+      <span class="chip">WhatsApp + Telegram · código abierto · v1.0.3</span>
       <h1>Ningún lead se queda <span class="amb">esperando</span></h1>
       <p class="lead">Un agente atiende en WhatsApp, califica y pasa el lead al colaborador que lleva más tiempo disponible, por Telegram, con todo lo que necesita para llamar.</p>
       <p class="mut" style="margin:-.6em 0 1.4em;font-size:.95rem">La instalación en el servidor requiere un técnico: consulta <a href="#deploy">Implementación en la VPS</a>.</p>
@@ -331,7 +331,7 @@
   </div></div>
   <div class="step"><div class="b">6</div><div>
     <h3>Ejecuta las pruebas</h3>
-    <p>Son 282 pruebas de contrato. El build y el contenedor Docker solo se usan con <code>TESTAR_DOCKER=1</code>.</p>
+    <p>Son 313 pruebas de contrato. El build y el contenedor Docker solo se usan con <code>TESTAR_DOCKER=1</code>.</p>
 <pre><span class="k">python3 -m pytest</span> -q tests/</pre>
   </div></div>
 
@@ -353,44 +353,46 @@
 </div></section>
 
 <section id="deploy"><div class="wrap">
-  <span class="chip">Implementación en la VPS</span>
+  <span class="chip">Despliegue en la VPS</span>
   <h2>En línea con <span class="amb">Docker</span></h2>
-  <p class="sub">Variables en <a href="https://github.com/inematds/atende-leads/blob/main/.env.exemplo" target="_blank" rel="noopener"><code>.env.exemplo</code></a>. Sin las variables de una integración, esa integración queda desactivada y el resto funciona (paneles web).</p>
+  <p class="sub">Variables en <a href="https://github.com/inematds/atende-leads/blob/main/.env.exemplo" target="_blank" rel="noopener"><code>.env.exemplo</code></a>. Si faltan las variables de una integración, queda desactivada y el resto funciona (paneles web).</p>
 
   <div class="step"><div class="b">1</div><div>
     <h3>Iniciar</h3>
-    <p><b>Antes de instalar:</b> crea el bot con @BotFather y agrégalo al grupo del equipo. El instalador pide el token del bot y el ID del grupo (número que empieza con <code>-100</code>). Para encontrar el ID, envía en el grupo un comando para el bot, como <code>/start@nome_do_bot</code> (con el modo de privacidad predeterminado, los mensajes comunes no llegan al bot), y abre la dirección de abajo; el <code>chat.id</code> del grupo aparece en la respuesta. Hazlo antes de registrar el webhook (paso 6), porque después <code>getUpdates</code> deja de responder.</p>
+    <p><b>Antes de instalar:</b> crea el bot en @BotFather y agrégalo al grupo del equipo. El instalador solicita el token del bot y el ID del grupo (número que empieza con <code>-100</code>). Para encontrar el ID, envía un comando al bot en el grupo, como <code>/start@nome_do_bot</code> (en el modo de privacidad predeterminado, los mensajes comunes no llegan al bot), y abre la dirección de abajo; el <code>chat.id</code> del grupo aparece en la respuesta. Hazlo antes de registrar el webhook (paso 6), porque después <code>getUpdates</code> deja de responder.</p>
 <pre><span class="k">curl</span> <span class="s">"https://api.telegram.org/bot&lt;TOKEN&gt;/getUpdates"</span></pre>
-    <p>En la VPS, como root (o con <code>sudo</code>), con git, python3 y Docker instalados, clona el proyecto y ejecuta el instalador. Genera el <code>.env</code>, el token del gestor y los <b>códigos del equipo</b> (aleatorios), inicia compose, con o sin Evolution, instala el cron de la copia de seguridad y muestra todo al final: guárdalo. El registro parte del ejemplo (la colaboradora Ana, el «Plan anual» (Plano anual), preguntas frecuentes de una tienda): cámbialo por el tuyo en <code>/gestor</code> → Registros antes de recibir leads. La aplicación escucha solo en <code>127.0.0.1:8080</code> y Evolution en <code>127.0.0.1:8081</code>.</p>
+    <p>En la VPS, como root (o con <code>sudo</code>), con git, python3 y Docker instalados, clona el proyecto y ejecuta el instalador. Este genera el <code>.env</code> y el <code>dados/negocio.json</code> solo para el propietario (<code>umask 077</code>), el token del administrador y los <b>códigos del equipo</b> (aleatorios), asigna la carpeta <code>dados/</code> al uid 1000 (el contenedor no se ejecuta como root; si no eres root, intenta <code>sudo -n chown</code> y, si no lo consigue, se detiene antes de iniciar y muestra el comando), inicia compose, con o sin Evolution, instala el cron de respaldo e imprime todo al final: guárdalo. <b>Ejecutarlo de nuevo</b> (cambiar el dominio, activar Telegram) no cambia los secretos: reutiliza los que ya están en <code>.env</code> e indica cuáles; solo genera los que faltan (una contraseña nueva de Postgres detendría Evolution, y un <code>TELEGRAM_SEGREDO</code> nuevo haría que el webhook de Telegram respondiera 401). El registro parte del ejemplo (la colaboradora Ana, el "Plan anual", una FAQ de tienda): reemplázalo por tus datos en <code>/gestor</code> → Registros antes de recibir leads. La aplicación escucha solo en <code>127.0.0.1:8080</code> y Evolution en <code>127.0.0.1:8081</code>.</p>
 <pre><span class="k">git clone</span> <span class="s">https://github.com/inematds/atende-leads.git</span> /opt/atende-leads
 <span class="k">cd</span> /opt/atende-leads
 <span class="k">./instalar-vps.sh</span>
-<span class="c"># sin el instalador: cp .env.exemplo .env, cambia todos los secretos del .env</span>
-<span class="c"># y el token_gestor y los códigos en dados/negocio.json; solo entonces:</span>
-<span class="k">docker compose up -d --build</span>              <span class="c"># o, con Evolution incluida:</span>
+<span class="c"># sem o instalador: cp .env.exemplo .env, troque todos os segredos do .env</span>
+<span class="c"># e o token_gestor e os códigos em dados/negocio.json (12+ caracteres);</span>
+<span class="c"># com a Evolution junto, ponha EVOLUTION_URL=http://evolution-api:8080 no .env;</span>
+<span class="k">sudo chown</span> -R 1000:1000 /opt/atende-leads/dados   <span class="c"># o container roda como uid 1000</span>
+<span class="k">docker compose up -d --build</span>              <span class="c"># ou, com a Evolution junto:</span>
 <span class="k">docker compose --profile evolution up -d --build</span></pre>
   </div></div>
   <div class="step"><div class="b">2</div><div>
     <h3>Los secretos de ejemplo no se exponen en la red</h3>
-    <p>Si <code>negocio.json</code> aún tiene <code>token_gestor</code> = <code>TROQUE-ESTE-TOKEN</code> o algún código igual a uno de <code>exemplos/negocio.json</code>, el servidor solo acepta iniciarse en <code>127.0.0.1</code>/<code>localhost</code>. En <code>0.0.0.0</code> (como en Docker), lo rechaza con el mensaje «ejecuta ./instalar-vps.sh o cambia los secretos». Solo para pruebas o demostraciones existe <code>ATENDE_PERMITIR_EXEMPLO=1</code> (nunca en producción).</p>
+    <p>Si <code>negocio.json</code> todavía tiene <code>token_gestor</code> = <code>TROQUE-ESTE-TOKEN</code> o algún código igual al de <code>exemplos/negocio.json</code>, o si una integración está activada con <code>WEBHOOK_SEGREDO</code>/<code>TELEGRAM_SEGREDO</code> vacío, con menos de 16 caracteres o que contiene <code>troque</code> (o con <code>EVOLUTION_API_KEY</code> que contiene <code>troque</code>), el servidor solo acepta iniciarse en <code>127.0.0.1</code>/<code>localhost</code>. En <code>0.0.0.0</code> (como en Docker), lo rechaza con el mensaje "ejecuta ./instalar-vps.sh o cambia los secretos". Solo para pruebas o demostraciones existe <code>ATENDE_PERMITIR_EXEMPLO=1</code> (nunca en producción).</p>
   </div></div>
   <div class="step"><div class="b">3</div><div>
     <h3>HTTPS</h3>
-    <p>Configura un proxy inverso (Caddy o Nginx) desde tu dominio hacia <code>127.0.0.1:8080</code>. El instalador ya completa <code>url_publica</code> en <code>negocio.json</code> con el dominio; verifícalo. El límite de intentos (5 contraseñas incorrectas por minuto) usa la IP de <code>X-Forwarded-For</code> solo cuando la conexión viene del proxy local.</p>
+    <p>Proxy inverso (Caddy o Nginx) de tu dominio a <code>127.0.0.1:8080</code>. El instalador ya completa <code>url_publica</code> en <code>negocio.json</code> con el dominio; revísalo. Los límites por IP (5 contraseñas incorrectas por minuto: las incorrectas reciben 429, la correcta siempre pasa; 5 conversaciones nuevas del chat web en 10 min, además de un límite total; 3 solicitudes de atención por web por hora) usan la IP de <code>X-Forwarded-For</code> solo cuando la conexión viene de un proxy confiable: <code>ATENDE_PROXY_CONFIAVEL</code> (CIDRs; el valor predeterminado cubre el loopback y las redes privadas, por donde Caddy en el host llega al contenedor). Vacío = nunca confiar en <code>X-Forwarded-For</code>. Solo puede hacerse cargo de un lead el colaborador a quien se le ofreció o, en una alerta 🚨, quien pulse primero en Asumir.</p>
 <pre><span class="c"># Caddyfile</span>
 leads.seudominio.com { reverse_proxy 127.0.0.1:8080 }</pre>
   </div></div>
   <div class="step"><div class="b">4</div><div>
     <h3>WhatsApp: leer el código QR</h3>
-    <p>El puerto de Evolution solo escucha en <code>127.0.0.1</code>, así que abre un túnel desde tu computadora y, mientras esté abierto, accede a <code>http://localhost:8081/manager</code>. Ingresa con la API Key global (<code>EVOLUTION_API_KEY</code> del <code>.env</code>), haz clic en <b>Instance +</b>, pon el nombre de <code>EVOLUTION_INSTANCIA</code> (por defecto <code>loja</code>), elige el canal <b>Baileys</b>, guarda, abre la instancia y lee el código QR con WhatsApp en el celular (Aparelhos conectados (Aparelhos conectados) → Conectar aparelho (Conectar aparelho)).</p>
+    <p>El puerto de Evolution solo escucha en <code>127.0.0.1</code>, así que abre un túnel desde tu computadora y, mientras esté abierto, accede a <code>http://localhost:8081/manager</code>. Inicia sesión con la API Key global (<code>EVOLUTION_API_KEY</code> de <code>.env</code>), haz clic en <b>Instance +</b>, ponle el nombre de <code>EVOLUTION_INSTANCIA</code> (predeterminado <code>loja</code>), el canal <b>Baileys</b>, guarda, abre la instancia y lee el código QR con el WhatsApp del celular (Dispositivos vinculados → Vincular dispositivo).</p>
 <pre><span class="k">ssh</span> -L 8081:127.0.0.1:8081 usuario@vps
-<span class="c"># sin el manager, mediante la API, en la VPS:</span>
+<span class="c"># sem o manager, pela API, na VPS:</span>
 <span class="k">curl</span> -X POST <span class="s">http://127.0.0.1:8081/instance/create</span> -H <span class="s">"apikey: &lt;EVOLUTION_API_KEY&gt;"</span> \
   -H <span class="s">'Content-Type: application/json'</span> -d <span class="s">'{"instanceName":"loja","integration":"WHATSAPP-BAILEYS","qrcode":true}'</span></pre>
   </div></div>
   <div class="step"><div class="b">5</div><div>
     <h3>Webhook de Evolution</h3>
-    <p>Configura el evento <code>MESSAGES_UPSERT</code> para la dirección de abajo. Con el perfil <code>evolution</code>, compose ya apunta a través de la red interna; si Evolution está en otro servidor, completa <code>EVOLUTION_URL</code> en <code>.env</code> y configura allí el webhook. Los mensajes con <code>remoteJid</code> <code>@lid</code> usan el teléfono de <code>remoteJidAlt</code>/<code>senderPn</code>; si no lo tienen, aparecen en descartes (descartes) en <code>/gestor</code>.</p>
+    <p>Evento <code>MESSAGES_UPSERT</code> para la dirección de abajo. Con el perfil <code>evolution</code>, compose ya apunta por la red interna; con una instancia de Evolution en otro servidor, completa <code>EVOLUTION_URL</code> en <code>.env</code> y configura allí el webhook. Los mensajes con <code>remoteJid</code> <code>@lid</code> usan el teléfono de <code>remoteJidAlt</code>/<code>senderPn</code>; si no está, aparecen en <b>descartes</b> en <code>/gestor</code>.</p>
 <pre><span class="s">https://&lt;domínio&gt;/webhook/evolution/&lt;WEBHOOK_SEGREDO&gt;</span></pre>
   </div></div>
   <div class="step"><div class="b">6</div><div>
@@ -399,21 +401,21 @@ leads.seudominio.com { reverse_proxy 127.0.0.1:8080 }</pre>
 <pre><span class="k">curl</span> <span class="s">"https://api.telegram.org/bot&lt;TOKEN&gt;/setWebhook?url=https://&lt;domínio&gt;/webhook/telegram&amp;secret_token=&lt;TELEGRAM_SEGREDO&gt;"</span></pre>
   </div></div>
   <div class="step"><div class="b">7</div><div>
-    <h3>Copia de seguridad diaria: un solo cron</h3>
-    <p><code>instalar-vps.sh</code> ya lo instala en el crontab de root. Se ejecuta dentro del contenedor y copia fuera del volumen de datos, conservando 30 días.</p>
-<pre>0 3 * * * cd /opt/atende-leads &amp;&amp; <span class="k">docker compose exec</span> -T atende ./atende backup --dados /dados --saida /dados/.backup-cron.tar.gz &amp;&amp; mkdir -p /opt/atende-leads-backups &amp;&amp; mv /opt/atende-leads/dados/.backup-cron.tar.gz /opt/atende-leads-backups/leads-$(date +\%F).tar.gz &amp;&amp; find /opt/atende-leads-backups -name 'leads-*.tar.gz' -mtime +30 -delete <span class="c"># atende-leads-backup</span></pre>
+    <h3>Respaldo diario: un solo cron</h3>
+    <p><code>instalar-vps.sh</code> ya lo instala en el crontab de root. Se ejecuta dentro del contenedor y copia fuera del volumen de datos, a una carpeta <code>700</code> con archivos <code>600</code> (el respaldo contiene datos personales), conservando 30 días.</p>
+<pre>0 3 * * * cd /opt/atende-leads &amp;&amp; <span class="k">docker compose exec</span> -T atende ./atende backup --dados /dados --saida /dados/.backup-cron.tar.gz &amp;&amp; install -d -m 700 /opt/atende-leads-backups &amp;&amp; f=/opt/atende-leads-backups/leads-$(date +\%F).tar.gz &amp;&amp; mv /opt/atende-leads/dados/.backup-cron.tar.gz $f &amp;&amp; chmod 600 $f &amp;&amp; find /opt/atende-leads-backups -name 'leads-*.tar.gz' -mtime +30 -delete <span class="c"># atende-leads-backup</span></pre>
   </div></div>
   <div class="step"><div class="b">8</div><div>
     <h3>Restaurar</h3>
-    <p>Detén el servicio antes: <code>restaurar</code> se niega a ejecutarse si el servidor está activo.</p>
+    <p>Detén el servicio antes: <code>restaurar</code> lo rechaza si el servidor está en funcionamiento.</p>
 <pre><span class="k">docker compose stop</span> atende
 <span class="k">docker compose run</span> --rm -v /opt/atende-leads-backups:/backups atende \
   ./atende restaurar --dados /dados --arquivo /backups/leads-AAAA-MM-DD.tar.gz
 <span class="k">docker compose start</span> atende</pre>
   </div></div>
-  <p class="mut" style="margin:0 0 22px">Los envíos a Telegram y WhatsApp salen por una bandeja de salida en segundo plano: si una API se bloquea, la atención y <code>/api/saude</code> siguen respondiendo.</p>
+  <p class="mut" style="margin:0 0 22px">Los envíos a Telegram y WhatsApp salen por una bandeja de salida en segundo plano: si una API se bloquea, la atención y <code>/api/saude</code> siguen respondiendo. Por encima de 64 conexiones simultáneas (<code>ATENDE_MAX_CONEXOES</code>), el servidor responde 503, pero <code>/api/saude</code> responde incluso cuando está saturado. Para actualizar: <code>git pull &amp;&amp; sudo chown -R 1000:1000 dados &amp;&amp; docker compose up -d --build</code>.</p>
 
-  <div class="aviso"><b>Precauciones.</b> Evolution no es la API oficial de WhatsApp: usa un número exclusivo y no envíes mensajes masivos a quienes no se hayan comunicado contigo. Los datos de los leads quedan en tu servidor (<code>dados/</code>); la copia de seguridad contiene datos personales, guárdala con acceso restringido.</div>
+  <div class="aviso"><b>Precauciones.</b> Evolution no es la API oficial de WhatsApp: usa un número dedicado y no envíes mensajes masivos a personas que no se hayan comunicado contigo. Los datos de los leads quedan en tu servidor (<code>dados/</code>); el respaldo contiene datos personales, guárdalo con acceso restringido. La instancia de Evolution de compose no guarda copias de los mensajes ni de los contactos (LGPD). Quien tenga el token del administrador puede cambiar la dirección del cerebro en <code>/gestor</code>: por eso <code>CEREBRO_API_KEY</code> solo se envía a un host incluido en <code>CEREBRO_HOSTS_PERMITIDOS</code> en <code>.env</code> (vacío = la clave no se envía).</div>
 </div></section>
 
 <section id="exemplos"><div class="wrap">
@@ -446,8 +448,8 @@ leads.seudominio.com { reverse_proxy 127.0.0.1:8080 }</pre>
 <section id="roadmap"><div class="wrap">
   <span class="chip">Hoja de ruta</span>
   <h2>Qué queda fuera de la v1</h2>
-  <p class="sub">La versión 1.0.1 hace lo que se describe arriba. Estas ideas quedaron para más adelante.</p>
-  <div class="phase"><div class="tag">v1.0.1</div><div class="d"><strong>Hoy</strong><span>Agente basado en reglas, asignación por Telegram, alertas, panel fijo, cierre, tres paneles web, Docker y copia de seguridad.</span></div></div>
+  <p class="sub">La versión 1.0.3 hace lo que se describe arriba. Estas ideas quedaron para más adelante.</p>
+  <div class="phase"><div class="tag">v1.0.3</div><div class="d"><strong>Hoy</strong><span>Agente basado en reglas, asignación por Telegram, alertas, panel fijo, cierre, tres paneles web, Docker y copia de seguridad.</span></div></div>
   <div class="phase"><div class="tag">Después</div><div class="d"><strong>Fuera de la v1</strong><span>Agente de voz automático · responder WhatsApp desde el panel · embudo arrastrable · CRM externo mediante webhook · metas y clasificación · varios números · API oficial de Meta · encuesta de satisfacción.</span></div></div>
 </div></section>
 

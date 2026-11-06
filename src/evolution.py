@@ -120,7 +120,8 @@ def receber(c, b):
             return
         jid = alt
     try:
-        telefone = normalizar_telefone(jid.split('@')[0].split(':')[0])
+        # O remoteJid já traz o código do país: não acrescenta 55 (número estrangeiro com 10–11 dígitos).
+        telefone = normalizar_telefone(jid.split('@')[0].split(':')[0], internacional=True)
     except Erro:
         registrar_descarte(c, 'evolution', 'remoteJid inválido', {'remoteJid': jid, 'id': ident})
         log('evolution: remoteJid inválido ignorado')
@@ -129,6 +130,6 @@ def receber(c, b):
     texto = msg.get('conversation') or (msg.get('extendedTextMessage') or {}).get('text')
     push = data.get('pushName')
     if isinstance(texto, str) and texto.strip():
-        conversa.receber(c, telefone, texto, canal='whatsapp', push_name=push)
+        conversa.receber(c, telefone, texto, canal='whatsapp', push_name=push, internacional=True)
     else:
         conversa.sem_texto(c, telefone, push)

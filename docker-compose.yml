@@ -35,7 +35,15 @@ services:
       DATABASE_CONNECTION_URI: postgresql://evolution:${EVOLUTION_DB_SENHA:-}@evolution-postgres:5432/evolution?schema=evolution_api
       DATABASE_CONNECTION_CLIENT_NAME: evolution_exchange
       DATABASE_SAVE_DATA_INSTANCE: "true"
-      DATABASE_SAVE_DATA_NEW_MESSAGE: "true"
+      # LGPD: o atendimento guarda o que precisa no próprio banco (dados/leads.db, que o "apagar meus dados"
+      # limpa). A Evolution não guarda cópia das mensagens, contatos, conversas nem histórico do WhatsApp.
+      DATABASE_SAVE_DATA_NEW_MESSAGE: "false"
+      DATABASE_SAVE_MESSAGE_UPDATE: "false"
+      DATABASE_SAVE_DATA_CONTACTS: "false"
+      DATABASE_SAVE_DATA_CHATS: "false"
+      DATABASE_SAVE_DATA_LABELS: "false"
+      DATABASE_SAVE_DATA_HISTORIC: "false"
+      DATABASE_SAVE_IS_ON_WHATSAPP: "false"
       CACHE_REDIS_ENABLED: "true"
       CACHE_REDIS_URI: redis://evolution-redis:6379/6
       CACHE_REDIS_PREFIX_KEY: evolution

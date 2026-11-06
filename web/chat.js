@@ -37,9 +37,11 @@
     if (!sessao) return;
     try {
       const m = await AL.api('GET', '/api/web/' + encodeURIComponent(sessao));
-      const humanos = (m.mensagens || []).filter(x => x.de === 'humano');
+      // Respostas da equipe e avisos (ex.: "Ana vai te atender agora."); as do agente já apareceram no envio.
+      const humanos = (m.mensagens || []).filter(x => x.de === 'humano' || x.tipo === 'aviso');
       if (vistos === -1) vistos = humanos.length;
-      humanos.slice(vistos).forEach(x => bolha(x.texto, 'humano', m.colaborador || 'Equipe'));
+      humanos.slice(vistos).forEach(x => x.de === 'humano'
+        ? bolha(x.texto, 'humano', m.colaborador || 'Equipe') : bolha(x.texto, 'aviso'));
       vistos = humanos.length;
     } catch (e) { /* silencioso */ }
   }

@@ -495,7 +495,14 @@ def encerrar_por_apagar(c, lead_id):
         c.db.execute(f"UPDATE tg_saida SET status='cancelado', corpo='{{}}' WHERE status='pendente' "
                      f"AND metodo<>'painel' AND ({' OR '.join(filtros)})", args)
     c.db.execute('DELETE FROM retornos WHERE lead_id=? AND enviado=0', (lead_id,))
-    # 2) chamados abertos
+    # 2) mensagens já entregues no privado do dono com dados dele ('💬 <nome>: <texto>', '📅 Retorno: ...',
+    #    'Ainda com <nome>?'), de qualquer chamado do lead, inclusive os já fechados
+    if todos:
+        for m in c.db.execute(f"SELECT chat_id, message_id, chamado_id FROM tg_msgs WHERE tipo IN "
+                              f"('lead','lembrete','retorno') AND chamado_id IN ({','.join('?' * len(todos))})",
+                              todos).fetchall():
+            tg.editar(c, f"{m['chat_id']}:{m['message_id']}", f"🗑️ #{m['chamado_id']} lead pediu para apagar os dados")
+    # 3) chamados abertos
     agora = iso(c.agora())
     for ch in abertos:
         ident = ch['id']

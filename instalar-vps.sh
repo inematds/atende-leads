@@ -56,14 +56,37 @@ case "$DOMINIO" in
 esac
 
 TOKEN_GESTOR="$(segredo 24)"
-WEBHOOK_SEGREDO="$(segredo 24)"
-TELEGRAM_SEGREDO="$(python3 -c "import secrets; print(secrets.token_hex(24))")"
-EVOLUTION_API_KEY="$(segredo 32)"
-EVOLUTION_DB_SENHA="$(segredo 24)"
+
+# Valor de VAR no .env atual (sem `source`: o .env não é executado).
+do_env() { [ -f .env ] && grep -E "^$1=" .env | head -n 1 | cut -d= -f2- || true; }
+
+# Rodar de novo NÃO troca os segredos: com o volume do Postgres já criado, uma EVOLUTION_DB_SENHA nova
+# derruba a Evolution, e um TELEGRAM_SEGREDO novo faz o webhook do Telegram dar 401. Só gera o que falta.
+REAPROVEITADOS=""
+reaproveitar() { # reaproveitar VAR "comando que gera"
+  local atual
+  atual="$(do_env "$1")"
+  if [ -n "$atual" ] && ! printf '%s' "$atual" | grep -qi 'troque'; then
+    printf -v "$1" '%s' "$atual"
+    REAPROVEITADOS="$REAPROVEITADOS $1"
+  else
+    printf -v "$1" '%s' "$(eval "$2")"
+  fi
+}
+reaproveitar WEBHOOK_SEGREDO 'segredo 24'
+reaproveitar TELEGRAM_SEGREDO 'python3 -c "import secrets; print(secrets.token_hex(24))"'
+reaproveitar EVOLUTION_API_KEY 'segredo 32'
+reaproveitar EVOLUTION_DB_SENHA 'segredo 24'
+CEREBRO_API_KEY="$(do_env CEREBRO_API_KEY)"
+CEREBRO_HOSTS_PERMITIDOS="$(do_env CEREBRO_HOSTS_PERMITIDOS)"
+WHISPER_CMD="$(do_env WHISPER_CMD)"
 
 if [ -f .env ]; then
   cp .env ".env.bak-$(date +%Y%m%d%H%M%S)"
   echo "Já existia um .env: cópia guardada em .env.bak-*." >&2
+  if [ -n "$REAPROVEITADOS" ]; then
+    echo "Segredos reaproveitados do .env atual (não foram trocados):$REAPROVEITADOS" >&2
+  fi
 fi
 
 if [ "$COM_EVOLUTION" = "1" ]; then EVO_URL="http://evolution-api:8080"; else EVO_URL=""; fi
@@ -82,8 +105,9 @@ TELEGRAM_API_URL=$TG_URL
 TELEGRAM_TOKEN=$TELEGRAM_TOKEN
 TELEGRAM_GRUPO_ID=$TELEGRAM_GRUPO_ID
 TELEGRAM_SEGREDO=$TELEGRAM_SEGREDO
-CEREBRO_API_KEY=
-WHISPER_CMD=
+CEREBRO_API_KEY=$CEREBRO_API_KEY
+CEREBRO_HOSTS_PERMITIDOS=$CEREBRO_HOSTS_PERMITIDOS
+WHISPER_CMD=$WHISPER_CMD
 TZ=America/Sao_Paulo
 EOF
 
@@ -119,11 +143,23 @@ PY
 chmod 600 .env dados/negocio.json
 umask 022
 
-# O container roda como uid 1000 (não root): a pasta de dados montada em /dados tem de ser dele.
+# O container roda como uid 1000 (não root): a pasta de dados montada em /dados tem de ser dele
+# (está 0700 pelo umask; de outro dono, o container não entra).
 if [ "$(id -u)" = "0" ]; then
-  chown -R 1000:1000 dados
-elif [ "$(id -u)" != "1000" ]; then
-  echo "Aviso: rode 'sudo chown -R 1000:1000 $DIR/dados' (o container roda como uid 1000)." >&2
+  chown -R 1000:1000 dados || true
+elif [ "$(id -u)" != "1000" ] && command -v sudo >/dev/null; then
+  sudo -n chown -R 1000:1000 dados 2>/dev/null || true
+fi
+DONO_DADOS="$(stat -c %u dados 2>/dev/null || echo '?')"
+if [ "$DONO_DADOS" != "1000" ]; then
+  if [ "$SO_GERAR" = "1" ]; then
+    echo "Aviso: dados/ é do uid $DONO_DADOS; antes de subir rode: sudo chown -R 1000:1000 $DIR/dados" >&2
+  else
+    echo "ERRO: dados/ é do uid $DONO_DADOS e o container roda como uid 1000 (não entraria na pasta)." >&2
+    echo "Rode:  sudo chown -R 1000:1000 $DIR/dados   e depois ./instalar-vps.sh de novo." >&2
+    echo "(Os segredos do .env são reaproveitados na próxima execução.)" >&2
+    exit 1
+  fi
 fi
 
 echo "Gerado: .env e dados/negocio.json"
@@ -133,7 +169,8 @@ python3 -c "import json; [print(f\"  {m['nome']} ({m['id']}): {m['codigo']}\") f
 
 # Backup: um único cron, rodando DENTRO do container e copiando para fora do volume de dados.
 BACKUPS=/opt/atende-leads-backups
-CRON_LINHA="0 3 * * * cd $DIR && docker compose exec -T atende ./atende backup --dados /dados --saida /dados/.backup-cron.tar.gz && mkdir -p $BACKUPS && mv $DIR/dados/.backup-cron.tar.gz $BACKUPS/leads-\$(date +\\%F).tar.gz && find $BACKUPS -name 'leads-*.tar.gz' -mtime +30 -delete # atende-leads-backup"
+# Backup tem dados pessoais: pasta 700 e arquivo 600 (só o root lê).
+CRON_LINHA="0 3 * * * cd $DIR && docker compose exec -T atende ./atende backup --dados /dados --saida /dados/.backup-cron.tar.gz && install -d -m 700 $BACKUPS && f=$BACKUPS/leads-\$(date +\\%F).tar.gz && mv $DIR/dados/.backup-cron.tar.gz \$f && chmod 600 \$f && find $BACKUPS -name 'leads-*.tar.gz' -mtime +30 -delete # atende-leads-backup"
 
 if [ "$SO_GERAR" = "1" ]; then
   echo "INSTALAR_SO_GERAR=1: nada foi subido."
@@ -175,7 +212,7 @@ Pronto. Próximos passos:
    Ponha o bot no grupo da equipe; cada colaborador manda /entrar <código> no privado do bot.
 4. Backup diário às 03:00, $CRON_MSG:
      $CRON_LINHA
-   Os arquivos ficam em $BACKUPS (fora de dados/), 30 dias.
+   Os arquivos ficam em $BACKUPS (fora de dados/; pasta 700, arquivos 600), 30 dias.
    Restaurar: docker compose stop atende && docker compose run --rm -v $BACKUPS:/backups atende \\
      ./atende restaurar --dados /dados --arquivo /backups/leads-AAAA-MM-DD.tar.gz && docker compose start atende
 5. Painéis: $URL_PUBLICA/gestor (token acima) · $URL_PUBLICA/equipe (código de cada um) · chat em $URL_PUBLICA/

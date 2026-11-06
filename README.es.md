@@ -1,89 +1,105 @@
 # atende-leads
 
+[![Atende Leads](guia/assets/banner-es.jpg)](https://inematds.github.io/atende-leads/guia/es/)
+
 **🇧🇷 [Português](README.md) · 🇺🇸 [English](README.en.md) · 🇪🇸 [Español](README.es.md)**
+
+## Qué es
+
+Un sistema de código abierto que atiende a los leads que llegan por WhatsApp (y por el chat del sitio): un agente responde, los califica y, cuando es momento de que intervenga una persona, asigna el lead al colaborador que lleva más tiempo disponible por Telegram, con todos los datos y un botón para llamar. Funciona en una VPS con Docker, sin costo de API, y los datos se quedan en tu servidor.
 
 ## 📖 Guía de uso
 
 Guía completa (landing + paso a paso): **https://inematds.github.io/atende-leads/guia/es/**
 
-Atención de **leads por WhatsApp** con un agente que responde, califica y deriva el lead al **colaborador disponible** por Telegram, con todos los datos y un botón para llamar. Python 3 solo con la biblioteca estándar, estado en SQLite y Docker para VPS. Código abierto, versión `1.0.1`.
+Atención de **leads por WhatsApp** con un agente que responde, califica y asigna el lead al **colaborador disponible** por Telegram, con todos los datos y un botón para llamar. Python 3 solo con la biblioteca estándar, estado en SQLite, Docker para VPS. Código abierto, versión `1.0.3`.
 
 ## Qué hace
 
-- **Agente en WhatsApp** (Evolution API): responde las preguntas frecuentes, muestra el precio solo de lo que está registrado, califica (nombre → qué busca → para cuándo) y asigna una puntuación al lead (caliente / tibio / frío).
-- **Llama a una persona en 3 casos:** el lead lo pide, el agente detecta que hace falta (queja, problema, 2 veces «no entendí») o ve una **posibilidad de venta** (precio, «quiero comprar», pago).
-- **Se lo ofrece al colaborador que lleva más tiempo disponible**, por privado en Telegram: nombre, teléfono, puntuación, interés, resumen y últimos mensajes, con los botones **✅ Assumir (Tomar) · ↪️ Passar (Derivar) · 📞 Ligar (Llamar) · 💬 WhatsApp**.
-- **Si no responde en 2 min** → pasa al siguiente. Si un lead caliente sigue sin responsable después de 2 min (5 en condiciones normales) o no hay nadie disponible → **alerta 🚨 en el grupo**, y quien toque primero Assumir (Tomar) se lo queda.
-- **Panel fijo en el grupo** (`EQUIPE AGORA` (EQUIPO AHORA)): quién está disponible, atendiendo, ocupado o ausente, y la fila de leads en espera. Se actualiza con cada cambio.
-- **Cierre** con los botones: Vendeu (Vendió) (valor) · Retornar (Contactar de nuevo) (fecha) · Negociando (En negociación) · Sem interesse (Sin interés) (motivo) · Inválido (No válido), con una nota de texto o audio (transcripción local opcional). El colaborador vuelve al final de la fila de disponibles.
-- **Seguimientos programados**, recordatorio de atención inactiva (30 min), aviso de fin de la jornada, mensaje fuera del horario con el próximo horario de inicio.
-- **Tres interfaces web:** lead (chat, burbuja para el sitio y página «mi atención»), equipo (`/equipe`) y responsable (`/gestor`: en vivo, hoy, leads, registros, CSV).
-- **LGPD:** `PARAR` (DETENER), `apagar meus dados` (borrar mis datos), y el grupo nunca recibe el teléfono ni el texto del lead.
-- **Cerebro:** reglas por defecto (sin costo, sin API). Opcional: Ollama local o un endpoint compatible con OpenAI configurado por el propio negocio, con vuelta automática a las reglas si falla.
+- **Agente en WhatsApp** (Evolution API): responde las preguntas frecuentes, muestra precios solo de lo que está registrado, califica (nombre → qué busca → para cuándo) y asigna una nota al lead (caliente / tibio / frío).
+- **Llama a una persona en 3 casos:** el lead lo pide, el agente detecta que hace falta (reclamo, problema, 2× «no entendí») o ve **posibilidad de venta** (precio, «quiero comprar», pago).
+- **Ofrece el lead al colaborador que lleva más tiempo disponible**, por mensaje privado en Telegram: nombre, teléfono, nota, interés, resumen y últimos mensajes, con los botones **✅ Aceptar · ↪️ Pasar · 📞 Llamar · 💬 WhatsApp**.
+- **Si no responde en 2 min** → se lo pasa al siguiente. Si un lead caliente no tiene responsable en 2 min (5 normalmente) o no hay nadie disponible → **alerta 🚨 en el grupo**, y el primero que toque Aceptar se lo lleva.
+- **Panel fijo en el grupo** (`EQUIPE AGORA`): quién está disponible, atendiendo, ocupado o fuera, y la fila de leads en espera. Se actualiza con cada cambio.
+- **Cierre con los botones:** Vendido (valor) · Retomar contacto (fecha) · En negociación · Sin interés (motivo) · Inválido, con una nota de texto o audio (transcripción local opcional). El colaborador vuelve al final de la fila de disponibles.
+- **Retomadas de contacto programadas**, recordatorio de atención detenida (30 min), aviso de fin de jornada y mensaje fuera de horario con la próxima hora de inicio.
+- **Tres interfaces web:** lead (chat, burbuja para el sitio y página «mi atención»), equipo (`/equipe`) y gerente (`/gestor`: en vivo, hoy, leads, registros, CSV).
+- **LGPD:** `PARAR`, `apagar meus dados`, y el grupo nunca recibe el teléfono ni el texto del lead.
+- **Cerebro:** reglas predeterminadas (sin costo, sin API). Opcional: Ollama local o un endpoint compatible con OpenAI configurado por el propio negocio, con retorno automático a las reglas si falla.
 
-Contrato completo: [`docs/ESPECIFICACAO.md`](docs/ESPECIFICACAO.md) (en portugués).
+Contrato completo: [`docs/ESPECIFICACAO.md`](docs/ESPECIFICACAO.md).
 
 ## El proceso, de principio a fin
 
-Quién hace qué: 🧠 el dueño/responsable · ⚙️ el sistema · 🤖 el agente.
+Quién hace qué: 🧠 el dueño/gerente · ⚙️ el sistema · 🤖 el agente.
 
-1. 🧠 **Instalar en la VPS:** `./instalar-vps.sh` (pregunta el nombre, dominio y Telegram; genera secretos, `.env` y `dados/negocio.json`; inicia Docker).
-2. 🧠 **Conectar WhatsApp:** túnel `ssh -L 8081:127.0.0.1:8081 usuario@vps`, abrir `http://localhost:8081/manager`, crear la instancia y escanear el código QR con el número de atención (usa un número solo para esto).
+1. 🧠 **Instalar en la VPS:** `git clone https://github.com/inematds/atende-leads /opt/atende-leads && cd /opt/atende-leads && ./instalar-vps.sh` (pregunta el nombre, dominio y Telegram; genera secretos, `.env` y `dados/negocio.json`; inicia Docker).
+2. 🧠 **Conectar WhatsApp:** crear el túnel `ssh -L 8081:127.0.0.1:8081 usuario@vps`, abrir `http://localhost:8081/manager`, crear la instancia y escanear el código QR con el número de atención (usa un número solo para esto).
 3. 🧠 **Registrar** en `/gestor` → Cadastros: equipo (nombre, teléfono, código), productos con palabras y precio, preguntas frecuentes, horarios y plazos.
-4. 🧠 **El equipo entra al bot:** cada colaborador envía `/entrar` (/entrar) `<código>` por privado al bot y toca 🟢 Livre (Disponible).
+4. 🧠 **El equipo entra al bot:** cada colaborador envía `/entrar <código>` al chat privado del bot y toca 🟢 Disponible.
 5. ⚙️ **Llega un lead** por WhatsApp o por la burbuja del sitio.
-6. 🤖 **El agente atiende:** preguntas frecuentes, precios registrados, calificación y puntuación.
+6. 🤖 **El agente atiende:** preguntas frecuentes, precio registrado, calificación y nota.
 7. ⚙️ **Se activa un disparador** (pidió a una persona / hace falta / posibilidad de venta) → abre el caso y envía una línea breve al grupo.
-8. ⚙️ **Se ofrece** al colaborador que lleva más tiempo disponible, por privado, con datos y botones; si no responde en 2 min → pasa al siguiente.
-9. ⚙️ **Alerta 🚨** en el grupo cuando se vence el plazo o no hay nadie disponible.
-10. 🧠 **El colaborador lo toma**, llama (📞), responde por WhatsApp (💬) o contesta directamente en el bot.
-11. 🧠 **Cierra** con el resultado; ⚙️ el sistema guarda el historial, programa el seguimiento y devuelve al colaborador a la fila.
-12. 🧠 **El responsable supervisa** en `/gestor` (en vivo, hoy, leads, exportar CSV).
-13. ⚙️ **Copia de seguridad diaria** mediante el único cron que instala `instalar-vps.sh` (`docker compose exec -T atende ./atende backup ...` → `/opt/atende-leads-backups/`).
+8. ⚙️ **Se ofrece** al colaborador que lleva más tiempo disponible, en privado, con datos y botones; si no responde en 2 min → pasa al siguiente.
+9. ⚙️ **Alerta 🚨** en el grupo cuando vence el plazo o no hay nadie disponible.
+10. 🧠 **El colaborador acepta**, llama (📞), responde por WhatsApp (💬) o directamente desde el bot.
+11. 🧠 **Cierra** con el resultado; ⚙️ el sistema guarda el historial, programa el próximo contacto y devuelve al colaborador a la fila.
+12. 🧠 **El gerente hace seguimiento** en `/gestor` (en vivo, hoy, leads, exportar CSV).
+13. ⚙️ **Respaldo diario** mediante el único cron que instala `instalar-vps.sh` (`docker compose exec -T atende ./atende backup ...` → `/opt/atende-leads-backups/`).
 
 ## Ejecutar localmente
 
 ```bash
 ./atende serve --porta 8080 --dados dados
-# chat del lead: http://localhost:8080/   equipo: /equipe   responsable: /gestor (token en dados/negocio.json)
-python3 -m pytest -q tests/        # contrato (282 pruebas; build y contenedor Docker solo con TESTAR_DOCKER=1)
+# chat do lead: http://localhost:8080/   equipe: /equipe   gestor: /gestor (token em dados/negocio.json)
+python3 -m pytest -q tests/        # contrato (313 testes; build e container Docker só com TESTAR_DOCKER=1)
 ```
 
-Fija el reloj para hacer pruebas: `ATENDE_AGORA=2026-11-09T10:00 ./atende serve ...` y `POST /api/tarefas/rodar`.
+Reloj fijo para probar: `ATENDE_AGORA=2026-11-09T10:00 ./atende serve ...` y `POST /api/tarefas/rodar`.
 
-## Desplegar en la VPS
+## Implementar en la VPS
 
-1. **Iniciar:** `./instalar-vps.sh` (o `docker compose up -d`; con Evolution en el mismo servidor: `docker compose --profile evolution up -d`). La aplicación escucha solo en `127.0.0.1:8080` y Evolution en `127.0.0.1:8081`. El instalador genera el token del responsable y los **códigos del equipo** (aleatorios, `secrets.token_urlsafe`) y los muestra todos al final.
-2. **Los secretos de ejemplo no se exponen en la red:** si `negocio.json` todavía tiene `token_gestor` = `TROQUE-ESTE-TOKEN` o algún código igual al de `exemplos/negocio.json`, el servidor solo acepta iniciar en `127.0.0.1`/`localhost`. En `0.0.0.0` (como en Docker) **rechaza el inicio** con el mensaje «ejecuta ./instalar-vps.sh o cambia los secretos». Solo para pruebas o demostraciones: `ATENDE_PERMITIR_EXEMPLO=1` en el entorno (nunca en producción).
-3. **HTTPS:** proxy inverso (Caddy o Nginx) desde tu dominio a `127.0.0.1:8080`. Ej. con Caddy: `leads.tudominio.com { reverse_proxy 127.0.0.1:8080 }`. Ajusta `url_publica` en `negocio.json`. El límite de intentos (5 contraseñas incorrectas por minuto → 429) usa la IP de `X-Forwarded-For` solo cuando la conexión viene del proxy local.
+Todos los comandos de abajo usan la ruta **`/opt/atende-leads`** (también el cron de respaldo). Si instalas en otro lugar, cambia la ruta en todos ellos.
+
+0. **Descargar:** `git clone https://github.com/inematds/atende-leads /opt/atende-leads && cd /opt/atende-leads`
+1. **Iniciar:** `cd /opt/atende-leads && ./instalar-vps.sh`. Genera `.env` y `dados/negocio.json` con permisos solo para el dueño (`umask 077`), el token del gerente y los **códigos del equipo** (aleatorios, `secrets.token_urlsafe`), asigna la carpeta `dados/` al uid 1000 (el contenedor **no se ejecuta como root**; si no eres root, intenta `sudo -n chown -R 1000:1000 dados`, y si no lo consigue **se detiene antes de iniciar** y muestra el comando), inicia compose e imprime todo al final. La aplicación escucha solo en `127.0.0.1:8080` y Evolution en `127.0.0.1:8081`.
+   - **Volver a ejecutarlo** (cambiar el dominio, conectar Telegram) **no cambia los secretos**: se reutilizan los valores de `WEBHOOK_SEGREDO`, `TELEGRAM_SEGREDO`, `EVOLUTION_API_KEY` y `EVOLUTION_DB_SENHA` que ya están en `.env` (la salida indica cuáles); solo se generan los que faltan (o todavía contienen `troque`). Cambiar la contraseña de Postgres con el volumen ya creado dejaría Evolution fuera de servicio, y un `TELEGRAM_SEGREDO` nuevo haría que el webhook de Telegram devolviera 401. También se conservan el token del gerente y los códigos del equipo.
+   - **Sin el instalador** (`docker compose up -d`, o `docker compose --profile evolution up -d` con Evolution en el mismo servidor): `cd /opt/atende-leads && cp .env.exemplo .env && mkdir -p dados && cp exemplos/negocio.json dados/` y **cambia** `token_gestor` y los códigos del equipo en `dados/negocio.json` (códigos de 12+ caracteres), además de `WEBHOOK_SEGREDO`, `TELEGRAM_SEGREDO`, `EVOLUTION_API_KEY` y `EVOLUTION_DB_SENHA` en `.env`; con el perfil `evolution`, agrega también `EVOLUTION_URL=http://evolution-api:8080` (la URL interna; vacía = WhatsApp desactivado); después ejecuta `sudo chown -R 1000:1000 /opt/atende-leads/dados`. Si queda algún secreto de ejemplo, el contenedor se niega a iniciar (punto 2).
+   - **Evolution externa** (ya funciona en otro servidor; no uses el perfil `evolution`): en `.env`, configura `EVOLUTION_URL=https://<sua-evolution>`, `EVOLUTION_API_KEY=<API key dela>`, `EVOLUTION_INSTANCIA=<instância>`; y, en su manager, el webhook `MESSAGES_UPSERT` para `https://<domínio>/webhook/evolution/<WEBHOOK_SEGREDO>` (punto 5). Inicia solo con `docker compose up -d`.
+   - **Actualizar una instalación anterior:** `cd /opt/atende-leads && git pull && sudo chown -R 1000:1000 dados && docker compose up -d --build` (si es anterior a la versión 1.0.2, `chown` es obligatorio; con el cerebro `openai` y una clave, agrega `CEREBRO_HOSTS_PERMITIDOS` a `.env`).
+2. **Los secretos de ejemplo impiden exponerse a la red:** si `negocio.json` aún tiene `token_gestor` = `TROQUE-ESTE-TOKEN` o algún código igual a los de `exemplos/negocio.json`, o si una integración está activa con `WEBHOOK_SEGREDO`/`TELEGRAM_SEGREDO` vacío, con menos de 16 caracteres o que contenga `troque` (o Evolution está activa con `EVOLUTION_API_KEY` que contenga `troque`), el servidor solo acepta iniciar en `127.0.0.1`/`localhost`. En `0.0.0.0` (como en Docker), **se niega a iniciar** con el mensaje «ejecuta ./instalar-vps.sh o cambia los secretos». `.env.exemplo` viene con `EVOLUTION_URL=` y `TELEGRAM_TOKEN=` vacíos: las integraciones quedan desactivadas hasta que los completes. Solo para pruebas/demostraciones: `ATENDE_PERMITIR_EXEMPLO=1` en el entorno (nunca en producción).
+3. **HTTPS:** configura un proxy inverso (Caddy o Nginx) desde tu dominio a `127.0.0.1:8080`. Ejemplo con Caddy: `leads.tudominio.com { reverse_proxy 127.0.0.1:8080 }`. Ajusta `url_publica` en `negocio.json`. Los límites por IP (5 contraseñas incorrectas por minuto → las incorrectas reciben 429, la correcta siempre pasa; 5 conversaciones nuevas del chat web en 10 min; 3 solicitudes de atención por web por hora) usan la IP de `X-Forwarded-For` cuando la conexión viene de un proxy confiable: `ATENDE_PROXY_CONFIAVEL` (CIDR; predeterminado `127.0.0.1/32,::1/128,172.16.0.0/12,10.0.0.0/8,192.168.0.0/16`, que incluye Caddy en el host cuando llega por el puente de Docker). Vacío = nunca confiar en `X-Forwarded-For`. El chat web es público: además de esos límites, el total de conversaciones nuevas también tiene un tope, y solo puede aceptar un lead el colaborador a quien se le ofreció o, en una alerta 🚨, quien toque Aceptar primero.
 4. **WhatsApp (código QR):** el puerto de Evolution solo escucha en `127.0.0.1`, así que abre un túnel desde tu computadora:
    ```bash
    ssh -L 8081:127.0.0.1:8081 usuario@vps
    ```
-   con el túnel abierto, accede a `http://localhost:8081/manager`. Ingresa con la API Key global (`EVOLUTION_API_KEY` de `.env`), haz clic en **Instance +**, asigna el nombre de `EVOLUTION_INSTANCIA` (por defecto `loja`), elige el canal **Baileys**, guarda, abre la instancia y escanea el **código QR** con WhatsApp en el celular (Dispositivos vinculados → Vincular dispositivo). Sin el manager, mediante la API en la VPS: `curl -X POST http://127.0.0.1:8081/instance/create -H "apikey: <EVOLUTION_API_KEY>" -H 'Content-Type: application/json' -d '{"instanceName":"loja","integration":"WHATSAPP-BAILEYS","qrcode":true}'`.
-5. **Webhook de Evolution:** evento `MESSAGES_UPSERT` para `https://<domínio>/webhook/evolution/<WEBHOOK_SEGREDO>` (con el perfil `evolution`, compose ya lo dirige por la red interna). Los mensajes con `remoteJid` `@lid` usan el teléfono de `remoteJidAlt`/`senderPn`; si no lo tienen, aparecen en **descartes** en `/gestor`.
-6. **Webhook de Telegram:** crea el bot en @BotFather, agrégalo como administrador al grupo del equipo (para fijar el panel) y regístralo:
+   Con el túnel abierto, accede a `http://localhost:8081/manager`. Inicia sesión con la API Key global (`EVOLUTION_API_KEY` de `.env`), haz clic en **Instance +**, usa el nombre de `EVOLUTION_INSTANCIA` (predeterminado `loja`), canal **Baileys**, guarda, abre la instancia y escanea el **código QR** con el WhatsApp del celular (Dispositivos vinculados → Vincular un dispositivo). Sin el manager, usa la API en la VPS: `curl -X POST http://127.0.0.1:8081/instance/create -H "apikey: <EVOLUTION_API_KEY>" -H 'Content-Type: application/json' -d '{"instanceName":"loja","integration":"WHATSAPP-BAILEYS","qrcode":true}'`.
+5. **Webhook de Evolution:** evento `MESSAGES_UPSERT` para `https://<domínio>/webhook/evolution/<WEBHOOK_SEGREDO>` (con el perfil `evolution`, compose ya apunta por la red interna). Los mensajes con `remoteJid` `@lid` usan el teléfono de `remoteJidAlt`/`senderPn`; si no está, aparecen en **descartes** en `/gestor`.
+6. **Webhook de Telegram:** crea el bot con @BotFather, agrégalo al grupo del equipo como administrador (para fijar el panel) y registra:
    `curl "https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://<domínio>/webhook/telegram&secret_token=<TELEGRAM_SEGREDO>"`
-7. **Copia de seguridad diaria: un solo cron** (`instalar-vps.sh` lo instala en el crontab de root). Se ejecuta dentro del contenedor y copia **fuera** del volumen de datos:
+7. **Respaldo diario — un solo cron** (`instalar-vps.sh` lo instala en el crontab de root). Se ejecuta dentro del contenedor y copia los datos **fuera** del volumen de datos, a una carpeta `700` con archivos `600` (el respaldo contiene datos personales):
    ```cron
-   0 3 * * * cd /opt/atende-leads && docker compose exec -T atende ./atende backup --dados /dados --saida /dados/.backup-cron.tar.gz && mkdir -p /opt/atende-leads-backups && mv /opt/atende-leads/dados/.backup-cron.tar.gz /opt/atende-leads-backups/leads-$(date +\%F).tar.gz && find /opt/atende-leads-backups -name 'leads-*.tar.gz' -mtime +30 -delete # atende-leads-backup
+   0 3 * * * cd /opt/atende-leads && docker compose exec -T atende ./atende backup --dados /dados --saida /dados/.backup-cron.tar.gz && install -d -m 700 /opt/atende-leads-backups && f=/opt/atende-leads-backups/leads-$(date +\%F).tar.gz && mv /opt/atende-leads/dados/.backup-cron.tar.gz $f && chmod 600 $f && find /opt/atende-leads-backups -name 'leads-*.tar.gz' -mtime +30 -delete # atende-leads-backup
    ```
-8. **Restaurar:** detén el servicio antes (el comando `restaurar` rechaza ejecutarse si el servidor está en marcha):
+8. **Restaurar:** detén el servicio antes (el comando `restaurar` se niega a ejecutarse si el servidor está activo):
    ```bash
+   cd /opt/atende-leads
    docker compose stop atende
    docker compose run --rm -v /opt/atende-leads-backups:/backups atende \
      ./atende restaurar --dados /dados --arquivo /backups/leads-AAAA-MM-DD.tar.gz
    docker compose start atende
    ```
 
-Variables en [`.env.exemplo`](.env.exemplo) (en portugués; incluye `ATENDE_PERMITIR_EXEMPLO`, solo para demostraciones). Sin las variables de una integración, esa integración queda desactivada y el resto funciona (paneles web). Los envíos a Telegram y WhatsApp pasan por una cola en segundo plano: si una API se bloquea, la atención y `/api/saude` siguen respondiendo.
+Variables en [`.env.exemplo`](.env.exemplo) (incluye `ATENDE_PROXY_CONFIAVEL`, `ATENDE_MAX_CONEXOES` — conexiones simultáneas, predeterminado 64; por encima de ese límite devuelve 503, pero `/api/saude` sigue respondiendo aunque esté lleno —, `CEREBRO_HOSTS_PERMITIDOS` y `ATENDE_PERMITIR_EXEMPLO`, solo para demostraciones). Si no configuras las variables de una integración, esta queda desactivada y el resto funciona (paneles web). Los envíos a Telegram y WhatsApp salen por una bandeja de salida en segundo plano: si una API se bloquea, la atención y `/api/saude` siguen respondiendo.
 
 ## Precauciones
 
-- Evolution no es la API oficial de WhatsApp: usa un número dedicado y no envíes mensajes masivos a quienes no te contactaron.
-- Los datos de los leads quedan en tu servidor (`dados/`). La copia de seguridad contiene datos personales: guárdala con acceso restringido.
+- Evolution no es la API oficial de WhatsApp: usa un número dedicado y no envíes mensajes masivos a quienes no te hayan escrito.
+- Los datos de los leads quedan en tu servidor (`dados/`). El respaldo contiene datos personales: guárdalo con acceso restringido.
+- Evolution del compose **no guarda** copias de mensajes, contactos ni conversaciones (`DATABASE_SAVE_*` = `false`, por la LGPD): los datos que necesita la atención quedan en `dados/leads.db`, y la opción «apagar meus dados» los elimina.
+- **Quien tenga el token del gerente puede cambiar `cerebro.url`** en `/gestor`. Por eso, `CEREBRO_API_KEY` solo se envía a un host incluido en `CEREBRO_HOSTS_PERMITIDOS` en `.env` (por ejemplo: `CEREBRO_HOSTS_PERMITIDOS=api.seuprovedor.com`); vacío = la clave no se envía a nadie. El token nuevo del gerente, creado desde `/gestor`, debe tener al menos 16 caracteres y no puede ser el de ejemplo.
 
-## Hoja de ruta (fuera de la v1)
+## Próximamente (fuera de la v1)
 
 Agente de voz automático · responder WhatsApp desde el panel · embudo arrastrable · CRM externo por webhook · metas y clasificación · varios números · API oficial de Meta · encuesta de satisfacción.
 

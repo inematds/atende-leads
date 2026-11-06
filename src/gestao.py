@@ -5,7 +5,7 @@ import io
 import json
 import re
 
-from .core import DIAS, Erro, minutos, parse
+from .core import DIAS, ROOT, Erro, minutos, parse
 from . import chamados, conversa, equipe, evolution
 
 
@@ -126,6 +126,14 @@ def _erro(msg):
     raise Erro(422, msg)
 
 
+def tokens_de_exemplo():
+    try:
+        ex = json.loads((ROOT / 'exemplos' / 'negocio.json').read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        ex = {}
+    return {'TROQUE-ESTE-TOKEN', str(ex.get('token_gestor') or 'TROQUE-ESTE-TOKEN')}
+
+
 def validar_config(c, novo):
     if not isinstance(novo, dict):
         _erro('Configuração deve ser um objeto')
@@ -137,6 +145,10 @@ def validar_config(c, novo):
         _erro('nome obrigatório')
     if not isinstance(cfg.get('token_gestor'), str) or len(cfg['token_gestor']) < 4:
         _erro('token_gestor inválido')
+    if cfg['token_gestor'] != c.cfg.get('token_gestor'):
+        # Token novo: 16+ caracteres e nunca o do exemplo (o atual, mantido com "***", não é revalidado).
+        if len(cfg['token_gestor']) < 16 or cfg['token_gestor'] in tokens_de_exemplo():
+            _erro('token_gestor: use 16+ caracteres e não o do exemplo')
     for lista in ('equipe', 'produtos', 'faq'):
         if not isinstance(cfg.get(lista, []), list):
             _erro(f'{lista} deve ser lista')

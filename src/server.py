@@ -10,6 +10,7 @@ import json
 import os
 import re
 import signal
+import socket
 import sys
 import threading
 import time
@@ -160,11 +161,15 @@ def rota_publica_de_chamado(metodo, rota, b):
     return bool(re.fullmatch(r'/api/meu/[\w-]+/falar', rota))
 
 
+def saude(c):
+    return {'ok': True, 'versao': versao(), 'evolution': evolution.configurado(),
+            'telegram': tg.configurado(), 'cerebro': cerebro.tipo(c)}
+
+
 # ---------- rotas ----------
 def rotear(c, metodo, rota, q, b, h):
     if metodo == 'GET' and rota == '/api/saude':
-        return 200, {'ok': True, 'versao': versao(), 'evolution': evolution.configurado(),
-                     'telegram': tg.configurado(), 'cerebro': cerebro.tipo(c)}
+        return 200, saude(c)
     if metodo == 'POST' and rota == '/api/mensagens':
         if (b.get('canal') or 'web') == 'whatsapp':
             # Simulação do WhatsApp (testes/demonstração): só o gestor. O WhatsApp real chega pelo webhook.
@@ -318,6 +323,8 @@ def segredos_de_exemplo(app):
     # Segredos dos webhooks: só valem se a integração está ligada.
     if evolution.configurado() and segredo_fraco(os.environ.get('WEBHOOK_SEGREDO')):
         return 'WEBHOOK_SEGREDO está vazio, curto (< 16 caracteres) ou é o do exemplo'
+    if evolution.configurado() and 'troque' in (os.environ.get('EVOLUTION_API_KEY') or '').lower():
+        return 'EVOLUTION_API_KEY é a do exemplo'
     if tg.configurado() and segredo_fraco(os.environ.get('TELEGRAM_SEGREDO')):
         return 'TELEGRAM_SEGREDO está vazio, curto (< 16 caracteres) ou é o do exemplo'
     return None
@@ -370,8 +377,7 @@ def criar_handler(app):
             app._local.ip_publico = None
             app._local.abriu_publico = False
             if self.command == 'GET' and rota == '/api/saude':  # nunca espera o lock
-                return self._json(200, {'ok': True, 'versao': versao(), 'evolution': evolution.configurado(),
-                                        'telegram': tg.configurado(), 'cerebro': cerebro.tipo(app)})
+                return self._json(200, saude(app))
             try:
                 tamanho = int(self.headers.get('Content-Length') or 0)
                 if tamanho < 0 or tamanho > 2 * 1024 * 1024:
@@ -442,7 +448,19 @@ def criar_handler(app):
                 app.executar(lambda: destino(app, b), depois=self._painel)
                 saida.aguardar(app, app.enfileirados())
             except Exception as e:
-                log(f'webhook {rota.split("/")[2]}: ignorado: {type(e).__name__}: {e}')
+                origem = rota.split('/')[2]
+                log(f'webhook {origem}: ignorado: {type(e).__name__}: {e}')
+                # Desistiu (ex.: 503 depois das tentativas, ou entrada que quebrou o tratamento): fica visível
+                # em `descartes` no /gestor em vez de sumir no log.
+                motivo = e.mensagem if isinstance(e, Erro) else f'erro ao tratar ({type(e).__name__})'
+                detalhe = {'status': e.status} if isinstance(e, Erro) else {}
+                if isinstance(b, dict):
+                    detalhe['id'] = ((b.get('data') or {}).get('key') or {}).get('id') \
+                        if isinstance(b.get('data'), dict) else b.get('update_id')
+                try:
+                    app.executar(lambda: evolution.registrar_descarte(app, origem, motivo, detalhe))
+                except Exception as e2:
+                    log(f'descartes: {type(e2).__name__}: {e2}')
             return 200, {'ok': True}
 
         do_GET = do_POST = do_PUT = do_DELETE = do_HEAD = processar
@@ -457,19 +475,38 @@ MAX_CONEXOES = 64
 
 
 class Servidor(ThreadingHTTPServer):
-    """Uma thread por conexão, no máximo `maximo` ao mesmo tempo; acima disso responde 503 e fecha."""
+    """Uma thread por conexão, no máximo `maximo` ao mesmo tempo; acima disso responde 503 e fecha.
+    `GET /api/saude` fica fora do limite: com o servidor lotado, ele ainda responde (healthcheck)."""
     daemon_threads = True
 
-    def __init__(self, endereco, handler, maximo=MAX_CONEXOES):
+    def __init__(self, endereco, handler, maximo=MAX_CONEXOES, saude=None):
         super().__init__(endereco, handler)
         self.vagas = threading.BoundedSemaphore(maximo)
+        self.saude = saude
+
+    def _pede_saude(self, request):
+        """Espia (sem consumir) a 1ª linha do pedido, com prazo curto para não travar o accept."""
+        if not self.saude:
+            return False
+        try:
+            request.settimeout(0.5)
+            inicio = request.recv(64, socket.MSG_PEEK)
+        except OSError:
+            return False
+        return inicio.startswith((b'GET /api/saude ', b'GET /api/saude/ ', b'GET /api/saude?'))
 
     def process_request(self, request, client_address):
         if not self.vagas.acquire(blocking=False):
             try:
-                corpo = b'{"erro": "Servidor ocupado, tente de novo."}'
-                request.sendall(b'HTTP/1.1 503 Service Unavailable\r\nContent-Type: application/json\r\n'
-                                b'Content-Length: %d\r\nConnection: close\r\n\r\n%s' % (len(corpo), corpo))
+                if self._pede_saude(request):
+                    corpo = json.dumps(self.saude(), ensure_ascii=False).encode('utf-8')
+                    status = b'200 OK'
+                else:
+                    corpo = b'{"erro": "Servidor ocupado, tente de novo."}'
+                    status = b'503 Service Unavailable'
+                request.sendall(b'HTTP/1.1 %s\r\nContent-Type: application/json; charset=utf-8\r\n'
+                                b'Content-Length: %d\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n%s'
+                                % (status, len(corpo), corpo))
             except OSError:
                 pass
             self.shutdown_request(request)
@@ -535,7 +572,8 @@ def main(argv=None):
     if problema and a.host not in LOCAIS and os.environ.get('ATENDE_PERMITIR_EXEMPLO') != '1':
         p.exit(2, f'Recusado: {problema} e o servidor escutaria em {a.host}. Rode ./instalar-vps.sh ou troque '
                   'os segredos (token_gestor e códigos da equipe em negocio.json; WEBHOOK_SEGREDO e '
-                  'TELEGRAM_SEGREDO no .env, 16+ caracteres). Só para teste/demonstração: '
+                  'TELEGRAM_SEGREDO no .env, 16+ caracteres; EVOLUTION_API_KEY sem "troque"). '
+                  'Só para teste/demonstração: '
                   'ATENDE_PERMITIR_EXEMPLO=1.\n')
     if problema:
         log(f'aviso: {problema} (aceito só em {a.host})')
@@ -543,7 +581,7 @@ def main(argv=None):
         maximo = max(1, int(os.environ.get('ATENDE_MAX_CONEXOES') or MAX_CONEXOES))
     except ValueError:
         maximo = MAX_CONEXOES
-    servidor = Servidor((a.host, a.porta), criar_handler(app), maximo)
+    servidor = Servidor((a.host, a.porta), criar_handler(app), maximo, saude=lambda: saude(app))
     parar = threading.Event()
     despachantes = saida.iniciar(app)
     if not app.modo_teste:
