@@ -19,8 +19,8 @@ Atendimento de **leads pelo WhatsApp** com um agente que responde, qualifica e p
 ## O que faz
 
 - **Agente no WhatsApp** (Evolution API): responde o FAQ, mostra preço só do que está cadastrado, qualifica (nome → o que procura → para quando) e dá a nota do lead (quente / morno / frio).
-- **Chama um humano em 3 casos:** o lead pede, o agente percebe que precisa (reclamação, problema, 2× "não entendi") ou vê **chance de venda** (preço, "quero comprar", pagamento).
-- **Oferece ao colaborador livre há mais tempo**, no privado do Telegram: nome, telefone, nota, interesse, resumo e últimas mensagens, com os botões **✅ Assumir · ↪️ Passar · 📞 Ligar · 💬 WhatsApp**.
+- **Chama um humano em 3 casos:** o lead pede, o agente percebe que precisa (reclamação, problema, ou não sabe responder: "Essa eu não sei com certeza. Quer que eu chame alguém da equipe?") ou vê **chance de venda** (preço, "quero comprar", pagamento).
+- **Oferece ao colaborador livre há mais tempo**, no privado do Telegram: nome, telefone, nota, interesse, resumo e últimas mensagens, com os botões **Assumir · Passar · Ligar (telefone) · WhatsApp (conversa ou chamada)**.
 - **Sem resposta em 2 min** → passa ao próximo. Lead quente sem dono em 2 min (normal em 5) ou ninguém livre → **alerta 🚨 no grupo**, e o primeiro que tocar em Assumir leva.
 - **Painel fixo no grupo** (`EQUIPE AGORA`): quem está livre, atendendo, ocupado ou fora, e a fila de leads esperando. Editado a cada mudança.
 - **Fechamento** pelos botões: Vendeu (valor) · Retornar (data) · Negociando · Sem interesse (motivo) · Inválido, com nota em texto ou áudio (transcrição local opcional). O colaborador volta ao fim da fila de livres.
@@ -84,6 +84,8 @@ Sem perguntas: `NEGOCIO_NOME="Minha Loja" DOMINIO=localhost:8080 TELEGRAM_TOKEN=
 O bot só fala com **um** servidor: ao subir em polling, ele desliga o webhook do bot. Ao passar para a VPS, volte a `TELEGRAM_MODO=webhook` e rode o `setWebhook` (passo 3 do instalador).
 
 ## Deploy na VPS
+
+> **Nunca instalou um servidor?** Siga o passo a passo para leigos: **[docs/INSTALAR-VPS.md](docs/INSTALAR-VPS.md)** (9 passos, ~40 min, do zero até o WhatsApp conectado).
 
 Todos os comandos abaixo usam o caminho **`/opt/atende-leads`** (o cron de backup também). Se instalar em outro lugar, troque o caminho em todos eles.
 
