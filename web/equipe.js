@@ -1,7 +1,7 @@
 // Painel da equipe: código só na memória da aba (variável), nada em storage.
 (function () {
   const $ = id => document.getElementById(id);
-  let codigo = null, eu = null, fichaChamado = null, produtos = [];
+  let codigo = null, eu = null, fichaChamado = null, produtos = [], sugestaoId = null, descartada = null;
   const MOTIVOS = {sem_interesse: [['preco', 'Preço'], ['ja_comprou', 'Já comprou'], ['curioso', 'Curioso'], ['outro', 'Outro']],
     invalido: [['numero_errado', 'Número errado'], ['spam', 'Spam'], ['nao_e_lead', 'Não é lead']]};
   const api = (m, r, c) => AL.api(m, r, c, {'X-Codigo': codigo});
@@ -60,6 +60,15 @@
         '"><small>' + AL.esc(m.de) + ' · ' + AL.esc(AL.hora(m.em)) + '</small>' + AL.esc(m.texto) + '</div>').join('');
       $('ficha-msgs').scrollTop = 1e9;
       $('ficha-acoes').hidden = !(fichaChamado.status === 'atendendo' && fichaChamado.dono === eu.id);
+      // Sugestão da IA (ou das regras): mostrada à parte e já na caixa de resposta; editar mantém o vínculo,
+      // "Limpar" tira (aí a resposta conta como livre no aprendizado).
+      const sg = !$('ficha-acoes').hidden && f.sugestao && f.sugestao.id !== descartada ? f.sugestao : null;
+      $('ficha-sugestao').hidden = !sg;
+      if (sg && sg.id !== sugestaoId) {
+        sugestaoId = sg.id;
+        $('ficha-sugestao').innerHTML = '<small class="mut">💡 Sugestão de resposta</small><br>' + AL.esc(sg.texto);
+        $('resposta').value = sg.texto;
+      } else if (!sg) { sugestaoId = null; }
       $('ficha').scrollIntoView({behavior: 'smooth'});
       contatos();  // abrir a ficha zera as "novas" deste lead
     } catch (e) { aviso(e.message, true); }
@@ -110,11 +119,14 @@
     } catch (e) { aviso(e.message, true); carregar(); }
   });
   $('ct-status').addEventListener('change', contatos);
+  $('limpar-resposta').addEventListener('click', () => { descartada = sugestaoId; sugestaoId = null; $('resposta').value = ''; $('ficha-sugestao').hidden = true; $('resposta').focus(); });
   $('fechar-ficha').addEventListener('click', () => { $('ficha').hidden = true; });
   $('f-resultado').addEventListener('change', camposFechar);
   $('form-responder').addEventListener('submit', async ev => {
     ev.preventDefault();
-    try { await api('POST', '/api/equipe/chamados/' + fichaChamado.id + '/responder', {texto: $('resposta').value}); $('resposta').value = '';
+    const corpo = {texto: $('resposta').value};
+    if (sugestaoId) corpo.sugestao_id = sugestaoId;
+    try { await api('POST', '/api/equipe/chamados/' + fichaChamado.id + '/responder', corpo); $('resposta').value = ''; sugestaoId = null;
       abrirFicha(fichaChamado.lead_id, fichaChamado.id); } catch (e) { aviso(e.message, true); }
   });
   $('form-fechar').addEventListener('submit', async ev => {

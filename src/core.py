@@ -144,6 +144,15 @@ CREATE INDEX IF NOT EXISTS tg_saida_pend ON tg_saida(status, id);
 CREATE TABLE IF NOT EXISTS descartes (id INTEGER PRIMARY KEY, em TEXT, origem TEXT, motivo TEXT, detalhe TEXT);
 CREATE TABLE IF NOT EXISTS vistos (colaborador TEXT NOT NULL, lead_id INTEGER NOT NULL, ate INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (colaborador, lead_id));
+CREATE TABLE IF NOT EXISTS sugestoes (
+    id INTEGER PRIMARY KEY, chamado_id INTEGER NOT NULL, lead_id INTEGER NOT NULL, msg_id INTEGER, dono TEXT,
+    texto TEXT, status TEXT NOT NULL, origem TEXT, em TEXT, tg_ref TEXT);
+CREATE INDEX IF NOT EXISTS sugestoes_chamado ON sugestoes(chamado_id, id);
+CREATE TABLE IF NOT EXISTS aprendizado (
+    id INTEGER PRIMARY KEY, em TEXT, colaborador TEXT, lead_id INTEGER, chamado_id INTEGER, msg_lead TEXT,
+    sugestao_id INTEGER, sugestao TEXT, enviado TEXT, origem TEXT, distancia REAL);
+CREATE TABLE IF NOT EXISTS propostas (
+    id INTEGER PRIMARY KEY, em TEXT, tipo TEXT, dados TEXT NOT NULL, origem TEXT, status TEXT NOT NULL DEFAULT 'nova');
 '''
 
 COLUNAS_LEADS = ('id, token, nome, telefone, status, status_antes, nota, interesse, urgencia, nao_contatar, canal, '
@@ -201,7 +210,7 @@ class App:
         migrar(self.db)
         self.sujo = False
         self._local = threading.local()
-        self.acordar = {'tg': threading.Event(), 'evo': threading.Event()}
+        self.acordar = {'tg': threading.Event(), 'evo': threading.Event(), 'sug': threading.Event()}
         fixo = os.environ.get('ATENDE_AGORA')
         self.modo_teste = bool(fixo)
         self._agora = datetime.strptime(fixo[:16], FMT) if fixo else None

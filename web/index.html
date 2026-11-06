@@ -2,13 +2,13 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,interactive-widget=resizes-content">
 <title>Fale com a gente</title>
 <link rel="stylesheet" href="/web/style.css">
 </head>
-<body>
+<body class="pagina-chat">
 <header class="topo"><span class="marca" id="negocio">Atendimento</span><span class="chip">Chat</span></header>
-<section id="entrada" class="estreito" style="margin:0 auto;padding:20px 16px">
+<section id="entrada" class="estreito entrada">
   <h1>Fale com a gente</h1>
   <p class="mut">Deixe seu WhatsApp para a equipe poder te responder.</p>
   <form id="form-entrada" class="cartao">
@@ -21,7 +21,7 @@
 <section id="chat" class="chat" hidden>
   <div id="log" class="chat-log" aria-live="polite"></div>
   <form id="form-msg" class="chat-form">
-    <input id="texto" autocomplete="off" placeholder="Escreva sua mensagem" required>
+    <input id="texto" autocomplete="off" enterkeyhint="send" placeholder="Escreva sua mensagem" aria-label="Sua mensagem" required>
     <button class="primario" type="submit">Enviar</button>
   </form>
 </section>

@@ -4,7 +4,7 @@ import re
 import secrets
 
 from .core import Erro, formatar_telefone, iso, normalizar, normalizar_telefone, novo_token, primeiro_nome
-from . import cerebro, chamados, equipe, evolution
+from . import base, cerebro, chamados, equipe, evolution, sugestao
 
 PARAR = ('parar', 'sair', 'pare')
 APAGAR = 'apagar meus dados'
@@ -136,6 +136,8 @@ def anonimizar(c, lead_id):
                  'urgencia=NULL WHERE id=?', (f'apagado-{lead_id}', lead_id))
     c.db.execute('DELETE FROM mensagens WHERE lead_id=?', (lead_id,))
     c.db.execute('DELETE FROM saida WHERE lead_id=?', (lead_id,))
+    c.db.execute('DELETE FROM sugestoes WHERE lead_id=?', (lead_id,))  # textos do lead e da equipe
+    c.db.execute('DELETE FROM aprendizado WHERE lead_id=?', (lead_id,))
     for h in c.db.execute('SELECT id, dados FROM historico WHERE lead_id=?', (lead_id,)).fetchall():
         d = json.loads(h['dados'])
         d['nota'] = None
@@ -287,11 +289,16 @@ def decidir(c, lead, texto, t, primeiro, aberto):
         ref = equipe.privado(c, aberto['dono'], f'💬 {quem}: {texto}')
         chamados.guardar_msg(c, ref, aberto['id'], 'lead')
         c.db.execute('UPDATE chamados SET ultimo_mov=?, lembrado=0 WHERE id=?', (iso(c.agora()), aberto['id']))
+        sugestao.criar(c, aberto, lead, texto)  # sugestão de resposta ao dono (seção 7a), gerada fora do lock
         return []
     # 4. chamado aguardando
     if aberto:
         return ['Eu já avisei a equipe; logo alguém fala com você por aqui.']
     e = estado(lead)
+    # 4a. pergunta de horário/disponibilidade (antes de 5–7: "que hora tem atendimento humano?" não é pedido)
+    if base.pergunta_horario(t):
+        _zerar_falhas(c, lid)
+        return [base.resposta_horario(c, t, casar_faq(c, t))]
     # 5–7. pedidos que abrem chamado
     if tem(t, HUMANO):
         return _abrir(c, lid, 'pediu_humano')
@@ -303,9 +310,16 @@ def decidir(c, lead, texto, t, primeiro, aberto):
             c.db.execute('UPDATE leads SET interesse=? WHERE id=?', (prod['id'], lid))
             if prod.get('preco'):
                 prefixo = f"{prod['nome']}: {prod['preco']}. "
+        if base.PAGAMENTO.search(t):
+            prefixo += base.prefixo_pagamento(c)
         return _abrir(c, lid, 'venda', prefixo)
     if tem_palavra(t, PRECISA):
         return _abrir(c, lid, 'precisa')
+    # 7a. informações do negócio (só campo preenchido; nunca inventa)
+    info = base.resposta_info(c, t)
+    if info and _numero(t) is None:
+        _zerar_falhas(c, lid)
+        return [info]
     # 8. qualificação em andamento
     etapa = e.get('etapa')
     if etapa:

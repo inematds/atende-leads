@@ -7,12 +7,29 @@
   let tel = guarda.getItem('al_tel'), nome = guarda.getItem('al_nome') || '', sessao = guarda.getItem('al_sessao');
   let vistos = 0, relogio = null;
 
+  // Sempre leva à última mensagem (depois do layout, para pegar a altura certa).
+  function aoFim() {
+    const log = $('log');
+    requestAnimationFrame(() => { log.scrollTop = log.scrollHeight; });
+  }
+
   function bolha(texto, classe, rotulo) {
     const d = document.createElement('div');
     d.className = 'bolha ' + (classe || '');
     d.innerHTML = (rotulo ? '<small>' + AL.esc(rotulo) + '</small>' : '') + AL.esc(texto);
     $('log').appendChild(d);
-    $('log').scrollTop = $('log').scrollHeight;
+    aoFim();
+  }
+
+  // Teclado do celular: onde o navegador não encolhe o layout (iOS), a página segue a altura visível,
+  // e a caixa de escrever continua à vista.
+  if (window.visualViewport) {
+    const ajustar = () => {
+      document.body.style.height = window.visualViewport.height + 'px';
+      window.scrollTo(0, 0);
+      aoFim();
+    };
+    window.visualViewport.addEventListener('resize', ajustar);
   }
 
   function esquecer() {
@@ -48,6 +65,7 @@
 
   function abrirChat() {
     $('entrada').hidden = true; $('chat').hidden = false; $('texto').focus();
+    $('texto').addEventListener('focus', () => setTimeout(aoFim, 300));
     vistos = -1; puxar();
     if (!relogio) relogio = setInterval(puxar, 5000);
   }

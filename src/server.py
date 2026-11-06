@@ -20,7 +20,7 @@ from urllib.parse import parse_qs, unquote, urlsplit
 
 from .core import App, Erro, ROOT, log, versao
 from . import (backup, bot, cerebro, chamados, contatos, conversa, equipe, evolution, gestao, limite, paginas, polling,
-               saida, tarefas)
+               saida, sugestao, tarefas)
 from . import telegram as tg
 
 
@@ -163,7 +163,8 @@ def rota_publica_de_chamado(metodo, rota, b):
 
 def saude(c):
     return {'ok': True, 'versao': versao(), 'evolution': evolution.configurado(),
-            'telegram': tg.configurado(), 'telegram_modo': tg.modo(), 'cerebro': cerebro.tipo(c)}
+            'telegram': tg.configurado(), 'telegram_modo': tg.modo(), 'cerebro': cerebro.tipo(c),
+            'cerebro_ok': cerebro.disponivel(c)[0], 'cerebro_motivo': cerebro.disponivel(c)[1]}
 
 
 # ---------- rotas ----------
@@ -247,7 +248,7 @@ def rotear_equipe(c, metodo, rota, q, b, papel, colab):
             alvo = colab_do_corpo(c, b, q, obrigatorio=False) if g else colab
             return 200, chamados.passar(c, ident, alvo or c.chamado(ident)['ofertado_a'])
         if acao == 'responder':
-            return 200, chamados.responder(c, ident, None if g else colab, b.get('texto'))
+            return 200, chamados.responder(c, ident, None if g else colab, b.get('texto'), b.get('sugestao_id'))
         if acao == 'fechar':
             return 200, chamados.fechar(c, ident, None if g else colab, b)
         if acao == 'devolver':
@@ -259,6 +260,7 @@ def rotear_equipe(c, metodo, rota, q, b, papel, colab):
         if not g and not bot.pode_ver(c, colab, lead_id):
             raise Erro(403, 'Você não pode ver este lead')
         f = gestao.ficha(c, lead_id)
+        f['sugestao'] = sugestao.da_ficha(c, lead_id)
         if not g:
             contatos.marcar_visto(c, colab, lead_id)  # abriu a ficha: as "novas" dele zeram
         return 200, f
@@ -298,6 +300,19 @@ def rotear_gestor(c, metodo, rota, q, b):
     m = re.fullmatch(r'/equipe/([^/]+)/status', rota)
     if metodo == 'POST' and m:
         return 200, equipe.mudar_status(c, unquote(m[1]), b.get('status'))
+    if metodo == 'POST' and rota == '/testar':
+        return 200, gestao.testar(c, b.get('texto'))
+    if metodo == 'GET' and rota == '/aprendizado':
+        return 200, sugestao.listar(c, q)
+    if metodo == 'GET' and rota == '/propostas':
+        return 200, sugestao.propostas(c, q)
+    if metodo == 'POST' and rota == '/propostas/gerar':
+        return 200, sugestao.gerar(c, b.get('de') or None, b.get('ate') or None)
+    m = re.fullmatch(r'/propostas/(\d+)/(incorporar|descartar)', rota)
+    if metodo == 'POST' and m:
+        if m[2] == 'incorporar':
+            return 200, sugestao.incorporar(c, int(m[1]), b)
+        return 200, sugestao.descartar(c, int(m[1]))
     if rota == '/config':
         if metodo == 'GET':
             return 200, gestao.config_publica(c)
@@ -610,6 +625,7 @@ def main(argv=None):
     servidor = Servidor((a.host, a.porta), criar_handler(app), maximo, saude=lambda: saude(app))
     parar = threading.Event()
     despachantes = saida.iniciar(app)
+    trabalhador = sugestao.Trabalhador(app).iniciar()
     if not app.modo_teste:
         threading.Thread(target=relogio_automatico, args=(app, parar), daemon=True).start()
     leitor = None
@@ -628,6 +644,7 @@ def main(argv=None):
         if leitor:
             leitor.encerrar()
         servidor.server_close()
+        trabalhador.encerrar()
         for d in despachantes:
             d.encerrar()
         time.sleep(0.05)

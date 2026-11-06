@@ -8,5 +8,8 @@
   "equipe": [ { "id": "ana", "nome": "Ana", "telefone": "5541999990010", "codigo": "ana-1234" } ],
   "produtos": [ { "id": "plano-anual", "nome": "Plano anual", "palavras": ["anual", "plano anual"], "preco": "R$ 1.200" } ],
   "faq": [ { "id": "horario", "perguntas": ["qual o horario de atendimento"], "resposta": "Atendemos de segunda a sexta, das 8h às 18h." } ],
-  "cerebro": { "tipo": "regras" }
+  "cerebro": { "tipo": "regras" },
+  "info": { "horario_atendimento": "", "endereco": "", "pagamento": "", "entrega": "", "garantia": "", "site": "",
+            "observacoes": "" },
+  "aprendizado": { "periodo": "semanal" }
 }

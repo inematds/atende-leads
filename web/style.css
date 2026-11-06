@@ -74,17 +74,27 @@ th{color:var(--mut);font-weight:600}
 .aba.ativa{background:var(--amb);color:var(--amb-txt);border-color:var(--amb)}
 .numero{font-family:var(--titulo);font-size:1.8rem;font-weight:700;color:var(--amb)}
 [hidden]{display:none!important}
-/* chat */
-.chat{display:flex;flex-direction:column;height:calc(100vh - 58px);max-width:720px;margin:0 auto}
-.chat-log{flex:1;overflow:auto;padding:16px}
+/* chat do lead: ocupa a altura visível; mensagens rolam numa área própria; a caixa de escrever fica fixa embaixo
+   (com o teclado do celular aberto, o viewport encolhe: interactive-widget no meta + visualViewport no chat.js) */
+body.pagina-chat{height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:hidden}
+body.pagina-chat .topo{position:static;flex:0 0 auto}
+.entrada{flex:1 1 auto;overflow-y:auto;width:100%;margin:0 auto;padding:20px 16px}
+.chat{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;width:100%;max-width:720px;margin:0 auto}
+.chat-log{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:16px;-webkit-overflow-scrolling:touch}
+.chat-form>input{flex:1}
+.texto{font-family:var(--corpo);font-size:.95rem;min-height:0}
 .bolha{max-width:85%;padding:10px 14px;border-radius:14px;margin:8px 0;background:var(--card);border:1px solid var(--line);
   white-space:pre-wrap;overflow-wrap:anywhere}
 .bolha.minha{margin-left:auto;background:var(--amb);color:var(--amb-txt);border-color:var(--amb)}
 .bolha.humano{border-color:var(--amb)}
 .bolha.aviso{font-style:italic}
 .bolha small{display:block;font-size:.75rem;color:var(--mut);margin-bottom:2px}
-.chat-form{display:flex;gap:8px;padding:12px 16px;border-top:1px solid var(--line);background:var(--bg2)}
+.chat-form{flex:0 0 auto;display:flex;gap:8px;padding:12px 16px;padding-bottom:max(12px,env(safe-area-inset-bottom));
+  border-top:1px solid var(--line);background:var(--bg2)}
 .widget .topo{padding:10px 14px}
-.widget .chat{height:calc(100vh - 48px)}
+.sugestao{border:1px dashed var(--amb);border-radius:12px;padding:10px 12px;margin:10px 0;white-space:pre-wrap}
+.lado{display:grid;gap:8px;grid-template-columns:repeat(3,minmax(0,1fr))}
+.faq-item textarea{min-height:60px}
+@media (max-width:800px){.lado{grid-template-columns:1fr}}
 pre{white-space:pre-wrap;overflow-wrap:anywhere;margin:0;font-size:.85rem}
 @media (max-width:600px){h1{font-size:1.3rem}.topo{padding:12px}main{padding:16px 12px 48px}.linha{flex-direction:column;align-items:stretch}}

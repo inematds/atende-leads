@@ -6,7 +6,7 @@ import json
 import re
 
 from .core import DIAS, ROOT, Erro, minutos, parse
-from . import chamados, contatos, conversa, equipe, evolution
+from . import base, cerebro, chamados, contatos, conversa, equipe, evolution, sugestao
 
 
 def ao_vivo(c):
@@ -227,11 +227,55 @@ def validar_config(c, novo):
     if prazos.get('assumir_imediato_min', 1) >= prazos.get('assumir_extremo_min', 10):
         _erro('prazos: assumir_imediato_min deve ser menor que assumir_extremo_min')
     cer = cfg.get('cerebro', {'tipo': 'regras'})
-    if not isinstance(cer, dict) or cer.get('tipo', 'regras') not in ('regras', 'ollama', 'openai'):
-        _erro('cerebro.tipo deve ser regras, ollama ou openai')
-    if any(k.lower() in ('api_key', 'chave', 'key') for k in cer):
-        _erro('a chave do cérebro vai em CEREBRO_API_KEY, não no JSON')
+    if not isinstance(cer, dict) or cer.get('tipo', 'regras') not in cerebro.TIPOS:
+        _erro('cerebro.tipo deve ser ' + ', '.join(cerebro.TIPOS))
+    if any(k.lower() in ('api_key', 'apikey', 'chave', 'key', 'token', 'x-api-key') for k in cer):
+        _erro('a chave do cérebro vai em CEREBRO_API_KEY (.env), não no JSON')
+    if cer.get('modelo') not in (None, '') and (not isinstance(cer['modelo'], str)
+                                                or not cerebro.MODELO_OK.match(cer['modelo'])):
+        _erro('cerebro.modelo: só letras, dígitos e .:/@_- (até 100, sem começar com -)')
+    if cer.get('esforco') not in (None, '') and cer['esforco'] not in cerebro.ESFORCOS:
+        _erro('cerebro.esforco deve ser ' + ', '.join(cerebro.ESFORCOS))
+    if cer.get('url') not in (None, '') and (not isinstance(cer['url'], str)
+                                             or not re.match(r'^https?://[^\s]+$', cer['url'])):
+        _erro('cerebro.url deve começar com http:// ou https://')
+    info = cfg.get('info', {})
+    if not isinstance(info, dict):
+        _erro('info deve ser objeto')
+    for k, v in info.items():
+        if k not in base.CAMPOS:
+            _erro(f'info: campo desconhecido {k}')
+        if not isinstance(v, str) or len(v) > 2000:
+            _erro(f'info.{k} deve ser texto (até 2000 caracteres)')
+    apr = cfg.get('aprendizado', {})
+    if not isinstance(apr, dict) or apr.get('periodo', 'semanal') not in sugestao.PERIODOS:
+        _erro('aprendizado.periodo deve ser diario, semanal ou desligado')
     return cfg
+
+
+def testar(c, texto):
+    """Roda a conversa num lead fictício e desfaz tudo (seção 4a): banco, caixa de saída e Telegram."""
+    if not isinstance(texto, str) or not texto.strip():
+        _erro('Texto obrigatório')
+    fila = getattr(c._local, 'fila', None)
+    n_fila = len(fila) if fila is not None else 0
+    sujo = c.sujo
+    c.db.execute('SAVEPOINT testar')
+    try:
+        lead = conversa.novo_lead_web(c, '5500000000000')
+        c.db.execute("UPDATE leads SET nome='Cliente Teste' WHERE id=?", (lead['id'],))
+        conversa.registrar(c, lead['id'], 'lead', 'oi')
+        conversa.registrar(c, lead['id'], 'agente', 'Olá! Como posso ajudar?')
+        _l, respostas = conversa.receber(c, None, texto.strip()[:2000], 'web', sessao=lead['sessao'])
+        ch = c.db.execute('SELECT motivo FROM chamados WHERE lead_id=? ORDER BY id DESC LIMIT 1',
+                          (lead['id'],)).fetchone()
+        return {'respostas': respostas, 'chamado': ch['motivo'] if ch else None}
+    finally:
+        c.db.execute('ROLLBACK TO testar')
+        c.db.execute('RELEASE testar')
+        if fila is not None:
+            del fila[n_fila:]
+        c.sujo = sujo
 
 
 def gravar_config(c, novo):

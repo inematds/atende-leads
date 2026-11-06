@@ -48,9 +48,10 @@
       <h3 style="margin-top:16px">Mensagens</h3>
       <div id="ficha-msgs" class="chat-log" style="max-height:340px"></div>
       <div id="ficha-acoes" hidden>
-        <form id="form-responder" class="linha">
-          <input id="resposta" placeholder="Responder ao lead" required>
-          <button class="primario" type="submit">Enviar</button>
+        <div id="ficha-sugestao" class="sugestao" hidden></div>
+        <form id="form-responder">
+          <label>Responder ao lead <textarea id="resposta" class="texto" rows="3" placeholder="Escreva a resposta" required></textarea></label>
+          <div class="acoes"><button class="primario" type="submit">Enviar</button><button type="button" id="limpar-resposta" class="secundario">Limpar</button></div>
         </form>
         <h3 style="margin-top:16px">Fechar atendimento</h3>
         <form id="form-fechar">

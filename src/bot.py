@@ -241,6 +241,18 @@ def _callback(c, colab, dados, cq):
         ident = _id(partes[1])
         chamados.assumir_retorno(c, ident, colab)
         return 'Retorno assumido'
+    if pre == 'sg':
+        from . import sugestao
+        sid, acao = _id(partes[1]), partes[2]
+        s, ch = sugestao.obter(c, sid, colab)
+        if acao == 'ok':
+            chamados.responder(c, ch['id'], colab, s['texto'], sugestao_id=sid)
+            return 'Enviada'
+        if acao == 'ed':
+            ref = equipe.privado(c, colab, f"✏️ Mande o texto editado respondendo a esta mensagem.\n\n{s['texto']}")
+            chamados.guardar_msg(c, ref, ch['id'], f'sg:{sid}')
+            return 'Mande o texto editado'
+        raise Erro(422, 'Botão inválido.')
     return ''
 
 
@@ -330,12 +342,17 @@ def _mensagem(c, colab, msg, texto, cmd, resto):
     reply = (msg.get('reply_to_message') or {}).get('message_id')
     if reply is not None and texto:
         chat_id = str((msg.get('chat') or {}).get('id', ''))
-        r = c.db.execute('SELECT chamado_id FROM tg_msgs WHERE chat_id=? AND message_id=?',
+        r = c.db.execute('SELECT chamado_id, tipo FROM tg_msgs WHERE chat_id=? AND message_id=?',
                          (chat_id, str(reply))).fetchone()
         if r:
             ch = c.chamado(r['chamado_id'])
             if ch['dono'] == colab and ch['status'] == 'atendendo':
-                chamados.responder(c, ch['id'], colab, texto)
+                sid = None
+                if str(r['tipo'] or '').startswith('sg:'):  # reply ao 💡 ou ao "Mande o texto editado"
+                    s = c.db.execute("SELECT id FROM sugestoes WHERE id=? AND status='pronta'",
+                                     (str(r['tipo'])[3:],)).fetchone()
+                    sid = s['id'] if s else None
+                chamados.responder(c, ch['id'], colab, texto, sugestao_id=sid)
                 return
             raise Erro(409, 'Esse atendimento não está com você.')
     if f and texto:

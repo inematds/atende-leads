@@ -115,3 +115,21 @@ Fora de escopo, mantido de propósito: `/entrar` do Telegram continua barrando a
 | 2026-11-06 | tests/test_contatos.py::test_hoje_faixas_do_tempo_para_assumir (novo) | §13 `assumir {imediatos, medios, extremos, maior_min, media_min}` geral e por colaborador; limites do §2 | acréscimo do dono: faixas além da média |
 | 2026-11-06 | tests/test_contatos.py::test_prazos_das_faixas_validados (novo) | §2 `assumir_imediato_min < assumir_extremo_min`, inteiros ≥ 1 → 422 | limites configuráveis com validação |
 | 2026-11-06 | tests/test_contatos.py::test_hoje_lista_abertos_agora_e_leads_de_hoje (novo) | §13 `chamados_abertos_agora`, `leads_hoje`, `abertos_agora` | dono: aba Hoje não mostrava leads nem chamados abertos (só contagens do dia) |
+
+## 1.4.4 — base de conhecimento, sugestão, aprendizado, cérebro anthropic/openrouter/CLI (2026-11-06)
+
+| data | o que quebrou / risco | tentativa | resultado | prompt \| infra |
+|---|---|---|---|---|
+| 2026-11-06 | "que hora tem atendimento humano?" abria chamado `pediu_humano` (contém `humano`, regra 5) | detector de pergunta de horário/disponibilidade (regra 4a) **antes** das regras 5–7, só sem verbo de pedido (`quero`, `falar com`, `me liga`...) | resolvido; FAQ de horário segue exato; pedidos de humano seguem abrindo chamado | prompt |
+| 2026-11-06 | "forma de pagamento" é gatilho de venda (regra 6): responder só `info.pagamento` perderia o chamado | mantida a regra 6 com prefixo `Formas de pagamento: ...` (como o preço); `pix`/`cartão` sem gatilho → regra 7a | resolvido | prompt |
+| 2026-11-06 | `apagar meus dados` deixaria textos do lead nas tabelas novas | `anonimizar` apaga `sugestoes` e `aprendizado`; mensagens `sg:` no Telegram entram na edição 🗑️ | resolvido + teste | prompt |
+| 2026-11-06 | teste do aprendizado: Bruno não podia assumir (Ana livre era a 1ª da vez → 403) | Ana `ocupado` antes do atendimento do Bruno no teste | resolvido (erro do teste, não do sistema) | prompt |
+
+### Testes novos (1.4.4)
+
+| data | teste | trecho do contrato | motivo |
+|---|---|---|---|
+| 2026-11-06 | tests/test_base.py (15) | §2 info/aprendizado/cerebro; §4 regra 4a/7a; §4a Testar | respostas automáticas, campo vazio não inventa, testar sem gravar, validação |
+| 2026-11-06 | tests/test_sugestao.py (17) | §7a; §14 anthropic/openrouter/CLI; §16 `sg:`; §18 `cerebro_ok` | sugestão regras/LLM assíncrona, botões ok/ed, 3 origens, corpo anthropic, recusa/timeout → regras, CLI falso |
+| 2026-11-06 | tests/test_aprendizado.py (11) | §13a | lista/filtros/contadores, propostas regras/cérebro, incorporar/descartar, período diário/semanal/desligado, trabalhador |
+| 2026-11-06 | tests/falsos.py (helper) | §14 "servidores/binários falsos locais" | FalsoLLM (formato Anthropic/OpenAI) e CLI falso que grava args/stdin |

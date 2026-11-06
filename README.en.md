@@ -14,7 +14,7 @@ Complete guide (landing page + walkthrough): **https://inematds.github.io/atende
 
 🎬 Explainer video (2 min 37 s, in Portuguese): **https://inematds.github.io/atende-leads/videos/** · [YouTube](https://www.youtube.com/watch?v=-6VKlGAYwKY)
 
-**WhatsApp lead** handling with an agent that replies, qualifies leads, and forwards them to the **available team member** via Telegram, with all the details and a button to call. Python 3 using only the standard library, SQLite for state, Docker for VPS deployment. Open source, version `1.3.4`.
+**WhatsApp lead** handling with an agent that replies, qualifies leads, and forwards them to the **available team member** via Telegram, with all the details and a button to call. Python 3 using only the standard library, SQLite for state, Docker for VPS deployment. Open source, version `1.4.4`.
 
 ## What it does
 
@@ -27,7 +27,9 @@ Complete guide (landing page + walkthrough): **https://inematds.github.io/atende
 - **Scheduled follow-ups**, reminder for a stalled conversation (30 min), end-of-shift notice, and an out-of-hours message with the next start time.
 - **Three web interfaces:** lead (chat, website bubble, and “my conversation” page), team (`/equipe`), and manager (`/gestor`: live, today, leads, records, CSV).
 - **LGPD:** `PARAR`, `apagar meus dados`, and the group never receives the lead’s phone number or message text.
-- **Brain:** rules by default (no cost, no API). Optional: local Ollama or an OpenAI-compatible endpoint configured by the business, with automatic fallback to rules if it fails.
+- **Knowledge base** (`/gestor` → Knowledge base): business information (human support hours, address, payment, delivery, warranty, website, notes) and FAQ in a form, with the **Test** box ("what would the agent reply?"). "What time is human support available?" replies with the hours and whether it is open now; an empty field never produces an invented answer.
+- **Suggested reply for the team:** when a lead writes during a conversation, the owner receives `💡 Sugestão` on Telegram with **✅ Enviar / ✏️ Editar** (and in the panel, already in the reply box). Each reply becomes a record of **learning** (used without editing, edited, or ignored), and the **Learning** tab generates **proposals for the knowledge base** (daily, weekly, or on demand) for the manager to incorporate or discard.
+- **Brain:** default rules (no cost, no API). Optional: **Anthropic (Claude)**, **OpenRouter**, local Ollama, an OpenAI-compatible endpoint, or your subscription CLI (`claude`/`codex`, for local testing only), with automatic fallback to rules if it fails.
 
 Complete contract: [`docs/ESPECIFICACAO.md`](docs/ESPECIFICACAO.md).
 
@@ -37,16 +39,16 @@ Who does what: 🧠 owner/manager · ⚙️ system · 🤖 agent.
 
 1. 🧠 **Install on the VPS:** `git clone https://github.com/inematds/atende-leads /opt/atende-leads && cd /opt/atende-leads && ./instalar-vps.sh` (asks for name, domain, and Telegram; generates secrets, `.env`, and `dados/negocio.json`; starts Docker).
 2. 🧠 **Connect WhatsApp:** tunnel `ssh -L 8081:127.0.0.1:8081 usuario@vps`, open `http://localhost:8081/manager`, create the instance, and scan the QR Code with the support number (use a number dedicated to this).
-3. 🧠 **Set up** in `/gestor` → Cadastros: team (name, phone, code), products with keywords and prices, FAQ, hours, and deadlines.
+3. 🧠 **Set up** in `/gestor` → Registrations: team (name, phone, code), products with keywords and price, hours and lead times; → **Knowledge base**: business information, FAQ, and the brain (and **Test** questions as a customer would).
 4. 🧠 **Team joins the bot:** each team member sends `/entrar <código>` in a private chat with the bot and taps 🟢 Available.
 5. ⚙️ **A lead arrives** via WhatsApp or the website bubble.
 6. 🤖 **Agent handles it:** FAQ, listed prices, qualification, and score.
 7. ⚙️ **Trigger** (asks for a human / needs one / sales opportunity) → opens a ticket and sends a short line to the group.
 8. ⚙️ **Offer** goes to the person who has been available the longest, in a private chat, with details and buttons; after 2 minutes without a response → next person.
 9. ⚙️ **🚨 Alert** in the group when the deadline expires or no one is available.
-10. 🧠 **Team member takes over**, calls (📞), replies via WhatsApp (💬), or replies in the bot itself.
+10. 🧠 **Team member takes over**, calls (📞) or replies via WhatsApp (💬) or in a reply in the bot itself; ⚙️ each time a lead sends a message, a `💡 Sugestão` arrives (✅ Enviar / ✏️ Editar), and each reply is added to learning.
 11. 🧠 **Closes** with the outcome; ⚙️ records the history, schedules a follow-up, and returns the team member to the queue.
-12. 🧠 **Manager monitors** in `/gestor` (live, today, leads, export CSV).
+12. 🧠 **Manager monitors** in `/gestor` (live, today, leads, export CSV) and, in the **Learning** tab, incorporates or discards proposals for the knowledge base (⚙️ generated every week by default).
 13. ⚙️ **Daily backup** via the single cron job installed by `instalar-vps.sh` (`docker compose exec -T atende ./atende backup ...` → `/opt/atende-leads-backups/`).
 
 > You can complete steps 2 to 12 **on your machine**, without a domain or HTTPS, before moving to the VPS: see [Test on your machine (no domain)](#test-on-your-machine-no-domain) (Telegram with `TELEGRAM_MODO=polling`).
@@ -115,6 +117,35 @@ All commands below use the path **`/opt/atende-leads`** (the backup cron job doe
    ```
 
 Variables in [`.env.exemplo`](.env.exemplo) (includes `ATENDE_PROXY_CONFIAVEL`, `ATENDE_MAX_CONEXOES` — simultaneous connections, default 64, above that returns 503, but `/api/saude` still responds even when full —, `CEREBRO_HOSTS_PERMITIDOS`, and `ATENDE_PERMITIR_EXEMPLO`, for demos only). Without the variables for an integration, it stays disabled and the rest (web panels) works. Telegram and WhatsApp messages are sent through a background outbox: if an API stalls, customer service and `/api/saude` keep responding.
+
+## AI Brain (optional)
+
+Without any configuration, everything works using **rules** (zero cost). To have the agent answer questions outside the FAQ, summarize the conversation, suggest replies to the team, and propose items for the knowledge base, enable a brain in `/gestor` → **Knowledge base** → Brain (or in `negocio.json`). The key is stored **only** in `.env` (`CEREBRO_API_KEY`), never in the JSON or on screen. If the key is missing, the model refuses, an error occurs, or it takes too long (20 s), the response falls back to the rules; health (`/api/saude`) shows `cerebro_ok` and the reason.
+
+**Anthropic (Claude), recommended:**
+
+```json
+"cerebro": { "tipo": "anthropic", "modelo": "claude-sonnet-5-5", "esforco": "low" }
+```
+
+```bash
+# .env
+CEREBRO_API_KEY=sk-ant-...   # Anthropic API key
+```
+
+Then run `docker compose up -d` (or restart `./atende serve`). `esforco` = `low` (default, cheapest), `medium`, `high`, `xhigh`, or `max`. Responses are short (up to 1024 tokens), and the knowledge base is sent with prompt caching, so the cost per short response is low (even lower with `low`). Fixed instruction: Brazilian Portuguese, concise and cordial, use only the knowledge base, never invent prices/lead times/terms; if it does not know, it says it will call someone.
+
+**Other types:**
+
+| type | what it needs | notes |
+|---|---|---|
+| `openrouter` | `modelo` (e.g. `anthropic/claude-sonnet-5.5`, `z-ai/glm-5`) + `CEREBRO_API_KEY` from OpenRouter | fixed URL `openrouter.ai` |
+| `openai` | `url` + `modelo` (+ key and `CEREBRO_HOSTS_PERMITIDOS`) | any `/v1/chat/completions` endpoint |
+| `ollama` | `url` + `modelo` | local, no key |
+| `claude_cli` | logged-in `claude` CLI (`modelo`, default `sonnet`) | personal subscription |
+| `codex_cli` | logged-in `codex` CLI + `modelo` | personal subscription |
+
+> ⚠️ **`claude_cli` / `codex_cli` use your personal subscription through the CLI** (`claude -p` / `codex exec`, prompt via stdin, 60 s). They are only for **the owner to test** by running `./atende serve` directly on a machine with the CLI logged in (`CEREBRO_CLI_BIN` if the binary is not on PATH). **The binary does not exist inside Docker** — health shows `cerebro_ok: false` and everything falls back to the rules. For production customers, use an API (`anthropic`, `openrouter`, `openai`) or Ollama.
 
 ## Precautions
 

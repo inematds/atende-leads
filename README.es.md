@@ -14,7 +14,7 @@ Guía completa (landing + paso a paso): **https://inematds.github.io/atende-lead
 
 🎬 Video explicativo (2 min 37 s, en portugués): **https://inematds.github.io/atende-leads/videos/** · [YouTube](https://www.youtube.com/watch?v=-6VKlGAYwKY)
 
-Atención de **leads por WhatsApp** con un agente que responde, califica y asigna el lead al **colaborador disponible** por Telegram, con todos los datos y un botón para llamar. Python 3 solo con la biblioteca estándar, estado en SQLite, Docker para VPS. Código abierto, versión `1.3.4`.
+Atención de **leads por WhatsApp** con un agente que responde, califica y asigna el lead al **colaborador disponible** por Telegram, con todos los datos y un botón para llamar. Python 3 solo con la biblioteca estándar, estado en SQLite, Docker para VPS. Código abierto, versión `1.4.4`.
 
 ## Qué hace
 
@@ -27,7 +27,9 @@ Atención de **leads por WhatsApp** con un agente que responde, califica y asign
 - **Retomadas de contacto programadas**, recordatorio de atención detenida (30 min), aviso de fin de jornada y mensaje fuera de horario con la próxima hora de inicio.
 - **Tres interfaces web:** lead (chat, burbuja para el sitio y página «mi atención»), equipo (`/equipe`) y gerente (`/gestor`: en vivo, hoy, leads, registros, CSV).
 - **LGPD:** `PARAR`, `apagar meus dados`, y el grupo nunca recibe el teléfono ni el texto del lead.
-- **Cerebro:** reglas predeterminadas (sin costo, sin API). Opcional: Ollama local o un endpoint compatible con OpenAI configurado por el propio negocio, con retorno automático a las reglas si falla.
+- **Base de conocimiento** (`/gestor` → Base de conocimiento): información del negocio (horario de atención humana, dirección, pagos, entregas, garantía, sitio web, observaciones) y preguntas frecuentes en un formulario, con la opción **Probar** («¿qué respondería el agente?»). «¿A qué hora hay atención humana?» responde con el horario y si está abierto en ese momento; un campo vacío nunca genera una respuesta inventada.
+- **Sugerencia de respuesta para el equipo:** cuando un lead escribe durante una atención, el dueño recibe `💡 Sugerencia` en Telegram con **✅ Enviar / ✏️ Editar** (y en el panel, ya en el cuadro de respuesta). Cada respuesta se convierte en un registro de **aprendizaje** (se usó sin editar, se editó o se ignoró), y la pestaña **Aprendizaje** genera **propuestas para la base** (diarias, semanales o en el momento) para que el gestor las incorpore o descarte.
+- **Cerebro:** reglas por defecto (sin costo, sin API). Opcional: **Anthropic (Claude)**, **OpenRouter**, Ollama local, un endpoint compatible con OpenAI o el CLI de tu suscripción (`claude`/`codex`, solo para pruebas locales), con retorno automático a las reglas si falla.
 
 Contrato completo: [`docs/ESPECIFICACAO.md`](docs/ESPECIFICACAO.md).
 
@@ -37,16 +39,16 @@ Quién hace qué: 🧠 el dueño/gerente · ⚙️ el sistema · 🤖 el agente.
 
 1. 🧠 **Instalar en la VPS:** `git clone https://github.com/inematds/atende-leads /opt/atende-leads && cd /opt/atende-leads && ./instalar-vps.sh` (pregunta el nombre, dominio y Telegram; genera secretos, `.env` y `dados/negocio.json`; inicia Docker).
 2. 🧠 **Conectar WhatsApp:** crear el túnel `ssh -L 8081:127.0.0.1:8081 usuario@vps`, abrir `http://localhost:8081/manager`, crear la instancia y escanear el código QR con el número de atención (usa un número solo para esto).
-3. 🧠 **Registrar** en `/gestor` → Cadastros: equipo (nombre, teléfono, código), productos con palabras y precio, preguntas frecuentes, horarios y plazos.
+3. 🧠 **Registrar** en `/gestor` → Registros: equipo (nombre, teléfono, código), productos con palabras y precio, horarios y plazos; → **Base de conocimiento**: información del negocio, preguntas frecuentes y el cerebro (y **Probar** preguntas como si fueras un cliente).
 4. 🧠 **El equipo entra al bot:** cada colaborador envía `/entrar <código>` al chat privado del bot y toca 🟢 Disponible.
 5. ⚙️ **Llega un lead** por WhatsApp o por la burbuja del sitio.
 6. 🤖 **El agente atiende:** preguntas frecuentes, precio registrado, calificación y nota.
 7. ⚙️ **Se activa un disparador** (pidió a una persona / hace falta / posibilidad de venta) → abre el caso y envía una línea breve al grupo.
 8. ⚙️ **Se ofrece** al colaborador que lleva más tiempo disponible, en privado, con datos y botones; si no responde en 2 min → pasa al siguiente.
 9. ⚙️ **Alerta 🚨** en el grupo cuando vence el plazo o no hay nadie disponible.
-10. 🧠 **El colaborador acepta**, llama (📞), responde por WhatsApp (💬) o directamente desde el bot.
+10. 🧠 **El colaborador se hace cargo**, llama (📞) o responde por WhatsApp (💬) o con una respuesta en el propio bot; ⚙️ con cada mensaje del lead llega una `💡 Sugerencia` (✅ Enviar / ✏️ Editar) y cada respuesta se incorpora al aprendizaje.
 11. 🧠 **Cierra** con el resultado; ⚙️ el sistema guarda el historial, programa el próximo contacto y devuelve al colaborador a la fila.
-12. 🧠 **El gerente hace seguimiento** en `/gestor` (en vivo, hoy, leads, exportar CSV).
+12. 🧠 **El gestor hace seguimiento** en `/gestor` (en vivo, hoy, leads, exportar CSV) y, en la pestaña **Aprendizaje**, incorpora o descarta las propuestas para la base (⚙️ se generan cada semana, de forma predeterminada).
 13. ⚙️ **Respaldo diario** mediante el único cron que instala `instalar-vps.sh` (`docker compose exec -T atende ./atende backup ...` → `/opt/atende-leads-backups/`).
 
 > Puedes realizar los pasos 2 a 12 **en tu máquina**, sin dominio ni HTTPS, antes de pasar a la VPS: consulta [Probar en tu máquina (sin dominio)](#probar-en-tu-máquina-sin-dominio) (Telegram en `TELEGRAM_MODO=polling`).
@@ -115,6 +117,35 @@ Todos los comandos de abajo usan la ruta **`/opt/atende-leads`** (también el cr
    ```
 
 Variables en [`.env.exemplo`](.env.exemplo) (incluye `ATENDE_PROXY_CONFIAVEL`, `ATENDE_MAX_CONEXOES` — conexiones simultáneas, predeterminado 64; por encima de ese límite devuelve 503, pero `/api/saude` sigue respondiendo aunque esté lleno —, `CEREBRO_HOSTS_PERMITIDOS` y `ATENDE_PERMITIR_EXEMPLO`, solo para demostraciones). Si no configuras las variables de una integración, esta queda desactivada y el resto funciona (paneles web). Los envíos a Telegram y WhatsApp salen por una bandeja de salida en segundo plano: si una API se bloquea, la atención y `/api/saude` siguen respondiendo.
+
+## Cerebro con IA (opcional)
+
+Sin ninguna configuración, todo funciona con **reglas** (costo cero). Para que el agente responda preguntas fuera de las preguntas frecuentes, resuma el caso, sugiera respuestas al equipo y proponga elementos para la base, activa un cerebro en `/gestor` → **Base de conocimiento** → Cerebro (o en `negocio.json`). La clave se guarda **solo** en `.env` (`CEREBRO_API_KEY`), nunca en el JSON ni en la pantalla. Si falta la clave, el modelo la rechaza, da error o tarda demasiado (20 s), la respuesta vuelve a las reglas; el estado de salud (`/api/saude`) muestra `cerebro_ok` y el motivo.
+
+**Anthropic (Claude), recomendado:**
+
+```json
+"cerebro": { "tipo": "anthropic", "modelo": "claude-sonnet-5-5", "esforco": "low" }
+```
+
+```bash
+# .env
+CEREBRO_API_KEY=sk-ant-...   # clave de la API de Anthropic
+```
+
+Luego ejecuta `docker compose up -d` (o reinicia `./atende serve`). `esforco` = `low` (predeterminado, más barato), `medium`, `high`, `xhigh` o `max`. Las respuestas son breves (hasta 1024 tokens) y la base se envía con caché del prompt, por lo que el costo por respuesta breve es bajo (aún menor con `low`). Instrucción fija: portugués de Brasil, breve y cordial, solo la base; nunca inventa precios, plazos ni condiciones; si no sabe, dice que llamará a alguien.
+
+**Otros tipos:**
+
+| tipo | qué necesita | observación |
+|---|---|---|
+| `openrouter` | `modelo` (p. ej., `anthropic/claude-sonnet-5.5`, `z-ai/glm-5`) + `CEREBRO_API_KEY` de OpenRouter | URL fija `openrouter.ai` |
+| `openai` | `url` + `modelo` (+ clave y `CEREBRO_HOSTS_PERMITIDOS`) | cualquier endpoint `/v1/chat/completions` |
+| `ollama` | `url` + `modelo` | local, sin clave |
+| `claude_cli` | CLI `claude` con sesión iniciada (`modelo`, predeterminado `sonnet`) | suscripción personal |
+| `codex_cli` | CLI `codex` con sesión iniciada + `modelo` | suscripción personal |
+
+> ⚠️ **`claude_cli` / `codex_cli` usan tu suscripción personal mediante el CLI** (`claude -p` / `codex exec`, prompt por stdin, 60 s). Sirven solo para que **el dueño haga pruebas** al ejecutar `./atende serve` directamente en la máquina con el CLI con sesión iniciada (`CEREBRO_CLI_BIN` si el binario no está en el PATH). **El binario no existe dentro de Docker**: el estado de salud muestra `cerebro_ok: false` y todo vuelve a las reglas. Para clientes en producción, usa una API (`anthropic`, `openrouter`, `openai`) u Ollama.
 
 ## Precauciones
 

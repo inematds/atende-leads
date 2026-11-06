@@ -23,6 +23,8 @@
       <button class="aba ativa" data-aba="aovivo">Ao vivo</button>
       <button class="aba" data-aba="hoje">Hoje</button>
       <button class="aba" data-aba="leads">Leads</button>
+      <button class="aba" data-aba="base">Base de conhecimento</button>
+      <button class="aba" data-aba="aprendizado">Aprendizado</button>
       <button class="aba" data-aba="cadastros">Cadastros</button>
       <button class="aba" data-aba="exportar">Exportar</button>
     </nav>
@@ -45,13 +47,71 @@
       <div id="leads" class="tabela"></div>
       <div id="ficha" class="cartao" hidden></div>
     </section>
+    <section data-painel="base" hidden>
+      <p class="mut">Tudo o que o agente sabe: as respostas automáticas usam estes campos (vazio = o agente não fala do assunto e segue o fluxo normal) e o cérebro LLM recebe a base inteira (informações + FAQ + produtos).</p>
+      <fieldset class="cartao"><legend>Informações do negócio</legend>
+        <label>Horário de atendimento humano <textarea id="i-horario_atendimento" class="texto" rows="2"></textarea></label>
+        <p class="mut" id="i-horario-gerado"></p>
+        <label>Endereço <textarea id="i-endereco" class="texto" rows="2"></textarea></label>
+        <label>Formas de pagamento <textarea id="i-pagamento" class="texto" rows="2"></textarea></label>
+        <label>Entrega <textarea id="i-entrega" class="texto" rows="2"></textarea></label>
+        <label>Garantia e trocas <textarea id="i-garantia" class="texto" rows="2"></textarea></label>
+        <label>Site <input id="i-site" placeholder="https://..."></label>
+        <label>Observações (só para o cérebro, não viram resposta automática) <textarea id="i-observacoes" class="texto" rows="3"></textarea></label>
+      </fieldset>
+      <fieldset class="cartao"><legend>Perguntas frequentes (FAQ)</legend>
+        <p class="mut">Uma forma da pergunta por linha. O agente responde exatamente a resposta quando 60 % das palavras de uma forma aparecem na mensagem.</p>
+        <div id="faq-lista"></div>
+        <div class="acoes"><button id="faq-add" type="button">+ Adicionar pergunta</button></div>
+      </fieldset>
+      <fieldset class="cartao"><legend>Cérebro do agente</legend>
+        <div class="linha">
+          <label>Tipo <select id="b-tipo">
+            <option value="regras">regras (sem IA, padrão)</option><option value="anthropic">anthropic (API Claude)</option>
+            <option value="openrouter">openrouter (API)</option><option value="openai">openai (endpoint compatível)</option>
+            <option value="ollama">ollama (local)</option><option value="claude_cli">claude_cli (assinatura, só fora do Docker)</option>
+            <option value="codex_cli">codex_cli (assinatura, só fora do Docker)</option></select></label>
+          <label data-cer="modelo">Modelo <input id="b-modelo" placeholder="claude-sonnet-5-5"></label>
+          <label data-cer="esforco">Esforço <select id="b-esforco"><option>low</option><option>medium</option><option>high</option><option>xhigh</option><option>max</option></select></label>
+          <label data-cer="url">URL <input id="b-url" placeholder="http://localhost:11434"></label>
+        </div>
+        <p class="mut">A chave (<code>CEREBRO_API_KEY</code>) fica só no <code>.env</code> do servidor; nunca aparece nem é editada aqui. Sem chave ou com erro, tudo funciona por regras.</p>
+        <p id="b-saude" class="mut"></p>
+      </fieldset>
+      <div class="acoes"><button id="salvar-base" class="primario">Salvar base de conhecimento</button></div>
+      <fieldset class="cartao"><legend>Testar</legend>
+        <p class="mut">Escreva como o cliente escreveria. Mostra o que o agente responderia agora (nada é gravado; salve a base antes de testar mudanças).</p>
+        <form id="form-testar" class="linha"><input id="t-texto" placeholder="que hora tem atendimento humano?" required><button class="primario" type="submit">Testar</button></form>
+        <div id="t-resultado"></div>
+      </fieldset>
+    </section>
+    <section data-painel="aprendizado" hidden>
+      <p class="mut">Cada resposta da equipe a uma mensagem do cliente: o que o cliente disse, o que a IA sugeriu e o que o vendedor mandou.</p>
+      <form id="form-apr" class="linha">
+        <label>De <input id="a-de" type="date"></label>
+        <label>Até <input id="a-ate" type="date"></label>
+        <label>Colaborador <select id="a-colab"><option value="">todos</option></select></label>
+        <label>Origem <select id="a-origem"><option value="">todas</option><option value="sugestao_ok">sugestão sem editar</option>
+          <option value="sugestao_editada">sugestão editada</option><option value="livre">livre</option></select></label>
+        <button class="primario" type="submit">Filtrar</button>
+      </form>
+      <div id="a-contadores" class="grade"></div>
+      <h2>Propostas para a base</h2>
+      <div class="linha">
+        <label>Geração automática <select id="a-periodo"><option value="diario">diária</option><option value="semanal">semanal</option><option value="desligado">desligada</option></select></label>
+        <button id="a-periodo-salvar" type="button">Salvar período</button>
+        <button id="a-gerar" class="primario" type="button">Gerar propostas agora</button>
+      </div>
+      <div id="a-propostas"></div>
+      <h2>Registros</h2>
+      <div id="a-itens" class="tabela"></div>
+    </section>
     <section data-painel="cadastros" hidden>
-      <p class="mut">Edite e salve. Inválido não grava nada (ids e códigos únicos, horários HH:MM, prazos inteiros ≥ 1, imediato menor que extremo).</p>
+      <p class="mut">FAQ, informações do negócio e cérebro ficam na aba Base de conhecimento. Edite e salve. Inválido não grava nada (ids e códigos únicos, horários HH:MM, prazos inteiros ≥ 1, imediato menor que extremo).</p>
       <label>Nome do negócio <input id="c-nome"></label>
       <label>URL pública <input id="c-url"></label>
       <label>Equipe (JSON) <textarea id="c-equipe" rows="8"></textarea></label>
       <label>Produtos (JSON) <textarea id="c-produtos" rows="8"></textarea></label>
-      <label>FAQ (JSON) <textarea id="c-faq" rows="8"></textarea></label>
       <label>Horários (JSON) <textarea id="c-horarios" rows="5"></textarea></label>
       <fieldset class="cartao"><legend>Prazos — faixas do tempo para assumir (aba Hoje)</legend>
         <div class="linha">
@@ -61,7 +121,6 @@
         <p class="mut">Imediato ≤ o 1º limite · médio entre os dois · extremo acima do 2º. Inteiros ≥ 1 e o 1º menor que o 2º.</p>
       </fieldset>
       <label>Prazos (JSON) <textarea id="c-prazos" rows="3"></textarea></label>
-      <label>Cérebro (JSON) <textarea id="c-cerebro" rows="3"></textarea></label>
       <div class="acoes"><button id="salvar" class="primario">Salvar cadastros</button></div>
     </section>
     <section data-painel="exportar" hidden>

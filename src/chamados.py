@@ -365,7 +365,8 @@ def transferir(c, ident, colab):
 
 
 # ---------- conversa dono → lead ----------
-def responder(c, ident, colab, texto):
+def responder(c, ident, colab, texto, sugestao_id=None):
+    from . import sugestao
     ch = c.chamado(ident)
     if not isinstance(texto, str) or not texto.strip():
         raise Erro(422, 'Texto obrigatório')
@@ -374,6 +375,7 @@ def responder(c, ident, colab, texto):
     if ch['status'] != 'atendendo':
         raise Erro(409, 'Chamado não está em atendimento')
     lead = c.lead(ch['lead_id'])
+    sugestao.registrar_resposta(c, ch, colab, texto.strip(), sugestao_id)  # aprendizado (seção 7a)
     _registrar(c, lead['id'], ident, 'humano', texto.strip(), ch['dono'])
     c.db.execute('UPDATE chamados SET ultimo_mov=?, lembrado=0 WHERE id=?', (iso(c.agora()), ident))
     status = evolution.enviar_lead(c, lead, texto.strip(), 'humano')
@@ -506,8 +508,8 @@ def encerrar_por_apagar(c, lead_id):
     # 2) mensagens já entregues no privado do dono com dados dele ('💬 <nome>: <texto>', '📅 Retorno: ...',
     #    'Ainda com <nome>?'), de qualquer chamado do lead, inclusive os já fechados
     if todos:
-        for m in c.db.execute(f"SELECT chat_id, message_id, chamado_id FROM tg_msgs WHERE tipo IN "
-                              f"('lead','lembrete','retorno') AND chamado_id IN ({','.join('?' * len(todos))})",
+        for m in c.db.execute(f"SELECT chat_id, message_id, chamado_id FROM tg_msgs WHERE (tipo IN "
+                              f"('lead','lembrete','retorno') OR tipo LIKE 'sg:%') AND chamado_id IN ({','.join('?' * len(todos))})",
                               todos).fetchall():
             tg.editar(c, f"{m['chat_id']}:{m['message_id']}", f"🗑️ #{m['chamado_id']} lead pediu para apagar os dados")
     # 3) chamados abertos
