@@ -6,7 +6,7 @@ import json
 import re
 
 from .core import DIAS, ROOT, Erro, minutos, parse
-from . import chamados, conversa, equipe, evolution
+from . import chamados, contatos, conversa, equipe, evolution
 
 
 def ao_vivo(c):
@@ -20,6 +20,18 @@ def ao_vivo(c):
     return p
 
 
+def faixas_assumir(c, tempos):
+    """Faixas do tempo para assumir (seção 13): imediatos ≤ assumir_imediato_min < médios ≤ assumir_extremo_min < extremos."""
+    imed = c.prazo('assumir_imediato_min', 1)
+    extr = c.prazo('assumir_extremo_min', 10)
+    return {'imediatos': sum(1 for t in tempos if t <= imed),
+            'medios': sum(1 for t in tempos if imed < t <= extr),
+            'extremos': sum(1 for t in tempos if t > extr),
+            'maior_min': max(tempos) if tempos else 0,
+            'media_min': round(sum(tempos) / len(tempos), 1) if tempos else 0,
+            'imediato_min': imed, 'extremo_min': extr}
+
+
 def hoje(c):
     dia = c.agora().date().isoformat()
 
@@ -30,17 +42,27 @@ def hoje(c):
     abertos = q(f'SELECT COUNT(*) FROM chamados WHERE {no_dia("aberto_em")}').fetchone()[0]
     assumidos = q(f'SELECT * FROM chamados WHERE assumido_em IS NOT NULL AND {no_dia("assumido_em")}').fetchall()
     vendas = q(f"SELECT * FROM chamados WHERE status='fechado' AND resultado='vendeu' AND {no_dia('fechado_em')}").fetchall()
-    tempos = [minutos(ch['conta_desde'] or ch['aberto_em'], parse(ch['assumido_em'])) for ch in assumidos]
+    def tempo(ch):
+        return minutos(ch['conta_desde'] or ch['aberto_em'], parse(ch['assumido_em']))
+    tempos = [tempo(ch) for ch in assumidos]
     por = []
     for m in c.cfg.get('equipe', []):
         meus_v = [v for v in vendas if v['dono'] == m['id']]
         por.append({'id': m['id'], 'nome': m['nome'],
                     'assumidos': sum(1 for a in assumidos if a['dono'] == m['id']),
-                    'vendas': len(meus_v), 'valor': float(sum(v['valor'] or 0 for v in meus_v))})
-    return {'dia': dia, 'leads_novos': leads_novos, 'chamados_abertos': abertos, 'assumidos': len(assumidos),
+                    'vendas': len(meus_v), 'valor': float(sum(v['valor'] or 0 for v in meus_v)),
+                    'assumir': faixas_assumir(c, [tempo(a) for a in assumidos if a['dono'] == m['id']])})
+    agora_ = q("SELECT * FROM chamados WHERE status IN ('aguardando','alerta','atendendo') ORDER BY aberto_em, id").fetchall()
+    de_hoje = q(f"SELECT * FROM leads WHERE telefone NOT LIKE 'apagado-%' AND ({no_dia('criado_em')} OR "
+                f"{no_dia('ultimo_contato')})").fetchall()
+    faixas = faixas_assumir(c, tempos)
+    return {'dia': dia, 'agora': c.agora().strftime('%Y-%m-%dT%H:%M'), 'leads_novos': leads_novos,
+            'chamados_abertos': abertos, 'abertos_agora': len(agora_), 'assumidos': len(assumidos),
             'vendas': len(vendas), 'valor_vendido': float(sum(v['valor'] or 0 for v in vendas)),
-            'tempo_medio_assumir_min': round(sum(tempos) / len(tempos), 1) if tempos else 0,
-            'por_colaborador': por}
+            'tempo_medio_assumir_min': faixas['media_min'], 'assumir': faixas,
+            'por_colaborador': por,
+            'chamados_abertos_agora': [chamados.json_chamado(c, ch) for ch in agora_],
+            'leads_hoje': contatos.ordenar([_linha_lead(c, r) for r in de_hoje])}
 
 
 def _ultimo_chamado(c, lead_id):
@@ -54,6 +76,7 @@ def _linha_lead(c, lead):
     d['resultado'] = ult['resultado'] if ult else None
     d['valor'] = ult['valor'] if ult else None
     d['chamado_status'] = ult['status'] if ult else None
+    d.update(contatos.extras(c, lead))
     return d
 
 
@@ -72,7 +95,7 @@ def leads(c, q):
     if q.get('ate'):
         sql += ' AND substr(criado_em,1,10)<=?'
         args.append(q['ate'][:10])
-    return [_linha_lead(c, r) for r in c.db.execute(sql + ' ORDER BY id DESC', args)]
+    return contatos.ordenar([_linha_lead(c, r) for r in c.db.execute(sql + ' ORDER BY id DESC', args)])
 
 
 def ficha(c, lead_id):
@@ -83,7 +106,7 @@ def ficha(c, lead_id):
                                                                 (lead_id,))]
     hist = [json.loads(r['dados']) for r in c.db.execute('SELECT dados FROM historico WHERE lead_id=? ORDER BY id',
                                                           (lead_id,))]
-    return {'lead': conversa.lead_json(c, lead), 'mensagens': msgs, 'chamados': chs, 'historico': hist}
+    return {'lead': contatos.ficha_lead(c, lead), 'mensagens': msgs, 'chamados': chs, 'historico': hist}
 
 
 CABECALHO = 'lead_id,nome,telefone,status,nota,interesse,colaborador,resultado,valor,criado_em,ultimo_contato'
@@ -201,6 +224,8 @@ def validar_config(c, novo):
     for k, v in prazos.items():
         if isinstance(v, bool) or not isinstance(v, int) or v < 1:
             _erro(f'prazos.{k} deve ser inteiro ≥ 1')
+    if prazos.get('assumir_imediato_min', 1) >= prazos.get('assumir_extremo_min', 10):
+        _erro('prazos: assumir_imediato_min deve ser menor que assumir_extremo_min')
     cer = cfg.get('cerebro', {'tipo': 'regras'})
     if not isinstance(cer, dict) or cer.get('tipo', 'regras') not in ('regras', 'ollama', 'openai'):
         _erro('cerebro.tipo deve ser regras, ollama ou openai')

@@ -451,6 +451,8 @@ def fechar(c, ident, colab, b):
         _registrar(c, lead['id'], ident, 'agente', texto)
         evolution.enviar_lead(c, c.lead(lead['id']), texto, 'aviso', automatica=True)
     limpar_fluxos(c, ident)
+    from . import contatos
+    contatos.marcar_visto(c, ch['dono'], lead['id'])  # "novas" contam a partir daqui (seção 12)
     c.sujo = True
     equipe.liberar_se_vazio(c, ch['dono'])
     return json_chamado(c, c.chamado(ident)) | {'evento': evento}
@@ -543,6 +545,8 @@ def devolver(c, ident, colab):
         c.db.execute("UPDATE leads SET status=COALESCE(status_antes,'novo'), estado='{}' WHERE id=?", (lead['id'],))
     _encerrar_mensagens(c, ch, f'↩️ #{ident} devolvido ao bot')
     limpar_fluxos(c, ident)
+    from . import contatos
+    contatos.marcar_visto(c, ch['dono'], lead['id'])  # "novas" contam a partir daqui (seção 12)
     c.sujo = True
     equipe.liberar_se_vazio(c, ch['dono'])
     return json_chamado(c, c.chamado(ident))

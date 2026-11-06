@@ -50,6 +50,21 @@ button:disabled{opacity:.5;cursor:wait}
 .tag.livre{border-color:var(--ok);color:var(--ok)}
 .tag.atendendo{border-color:var(--amb);color:var(--amb)}
 .tag.alerta{background:var(--bad);color:#1a0505;border-color:var(--bad)}
+/* selo do status do lead: fundo cheio, texto escuro (contraste ≥ 4.5) */
+.selo{display:inline-block;font-family:var(--titulo);font-size:.75rem;font-weight:700;padding:2px 9px;border-radius:999px;
+  white-space:nowrap;color:#0c0c10;background:#9a9aa6}
+.selo.st-em_atendimento{background:#FACC15}
+.selo.st-retornar{background:#60a5fa}
+.selo.st-negociando{background:#c4b5fd}
+.selo.st-novo{background:#e9e9ee}
+.selo.st-ganho{background:#4ade80}
+.selo.st-perdido{background:#fca5a5}
+.selo.st-invalido{background:#6b6b78;color:#fff}
+.selo.nova{background:#f87171;color:#1a0505}
+.contato{display:block;width:100%;text-align:left;font-family:var(--corpo);font-weight:400;margin:8px 0;padding:12px 14px}
+.contato .linha{justify-content:flex-start}
+.contato .linha>*{flex:0 0 auto}
+.contato .ult{display:block;margin:6px 0 2px;color:var(--txt);overflow-wrap:anywhere}
 table{width:100%;border-collapse:collapse;font-size:.9rem}
 th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line);vertical-align:top}
 th{color:var(--mut);font-weight:600}

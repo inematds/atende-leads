@@ -142,6 +142,8 @@ CREATE TABLE IF NOT EXISTS tg_saida (
     chave TEXT, chamado_id INTEGER, tipo TEXT, message_id TEXT);
 CREATE INDEX IF NOT EXISTS tg_saida_pend ON tg_saida(status, id);
 CREATE TABLE IF NOT EXISTS descartes (id INTEGER PRIMARY KEY, em TEXT, origem TEXT, motivo TEXT, detalhe TEXT);
+CREATE TABLE IF NOT EXISTS vistos (colaborador TEXT NOT NULL, lead_id INTEGER NOT NULL, ate INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (colaborador, lead_id));
 '''
 
 COLUNAS_LEADS = ('id, token, nome, telefone, status, status_antes, nota, interesse, urgencia, nao_contatar, canal, '

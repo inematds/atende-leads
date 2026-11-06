@@ -46,13 +46,20 @@
       <div id="ficha" class="cartao" hidden></div>
     </section>
     <section data-painel="cadastros" hidden>
-      <p class="mut">Edite e salve. Inválido não grava nada (ids e códigos únicos, horários HH:MM, prazos inteiros ≥ 1).</p>
+      <p class="mut">Edite e salve. Inválido não grava nada (ids e códigos únicos, horários HH:MM, prazos inteiros ≥ 1, imediato menor que extremo).</p>
       <label>Nome do negócio <input id="c-nome"></label>
       <label>URL pública <input id="c-url"></label>
       <label>Equipe (JSON) <textarea id="c-equipe" rows="8"></textarea></label>
       <label>Produtos (JSON) <textarea id="c-produtos" rows="8"></textarea></label>
       <label>FAQ (JSON) <textarea id="c-faq" rows="8"></textarea></label>
       <label>Horários (JSON) <textarea id="c-horarios" rows="5"></textarea></label>
+      <fieldset class="cartao"><legend>Prazos — faixas do tempo para assumir (aba Hoje)</legend>
+        <div class="linha">
+          <label>Imediato até (min) <input id="c-imediato" type="number" min="1" step="1"></label>
+          <label>Extremo acima de (min) <input id="c-extremo" type="number" min="2" step="1"></label>
+        </div>
+        <p class="mut">Imediato ≤ o 1º limite · médio entre os dois · extremo acima do 2º. Inteiros ≥ 1 e o 1º menor que o 2º.</p>
+      </fieldset>
       <label>Prazos (JSON) <textarea id="c-prazos" rows="3"></textarea></label>
       <label>Cérebro (JSON) <textarea id="c-cerebro" rows="3"></textarea></label>
       <div class="acoes"><button id="salvar" class="primario">Salvar cadastros</button></div>

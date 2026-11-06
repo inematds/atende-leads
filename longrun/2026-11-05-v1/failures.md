@@ -99,3 +99,19 @@ Fora de escopo, mantido de propósito: `/entrar` do Telegram continua barrando a
 | 2026-11-05 | tests/test_polling.py::test_polling_nao_exige_segredo_em_0000 (novo) | §1 trava de 0.0.0.0; §16 polling sem TELEGRAM_SEGREDO | webhook sem segredo recusa em 0.0.0.0; polling sobe |
 | 2026-11-05 | tests/conftest.py Externo (alterado) | §16 | Telegram falso responde getUpdates (fila `injetar`, offset, [] após o timeout ≤ 2 s) e deleteWebhook; `trava` virou Condition |
 | 2026-11-05 | tests/test_interfaces.py::test_link_acompanhe_desligado_por_padrao (era test_link_acompanhe_ao_abrir_chamado) | §11 link_acompanhamento | Nei: lead já está na conversa; link só no WhatsApp e só se ligado |
+
+## Testes novos de "Meus contatos", ordem por nível, tempos do lead e aba Hoje (1.3.4)
+
+| data | teste | trecho do contrato | motivo |
+|---|---|---|---|
+| 2026-11-06 | tests/test_contatos.py::test_contatos_ordem_por_nivel_e_campos (novo) | §12 `GET /api/equipe/contatos`, ordem por nível | dono: devolvido ao bot sumia do painel (só listava chamados abertos) |
+| 2026-11-06 | tests/test_contatos.py::test_contatos_filtro_status (novo) | §12 `?status=` | filtro por status na lista de contatos |
+| 2026-11-06 | tests/test_contatos.py::test_gestor_leads_na_ordem_por_nivel (novo) | §13 `/api/gestor/leads` na ordem por nível, filtros mantidos | gestor listava por id |
+| 2026-11-06 | tests/test_contatos.py::test_devolvido_escreve_aparece_com_nova_e_ficha_zera (novo) | §12 `novas` por id (não por minuto), `vistos`, ficha [E] zera, [G] não | cenário do dono: lead escreveu no mesmo minuto da devolução |
+| 2026-11-06 | tests/test_contatos.py::test_lead_devolvido_que_pede_humano_volta_ao_antigo_dono (novo) | §7 "lead que volta" depois de `devolvido` | confirma que a regra existente cobre a devolução |
+| 2026-11-06 | tests/test_contatos.py::test_colaborador_nao_ve_contatos_de_outro (novo) | §12 contatos só do próprio colaborador | privacidade entre colaboradores |
+| 2026-11-06 | tests/test_contatos.py::test_apagado_some_dos_contatos (novo) | §4 regra 2 + §12 apagado não aparece | lead anonimizado não pode reaparecer na lista |
+| 2026-11-06 | tests/test_contatos.py::test_tempos_conversa_desde_contato_e_outro_dia (novo) | §12 `minutos_conversa`, `minutos_desde_contato`, `dias_contato`, `dia_anterior` (lista, ficha [E]/[G], gestor) | acréscimo do dono: tempo de conversa, há quanto tempo, contato em outro dia |
+| 2026-11-06 | tests/test_contatos.py::test_hoje_faixas_do_tempo_para_assumir (novo) | §13 `assumir {imediatos, medios, extremos, maior_min, media_min}` geral e por colaborador; limites do §2 | acréscimo do dono: faixas além da média |
+| 2026-11-06 | tests/test_contatos.py::test_prazos_das_faixas_validados (novo) | §2 `assumir_imediato_min < assumir_extremo_min`, inteiros ≥ 1 → 422 | limites configuráveis com validação |
+| 2026-11-06 | tests/test_contatos.py::test_hoje_lista_abertos_agora_e_leads_de_hoje (novo) | §13 `chamados_abertos_agora`, `leads_hoje`, `abertos_agora` | dono: aba Hoje não mostrava leads nem chamados abertos (só contagens do dia) |

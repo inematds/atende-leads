@@ -19,7 +19,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlsplit
 
 from .core import App, Erro, ROOT, log, versao
-from . import (backup, bot, cerebro, chamados, conversa, equipe, evolution, gestao, limite, paginas, polling,
+from . import (backup, bot, cerebro, chamados, contatos, conversa, equipe, evolution, gestao, limite, paginas, polling,
                saida, tarefas)
 from . import telegram as tg
 
@@ -258,7 +258,13 @@ def rotear_equipe(c, metodo, rota, q, b, papel, colab):
         c.lead(lead_id)
         if not g and not bot.pode_ver(c, colab, lead_id):
             raise Erro(403, 'Você não pode ver este lead')
-        return 200, gestao.ficha(c, lead_id)
+        f = gestao.ficha(c, lead_id)
+        if not g:
+            contatos.marcar_visto(c, colab, lead_id)  # abriu a ficha: as "novas" dele zeram
+        return 200, f
+    if metodo == 'GET' and rota == '/contatos':
+        ident = colab_do_corpo(c, b, q) if g else colab
+        return 200, contatos.de_colaborador(c, ident, q)
     raise Erro(404, 'Rota inexistente')
 
 

@@ -30,6 +30,21 @@
     $('retornos').innerHTML = eu.retornos_hoje.length ? '<div class="tabela"><table><tr><th>Hora</th><th>Lead</th><th>Telefone</th></tr>' +
       eu.retornos_hoje.map(r => '<tr><td>' + AL.esc(r.em.slice(11, 16)) + '</td><td>' + AL.esc(r.nome || 'lead') + '</td><td>' +
         AL.esc(AL.fone(r.telefone)) + '</td></tr>').join('') + '</table></div>' : '<p class="mut">Nenhum retorno hoje.</p>';
+    await contatos();
+  }
+
+  async function contatos() {
+    const st = $('ct-status').value;
+    let ls;
+    try { ls = await api('GET', '/api/equipe/contatos' + (st ? '?status=' + encodeURIComponent(st) : '')); } catch (e) { return; }
+    $('contatos').innerHTML = ls.length ? ls.map(l => '<button type="button" class="cartao contato" data-ficha="' + l.id + '"' +
+      (l.chamado_aberto ? ' data-ch="' + l.chamado_aberto + '"' : '') + '><span class="linha">' + AL.selo(l.status) +
+      (l.nota === 'quente' ? '<span title="lead quente">🔥</span>' : '') + '<strong>' + AL.esc(l.nome || 'lead') + '</strong>' +
+      '<span class="mut">' + AL.esc(AL.fone(l.telefone)) + '</span>' +
+      (l.novas > 0 ? '<span class="selo nova">' + l.novas + (l.novas === 1 ? ' nova' : ' novas') + '</span>' : '') +
+      (l.retornar_em ? '<span class="mut">📅 retorno ' + AL.esc(AL.hora(l.retornar_em)) + '</span>' : '') + '</span>' +
+      (l.ultima_mensagem ? '<span class="ult">“' + AL.esc(l.ultima_mensagem) + '”</span>' : '') +
+      '<small class="mut">' + AL.tempos(l) + '</small></button>').join('') : '<p class="mut">Nenhum contato' + (st ? ' com este status' : '') + '.</p>';
   }
 
   async function abrirFicha(leadId, chId) {
@@ -38,13 +53,15 @@
       fichaChamado = f.chamados.find(c => String(c.id) === String(chId)) || f.chamados[f.chamados.length - 1];
       $('ficha').hidden = false;
       $('ficha-titulo').textContent = (f.lead.nome || 'Lead') + ' · #' + fichaChamado.id;
-      $('ficha-dados').innerHTML = '<p>' + AL.esc(AL.fone(f.lead.telefone)) + ' · nota ' + AL.esc(f.lead.nota) + ' · ' + AL.esc(f.lead.status) + '</p>' +
+      $('ficha-dados').innerHTML = '<p>' + AL.esc(AL.fone(f.lead.telefone)) + ' · nota ' + AL.esc(f.lead.nota) + ' · ' + AL.selo(f.lead.status) + '</p>' +
+        '<p class="mut">' + AL.tempos(f.lead) + '</p>' +
         (f.historico.length ? '<p class="mut">Histórico: ' + f.historico.map(h => AL.esc(h.resultado) + ' (' + AL.esc(h.em) + ')').join(', ') + '</p>' : '');
       $('ficha-msgs').innerHTML = f.mensagens.map(m => '<div class="bolha ' + (m.de === 'lead' ? '' : (m.de === 'humano' ? 'minha' : 'humano')) +
         '"><small>' + AL.esc(m.de) + ' · ' + AL.esc(AL.hora(m.em)) + '</small>' + AL.esc(m.texto) + '</div>').join('');
       $('ficha-msgs').scrollTop = 1e9;
       $('ficha-acoes').hidden = !(fichaChamado.status === 'atendendo' && fichaChamado.dono === eu.id);
       $('ficha').scrollIntoView({behavior: 'smooth'});
+      contatos();  // abrir a ficha zera as "novas" deste lead
     } catch (e) { aviso(e.message, true); }
   }
 
@@ -92,6 +109,7 @@
       else if (t.dataset.ficha) { await abrirFicha(t.dataset.ficha, t.dataset.ch); }
     } catch (e) { aviso(e.message, true); carregar(); }
   });
+  $('ct-status').addEventListener('change', contatos);
   $('fechar-ficha').addEventListener('click', () => { $('ficha').hidden = true; });
   $('f-resultado').addEventListener('change', camposFechar);
   $('form-responder').addEventListener('submit', async ev => {
