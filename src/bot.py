@@ -253,6 +253,10 @@ def _callback(c, colab, dados, cq):
             chamados.guardar_msg(c, ref, ch['id'], f'sg:{sid}')
             return 'Mande o texto editado'
         raise Erro(422, 'Botão inválido.')
+    if pre == 'sb':
+        from . import sugestao
+        sugestao.para_base(c, _id(partes[1]), colab)
+        return 'Enviado ao gestor ✓'
     return ''
 
 

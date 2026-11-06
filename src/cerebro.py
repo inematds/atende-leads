@@ -25,24 +25,45 @@ OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions'
 MODELO_OK = re.compile(r'^[A-Za-z0-9][A-Za-z0-9.:/@_-]{0,99}$')
 TIMEOUTS = {'ollama': 15, 'openai': 15, 'anthropic': 20, 'openrouter': 20, 'claude_cli': 60, 'codex_cli': 60}
 MAX_TOKENS = 1024
+MAX_TOKENS_CURADORIA = 4096
+PAPEIS = ('principal', 'curadoria')
 
 
-def cfg(c):
+def cfg(c, papel='principal'):
+    """`curadoria` (propostas para a base): `cerebro_curadoria` se tiver tipo; senão o `cerebro` principal."""
+    if papel == 'curadoria':
+        v = c.cfg.get('cerebro_curadoria')
+        if isinstance(v, dict) and v.get('tipo'):
+            return v
     v = c.cfg.get('cerebro')
     return v if isinstance(v, dict) else {}
 
 
-def tipo(c):
-    t = cfg(c).get('tipo') or 'regras'
+def propria(c):
+    """True se a curadoria tem cérebro próprio (senão herda o principal)."""
+    v = c.cfg.get('cerebro_curadoria')
+    return isinstance(v, dict) and bool(v.get('tipo'))
+
+
+def chave_api(papel='principal'):
+    if papel == 'curadoria':
+        return os.environ.get('CEREBRO_CURADORIA_API_KEY') or os.environ.get('CEREBRO_API_KEY') or ''
+    return os.environ.get('CEREBRO_API_KEY') or ''
+
+
+def tipo(c, papel='principal'):
+    t = cfg(c, papel).get('tipo') or 'regras'
     return t if t in TIPOS else 'regras'
 
 
-def timeout(t):
+def timeout(t, papel='principal'):
+    """A curadoria (saída longa, modelo mais forte, poucas chamadas) tem 3× o tempo."""
     try:
         teste = float(os.environ.get('CEREBRO_TIMEOUT_S') or 0)
     except ValueError:
         teste = 0
-    return min(TIMEOUTS.get(t, 15), teste) if teste > 0 else TIMEOUTS.get(t, 15)
+    padrao = TIMEOUTS.get(t, 15) * (3 if papel == 'curadoria' else 1)
+    return min(padrao, teste) if teste > 0 else padrao
 
 
 _BINS = {}
@@ -56,15 +77,15 @@ def binario(t):
     return _BINS[nome]
 
 
-def disponivel(c):
+def disponivel(c, papel='principal'):
     """(ok, motivo). ok=False → tudo por regras."""
-    t = tipo(c)
-    k = cfg(c)
+    t = tipo(c, papel)
+    k = cfg(c, papel)
     if t == 'regras':
         return True, None
     modelo = str(k.get('modelo') or '')
     if t in ('anthropic', 'openrouter'):
-        if not os.environ.get('CEREBRO_API_KEY'):
+        if not chave_api(papel):
             return False, 'CEREBRO_API_KEY não definida no .env'
         if not modelo:
             return False, 'cerebro.modelo vazio'
@@ -81,8 +102,8 @@ def disponivel(c):
     return True, None
 
 
-def ligado(c):
-    return tipo(c) != 'regras' and disponivel(c)[0]
+def ligado(c, papel='principal'):
+    return tipo(c, papel) != 'regras' and disponivel(c, papel)[0]
 
 
 def _ultima(c, lead_id):
@@ -121,19 +142,57 @@ def resumo(c, lead, motivo):
     return '\n'.join(texto.strip().splitlines()[:3])
 
 
-def responder_duvida(c, texto):
-    """Usado quando caiu em 'não entendi'. Devolve texto ou None (→ regra)."""
+VERDADE_ATENDENTE = (
+    ' Ordem de verdade: (1) o que o vendedor (atendente humano) já afirmou nesta conversa — preço, promoção, '
+    'prazo, condição — é a informação mais atual e vale sobre a base; se ele afirmou valores diferentes em '
+    'momentos diferentes, vale o ÚLTIMO; (2) a base. Nunca mencione base, sistema, IA nem divergência interna, '
+    'e não peça desculpa por inconsistência.')
+
+
+def tem_atendente(c, lead_id):
+    return bool(lead_id) and c.db.execute("SELECT 1 FROM mensagens WHERE lead_id=? AND de='humano' LIMIT 1",
+                                          (lead_id,)).fetchone() is not None
+
+
+def responder_duvida(c, texto, lead_id=None):
+    """Usado quando caiu em 'não entendi' (e na espera por alguém). Devolve texto ou None (→ regra).
+    Se um vendedor já falou na conversa, as últimas mensagens vão no contexto e o que ele afirmou vale sobre a base."""
     if not ligado(c):
         return None
     from . import base
     instr = base.instrucoes(c).replace('Se a base não responder, diga que vai chamar alguém da equipe.',
-                                       'Se a base não responder, responda exatamente: SEM_RESPOSTA '
+                                       'Se nem a conversa nem a base responderem, responda exatamente: SEM_RESPOSTA '
                                        '(o sistema chama alguém da equipe).')
-    r = perguntar(c, instr, texto, base.texto_base(c))
+    usuario = texto
+    if tem_atendente(c, lead_id):
+        instr = instr.replace('Use SOMENTE a base de conhecimento abaixo.',
+                              'Use SOMENTE a conversa e a base de conhecimento abaixo.') + VERDADE_ATENDENTE
+        usuario = (f'Conversa (mais recente por último):\n{conversa_texto(c, lead_id, 10)}\n\n'
+                   f'Responda à última mensagem do cliente: {texto}')
+    r = perguntar(c, instr, usuario, base.texto_base(c))
     if not r or 'SEM_RESPOSTA' in r:
         return None
     return r.strip()
 
+
+
+def ler_json(texto):
+    """Objeto JSON de uma resposta do modelo: puro, dentro de ```json```, ou com texto em volta. None se não houver."""
+    import json
+    if not isinstance(texto, str) or '{' not in texto:
+        return None
+    t = texto.strip()
+    m = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', t, re.S)
+    candidatos = [m.group(1)] if m else []
+    candidatos.append(t[t.index('{'):t.rindex('}') + 1])
+    for cand in candidatos:
+        try:
+            d = json.loads(cand)
+        except ValueError:
+            continue
+        if isinstance(d, dict):
+            return d
+    return None
 
 
 def limpar_md(texto):
@@ -146,18 +205,27 @@ def limpar_md(texto):
     t = re.sub(r'(?m)^\s*[-*]\s+', '• ', t)
     return t.replace('**', '').strip()
 
-def perguntar(c, instrucoes, usuario, base_txt=None):
+def perguntar(c, instrucoes, usuario, base_txt=None, papel='principal', formato=None, limpar=True):
     """A chamada ao modelo roda FORA do lock: c.pronto desfaz a transação, chama e repete com o resultado.
-    Fora de uma transação (trabalhador em segundo plano), chama direto."""
-    ok, _motivo = disponivel(c)
-    t = tipo(c)
+    Fora de uma transação (trabalhador em segundo plano), chama direto.
+
+    `papel`: 'principal' (respostas, resumo, sugestão) ou 'curadoria' (propostas para a base).
+    `formato`: JSON Schema da saída (structured outputs só no tipo anthropic; nos outros vale a instrução).
+    `limpar=False` devolve o texto cru (saída JSON: quem chama limpa o campo de texto)."""
+    ok, _motivo = disponivel(c, papel)
+    t = tipo(c, papel)
     if t == 'regras' or not ok:
         return None
-    k = dict(cfg(c))
+    k = dict(cfg(c, papel))
     k['_referer'] = c.url_publica() or 'https://github.com/inematds/atende-leads'
-    chave = ('cerebro', t, str(k.get('url') or ''), str(k.get('modelo') or ''), str(k.get('esforco') or ''),
-             instrucoes, base_txt or '', usuario)
-    return limpar_md(c.pronto(chave, lambda: _perguntar(t, k, instrucoes, base_txt, usuario)))
+    k['_max_tokens'] = MAX_TOKENS_CURADORIA if papel == 'curadoria' else MAX_TOKENS
+    k['_formato'] = formato
+    k['_papel'] = papel
+    # a chave da API nunca entra nesta tupla (ela vira texto de exceção/log)
+    chave = ('cerebro', papel, t, str(k.get('url') or ''), str(k.get('modelo') or ''), str(k.get('esforco') or ''),
+             instrucoes, base_txt or '', usuario, bool(formato))
+    r = c.pronto(chave, lambda: _perguntar(t, k, instrucoes, base_txt, usuario))
+    return limpar_md(r) if limpar else r
 
 
 def hosts_permitidos():
@@ -183,9 +251,12 @@ def corpo_anthropic(k, instrucoes, base_txt, usuario):
         system.append({'type': 'text', 'text': 'Base de conhecimento:\n' + base_txt,
                        'cache_control': {'type': 'ephemeral'}})
     esforco = k.get('esforco') if k.get('esforco') in ESFORCOS else 'low'
-    return {'model': k.get('modelo'), 'max_tokens': MAX_TOKENS, 'system': system,
+    saida = {'effort': esforco}
+    if k.get('_formato'):
+        saida['format'] = {'type': 'json_schema', 'schema': k['_formato']}
+    return {'model': k.get('modelo'), 'max_tokens': k.get('_max_tokens') or MAX_TOKENS, 'system': system,
             'messages': [{'role': 'user', 'content': usuario}],
-            'output_config': {'effort': esforco}, 'fallbacks': 'default'}
+            'output_config': saida, 'fallbacks': 'default'}
 
 
 def _texto_anthropic(r):
@@ -209,8 +280,9 @@ def _perguntar(t, k, instrucoes, base_txt, usuario):
     modelo = k.get('modelo')
     sistema = instrucoes + ('\n\nBase de conhecimento:\n' + base_txt if base_txt else '')
     msgs = [{'role': 'system', 'content': sistema}, {'role': 'user', 'content': usuario}]
-    chave = os.environ.get('CEREBRO_API_KEY') or ''
-    to = timeout(t)
+    chave = chave_api(k.get('_papel') or 'principal')
+    mx = k.get('_max_tokens') or MAX_TOKENS
+    to = timeout(t, k.get('_papel') or 'principal')
     texto = None
     try:
         if t == 'anthropic':
@@ -223,7 +295,7 @@ def _perguntar(t, k, instrucoes, base_txt, usuario):
             url = os.environ.get('CEREBRO_OPENROUTER_URL') or OPENROUTER_URL
             headers = {'Authorization': f'Bearer {chave}', 'HTTP-Referer': k.get('_referer') or '',
                        'X-Title': 'atende-leads'}
-            ok, r = rede.postar(url, {'model': modelo, 'messages': msgs, 'max_tokens': MAX_TOKENS}, headers,
+            ok, r = rede.postar(url, {'model': modelo, 'messages': msgs, 'max_tokens': mx}, headers,
                                 timeout=to)
             texto = _texto_openai(r) if ok else None
         elif t == 'ollama':

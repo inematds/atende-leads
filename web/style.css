@@ -172,6 +172,10 @@ legend{padding:0}
 .sug .cab .i{width:16px;height:16px}
 .sug p{margin:0 0 8px;font-size:14.5px;white-space:pre-wrap;overflow-wrap:anywhere}
 .sug .acoes{display:flex;flex-wrap:wrap;gap:8px}
+.conflito{display:flex;align-items:flex-start;gap:8px;padding:8px 10px;margin-bottom:8px;border:1px solid var(--dica-filete);border-left-width:3px;border-radius:10px;font-size:13px;color:var(--tinta-2,inherit)}
+.conflito>.i{width:16px;height:16px;flex:none;margin-top:2px;color:var(--dica-tinta)}
+.conflito p{margin:0;flex:1;overflow-wrap:anywhere}
+.conflito .btn{flex:none}
 .escrever{display:flex;gap:8px;align-items:flex-end;position:sticky;bottom:0;background:var(--bg);padding-top:6px;z-index:2}
 .escrever textarea{flex:1;min-height:44px;max-height:160px;resize:none}
 .escrever .btn{min-height:44px}
@@ -504,3 +508,10 @@ tr.clic:hover td{background:var(--sup2)}
 .pagina-simples .status-grande{font:700 1.25rem/1.3 var(--titulo)}
 .pagina-simples .acoes{display:flex;gap:8px;flex-wrap:wrap}
 .pagina-simples .acoes .btn{min-height:44px}
+
+.previa{white-space:pre-wrap;font-size:13.5px;padding:8px 10px;margin:8px 0;border:1px dashed var(--dica-filete);border-radius:10px}
+.lista-conf{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.lista-conf li{display:flex;gap:8px;align-items:flex-start;font-size:13.5px}
+.lista-conf li>.i{width:16px;height:16px;flex:none;margin-top:2px;color:var(--dica-tinta)}
+.lista-conf li span{flex:1}
+.destino{margin:4px 0 8px;font-size:13.5px}

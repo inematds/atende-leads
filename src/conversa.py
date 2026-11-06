@@ -164,7 +164,7 @@ def palavras_significativas(texto):
 
 
 
-def _duvida_em_espera(c, t, texto):
+def _duvida_em_espera(c, t, texto, lid=None):
     """Resposta a dúvida enquanto o chamado espera dono. Não abre chamado nem inicia qualificação."""
     if re.search(r'\b(alguem|ninguem|atendente|humano|pessoa)\b', t):  # "alguém aí?" → já avisei
         return None
@@ -177,10 +177,10 @@ def _duvida_em_espera(c, t, texto):
     if info and _numero(t) is None:
         return info
     prod = casar_produto(c, t)
-    if prod and prod.get('preco'):
-        return f"{prod['nome']}: {prod['preco']}. Alguém da equipe já vai falar com você sobre isso."
+    if prod and base.preco_vigente(c, prod):
+        return f"{prod['nome']}: {base.preco_vigente(c, prod)}. Alguém da equipe já vai falar com você sobre isso."
     if len(t.split()) >= 3:  # "ok", "obrigado", "alguém aí?" não vão para a IA
-        return cerebro.responder_duvida(c, texto)
+        return cerebro.responder_duvida(c, texto, lid)
     return None
 
 def casar_faq(c, t):
@@ -315,7 +315,7 @@ def decidir(c, lead, texto, t, primeiro, aberto):
     # 4. chamado aguardando: enquanto ninguém assume, o agente continua tirando dúvidas
     #    (horário, FAQ, informações, preço cadastrado, IA). Sem resposta → lembra que a equipe já foi avisada.
     if aberto:
-        r = _duvida_em_espera(c, t, texto)
+        r = _duvida_em_espera(c, t, texto, lid)
         if r:
             return [r]
         return ['Eu já avisei a equipe; logo alguém fala com você por aqui.']
@@ -333,8 +333,8 @@ def decidir(c, lead, texto, t, primeiro, aberto):
         prefixo = ''
         if prod:
             c.db.execute('UPDATE leads SET interesse=? WHERE id=?', (prod['id'], lid))
-            if prod.get('preco'):
-                prefixo = f"{prod['nome']}: {prod['preco']}. "
+            if base.preco_vigente(c, prod):
+                prefixo = f"{prod['nome']}: {base.preco_vigente(c, prod)}. "
         if base.PAGAMENTO.search(t):
             prefixo += base.prefixo_pagamento(c)
         return _abrir(c, lid, 'venda', prefixo)
@@ -367,7 +367,7 @@ def decidir(c, lead, texto, t, primeiro, aberto):
         if not lead['nome']:
             return [f"Ótimo, {prod['nome']}! " + _pergunta_nome(c, lead, {'falhas': 0})]
         gravar_estado(c, lid, {'etapa': 'quer_falar', 'falhas': 0})
-        preco = f" ({prod['preco']})" if prod.get('preco') else ''
+        preco = f" ({base.preco_vigente(c, prod)})" if base.preco_vigente(c, prod) else ''
         return [f"Temos o {prod['nome']}{preco}. Quer que eu chame alguém para te atender?"]
     # 11. primeiro contato
     if primeiro:
@@ -379,7 +379,7 @@ def decidir(c, lead, texto, t, primeiro, aberto):
         return [f"Olá, {primeiro_nome(lead['nome'])}! Aqui é o atendimento da {negocio}. "
                 f"O que você procura?\n{opcoes_produtos(c)}"]
     # 12. não entendi
-    duvida = cerebro.responder_duvida(c, texto)
+    duvida = cerebro.responder_duvida(c, texto, lid)
     if duvida:
         _zerar_falhas(c, lid)
         return [duvida]

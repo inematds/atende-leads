@@ -146,7 +146,7 @@ CREATE TABLE IF NOT EXISTS vistos (colaborador TEXT NOT NULL, lead_id INTEGER NO
     PRIMARY KEY (colaborador, lead_id));
 CREATE TABLE IF NOT EXISTS sugestoes (
     id INTEGER PRIMARY KEY, chamado_id INTEGER NOT NULL, lead_id INTEGER NOT NULL, msg_id INTEGER, dono TEXT,
-    texto TEXT, status TEXT NOT NULL, origem TEXT, em TEXT, tg_ref TEXT);
+    texto TEXT, status TEXT NOT NULL, origem TEXT, em TEXT, tg_ref TEXT, conflito TEXT, proposta_id INTEGER);
 CREATE INDEX IF NOT EXISTS sugestoes_chamado ON sugestoes(chamado_id, id);
 CREATE TABLE IF NOT EXISTS aprendizado (
     id INTEGER PRIMARY KEY, em TEXT, colaborador TEXT, lead_id INTEGER, chamado_id INTEGER, msg_lead TEXT,
@@ -179,6 +179,10 @@ COMMIT;''')
                        ('proxima', 'REAL NOT NULL DEFAULT 0')):
         if nome not in cols:
             db.execute(f'ALTER TABLE saida ADD COLUMN {nome} {tipo}')
+    cols = {r[1] for r in db.execute('PRAGMA table_info(sugestoes)')}
+    for nome, tipo in (('conflito', 'TEXT'), ('proposta_id', 'INTEGER')):  # 1.6.8
+        if nome not in cols:
+            db.execute(f'ALTER TABLE sugestoes ADD COLUMN {nome} {tipo}')
     # WhatsApp: um lead por telefone. Web: um lead por sessão (o telefone é só contato).
     db.execute('CREATE UNIQUE INDEX IF NOT EXISTS leads_telefone_whats ON leads(telefone) WHERE sessao IS NULL')
 

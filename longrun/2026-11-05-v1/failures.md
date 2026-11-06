@@ -152,3 +152,29 @@ Fora de escopo, mantido de propósito: `/entrar` do Telegram continua barrando a
 | 2026-11-06 | tests/test_conversa.py (+4) | §4 regra 12 | texto novo, `sim`/`quero`/`pode` abrem `precisa`, `não` não abre |
 | 2026-11-06 | tests/test_contatos.py (+1 assert) | §13 `assumir.tempos` | régua de pontos |
 | 2026-11-06 | tests/test_conversa.py::test_chamado_aguardando_responde_ja_avisei_e_nao_abre_outro | §4 regra 4 | Nei: enquanto espera, o agente responde dúvidas (preço agora responde) |
+
+### 1.6.8 — sugestão = fala do vendedor, conflito → "Atualizar a base", propostas sem bastidores, preço com promoção, cérebro da curadoria (2026-11-06)
+
+| data | o que quebrou | menor correção | prompt \| infra |
+|---|---|---|---|
+| 2026-11-06 | sugestão da IA expôs bastidores ao cliente ("a base que tenho aqui", "o vendedor informou", desculpa por confusão interna) e desconfiou do vendedor (R$ 670 da promoção dito na conversa × R$ 1.200 da base) | instrução própria da sugestão: 1ª pessoa, ordem de verdade (vendedor > base, último valor vale), proibido citar base/IA/equipe por divergência; saída JSON `{resposta, conflito}` (structured outputs no anthropic) e conflito vai ao vendedor, não ao cliente | prompt |
+| 2026-11-06 | proposta `info/observacoes` com RECADO INTERNO ("O vendedor informou… A base atual diz… Confirmar com a equipe") foi incorporada e o cérebro passou a repeti-lo ao cliente (dado real da VPS) | `resposta` = texto final publicável; porquê só em `justificativa`; regex de bastidor descarta a proposta e o `incorporar` recusa (422); tipo `preco` para preço divergente; `info` acrescenta em vez de sobrescrever; `./atende manutencao limpar-bastidores` limpa o que já entrou | prompt |
+| 2026-11-06 | "Atualizar a base" ingênuo gravaria o próprio conflito como texto da base (recriaria o incidente acima) | `para_base` nunca usa o conflito como `resposta`: preço → `preco` com o último R$ do vendedor; senão a última fala do vendedor como rascunho | prompt |
+| 2026-11-06 | resposta automática ao lead (não entendi / espera) ignorava o que o atendente já tinha dito | com mensagem de vendedor no lead: últimas 10 mensagens no contexto + ordem de verdade | prompt |
+| 2026-11-06 | `R$ 670.` no fim da frase do vendedor virava `preco_novo` com ponto | `rstrip('.')` no preço capturado | prompt |
+| 2026-11-06 | ícones `alert`/`book` acrescentados em duplicata no mapa do `comum.js` (já existiam) | removidas as duplicatas | prompt |
+
+### Testes novos (1.6.8)
+
+| data | teste | trecho do contrato | motivo |
+|---|---|---|---|
+| 2026-11-06 | tests/test_sugestao_conflito.py (12) | §1 manutenção; §2 promoção/curadoria; §7a; §12; §13a; §14; §16 `sb:`; §18 | parser (JSON puro, cercado, texto livre); prompt da sugestão (ordem de verdade, JSON, json_schema, modelo principal); ficha com conflito; `POST …/base` idempotente → proposta `preco` sem bastidor; Telegram `⚠️` + `sb:`; sem conflito = texto antigo; dúvida automática com atendente; propostas pela curadoria (modelo/esforço/4096), bastidor descartado, preço validado; promoção até a validade; info acrescenta sem duplicar; edição do gestor e recusa de recado interno; validação de `cerebro_curadoria`; `limpar-bastidores` simula/recusa com servidor no ar/aplica com backup |
+| 2026-11-06 | Playwright (script local, servidor em porta livre, cérebro falso) | §12, §13a | aviso + "Atualizar a base" → "Enviado ao gestor ✓"; gestor: "Revisar e incorporar" → prévia → "Confirmar incorporação" grava promoção |
+| 2026-11-06 | "a incorporação não atualiza o cadastro": proposta ia para texto solto e a página do gestor guardava o `cfg` do login (salvar o período do Aprendizado depois de incorporar regravaria o preço antigo) | propostas com destino estruturado (`preco`, `produto`, `horario`, `info`, `faq`) + linha "Vai alterar"; `recarregarCfg()` depois de incorporar/importar e antes do PUT do período | prompt |
+| 2026-11-06 | FAQ "segunda a sexta, das 8h às 18h" × horário cadastrado seg–dom 00:00–23:59 passava despercebido | aba Base consolidada com conflitos por regra (horário, preço, promoção vencida, FAQ repetido/contraditório, bastidor) + exportar/importar com prévia e backup | prompt |
+| 2026-11-06 | leitor de horário: `ter` (verbo) contaria como terça; "não abrimos aos domingos" contaria domingo | dia avulso só por nome completo; negação antes do dia ignora; faixa/“todos os dias” = semana inteira | prompt |
+
+| data | teste | trecho do contrato | motivo |
+|---|---|---|---|
+| 2026-11-06 | tests/test_sugestao_conflito.py (+4: produto/horário no cadastro, destino do preço, conflitos da base consolidada com o caso real, exportar/importar ida e volta + prévia sem gravar + aplicar com backup) | §13a destino estruturado; §13b | pedidos do dono no mesmo dia |
+| 2026-11-06 | Playwright: incorporar preço → aba Cadastros mostra R$ 670 sem relogar; "Vai alterar" acompanha a edição; aba Base consolidada | §13, §13a, §13b | idem |

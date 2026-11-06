@@ -14,7 +14,7 @@ Guia completo (landing + passo a passo): **https://inematds.github.io/atende-lea
 
 🎬 Vídeo explicativo (2 min 37 s): **https://inematds.github.io/atende-leads/videos/** · [YouTube](https://www.youtube.com/watch?v=-6VKlGAYwKY)
 
-Atendimento de **leads pelo WhatsApp** com um agente que responde, qualifica e passa o lead para o **colaborador livre** pelo Telegram, com todos os dados e um botão para ligar. Python 3 só com biblioteca padrão, estado em SQLite, Docker para VPS. Código aberto, versão `1.5.8`.
+Atendimento de **leads pelo WhatsApp** com um agente que responde, qualifica e passa o lead para o **colaborador livre** pelo Telegram, com todos os dados e um botão para ligar. Python 3 só com biblioteca padrão, estado em SQLite, Docker para VPS. Código aberto, versão `1.6.8`.
 
 ## O que faz
 
@@ -48,7 +48,7 @@ Quem faz: 🧠 o dono/gestor · ⚙️ o sistema · 🤖 o agente.
 9. ⚙️ **Alerta 🚨** no grupo quando estoura o prazo ou não há ninguém livre.
 10. 🧠 **Colaborador assume**, liga (📞) ou responde pelo WhatsApp (💬) ou em resposta no próprio bot; ⚙️ a cada mensagem do lead chega a `💡 Sugestão` (✅ Enviar / ✏️ Editar) e cada resposta entra no aprendizado.
 11. 🧠 **Fecha** com o resultado; ⚙️ grava o histórico, agenda o retorno e devolve o colaborador à fila.
-12. 🧠 **Gestor acompanha** em `/gestor` (ao vivo, hoje, leads, exportar CSV) e, na aba **Aprendizado**, incorpora ou descarta as propostas para a base (⚙️ geradas toda semana, por padrão).
+12. 🧠 **Gestor acompanha** em `/gestor` (ao vivo, hoje, leads, exportar CSV) e, na aba **Aprendizado**, incorpora ou descarta as propostas para a base (⚙️ geradas toda semana, por padrão) — 🤖 o **cérebro da curadoria** (opcional, modelo mais forte) gera as propostas; o vendedor também manda as divergências com **Atualizar a base**; o gestor revisa o texto e a prévia antes de confirmar. Recado interno que já entrou na base sai com `./atende manutencao limpar-bastidores --dados DIR [--aplicar]` (servidor parado).
 13. ⚙️ **Backup diário** pelo cron único que o `instalar-vps.sh` instala (`docker compose exec -T atende ./atende backup ...` → `/opt/atende-leads-backups/`).
 
 > Dá para fazer os passos 2 a 12 **na sua máquina**, sem domínio nem HTTPS, antes de ir para a VPS: veja [Testar na sua máquina (sem domínio)](#testar-na-sua-máquina-sem-domínio) (Telegram em `TELEGRAM_MODO=polling`).
@@ -115,6 +115,16 @@ Todos os comandos abaixo usam o caminho **`/opt/atende-leads`** (o cron de backu
    docker compose stop atende
    docker compose run --rm -v /opt/atende-leads-backups:/backups atende \
      ./atende restaurar --dados /dados --arquivo /backups/leads-AAAA-MM-DD.tar.gz
+   docker compose start atende
+   ```
+9. **Limpar recado interno da base** (1.6.8): primeiro a simulação, com o serviço no ar (só lista o que sairia — confira, a regra também casa "base de conhecimento"/"informação interna"):
+   ```bash
+   docker compose exec atende ./atende manutencao limpar-bastidores --dados /dados
+   ```
+   Para aplicar, pare o serviço (com ele no ar o comando recusa; backup `negocio.json.<data>.bak` antes):
+   ```bash
+   docker compose stop atende
+   docker compose run --rm atende ./atende manutencao limpar-bastidores --dados /dados --aplicar
    docker compose start atende
    ```
 

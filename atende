@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""atende-leads: ponto de entrada (serve | backup | restaurar)."""
+"""atende-leads: ponto de entrada (serve | backup | restaurar | manutencao)."""
 import os
 import sys
 

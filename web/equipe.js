@@ -99,6 +99,18 @@
     const meu = ch && ch.status === 'atendendo' && ch.dono === eu.id;
     const sg = meu && f.sugestao && f.sugestao.id !== descartada ? f.sugestao : null;
     if (sg && sg.id !== sugestaoId) { sugestaoId = sg.id; $('at-sug-txt').textContent = sg.texto; $('at-sug').hidden = false; }
+    mostrarConflito(sg);
+  }
+  // Divergência entre a base e o que o vendedor disse: aviso discreto + "Atualizar a base" (proposta ao gestor).
+  let conflitoSid = null;
+  function mostrarConflito(sg) {
+    const tem = !!(sg && sg.conflito);
+    $('at-conf').hidden = !tem;
+    if (!tem) { conflitoSid = null; return; }
+    if (conflitoSid === sg.id) return;
+    conflitoSid = sg.id; $('at-conf-txt').textContent = sg.conflito;
+    const b = $('conf-base'); b.disabled = !!sg.proposta_id;
+    b.lastChild.textContent = sg.proposta_id ? 'Enviado ao gestor ✓' : 'Atualizar a base';
   }
 
   async function abrirFicha(leadId, chId, recarga) {
@@ -150,6 +162,7 @@
     $('at-sug').hidden = !sg;
     if (sg && sg.id !== sugestaoId) { sugestaoId = sg.id; $('at-sug-txt').textContent = sg.texto; }
     else if (!sg) { sugestaoId = null; }
+    mostrarConflito(sg);
     $('resposta').placeholder = 'Responder a ' + (lead.nome ? lead.nome.split(' ')[0] : 'o lead');
     if (!recarga) desenharContatos(); else desenharContatos();
     if (!recarga) contatos();  // abrir a ficha zera as "novas" deste lead
@@ -260,6 +273,12 @@
   // Sugestão: Enviar manda como está · Editar leva o texto para a caixa (continua ligada à sugestão) · Limpar tira o vínculo.
   $('sug-enviar').addEventListener('click', () => responder($('at-sug-txt').textContent));
   $('sug-editar').addEventListener('click', () => { const r = $('resposta'); r.value = $('at-sug-txt').textContent; autoAltura(); r.focus(); r.setSelectionRange(r.value.length, r.value.length); });
+  $('conf-base').addEventListener('click', async () => {
+    const b = $('conf-base'); if (!conflitoSid || b.disabled) return;
+    b.disabled = true;
+    try { await api('POST', '/api/equipe/sugestoes/' + conflitoSid + '/base', {}); b.lastChild.textContent = 'Enviado ao gestor ✓'; }
+    catch (e) { b.disabled = false; aviso(e.message, true); }
+  });
   $('sug-limpar').addEventListener('click', () => { descartada = sugestaoId; sugestaoId = null; $('resposta').value = ''; autoAltura(); $('at-sug').hidden = true; $('resposta').focus(); });
   $('resposta').addEventListener('input', autoAltura);
   $('resposta').addEventListener('keydown', ev => { if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); $('form-responder').requestSubmit(); } });

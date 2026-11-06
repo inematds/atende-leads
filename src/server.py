@@ -19,7 +19,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlsplit
 
 from .core import App, Erro, ROOT, log, versao
-from . import (backup, bot, cerebro, chamados, contatos, conversa, equipe, evolution, gestao, limite, paginas, polling,
+from . import (backup, bot, cerebro, chamados, consolidada, contatos, conversa, equipe, evolution, gestao, limite, paginas, polling,
                saida, sugestao, tarefas)
 from . import telegram as tg
 
@@ -167,7 +167,12 @@ def rota_publica_de_chamado(metodo, rota, b):
 def saude(c):
     return {'ok': True, 'versao': versao(), 'evolution': evolution.configurado(),
             'telegram': tg.configurado(), 'telegram_modo': tg.modo(), 'cerebro': cerebro.tipo(c),
-            'cerebro_ok': cerebro.disponivel(c)[0], 'cerebro_motivo': cerebro.disponivel(c)[1]}
+            'cerebro_ok': cerebro.disponivel(c)[0], 'cerebro_motivo': cerebro.disponivel(c)[1],
+            'cerebro_curadoria': {'tipo': cerebro.tipo(c, 'curadoria'),
+                                  'modelo': str(cerebro.cfg(c, 'curadoria').get('modelo') or '') or None,
+                                  'esforco': cerebro.cfg(c, 'curadoria').get('esforco') or None,
+                                  'propria': cerebro.propria(c), 'ok': cerebro.disponivel(c, 'curadoria')[0],
+                                  'motivo': cerebro.disponivel(c, 'curadoria')[1]}}
 
 
 # ---------- rotas ----------
@@ -258,6 +263,9 @@ def rotear_equipe(c, metodo, rota, q, b, papel, colab):
             return 200, chamados.fechar(c, ident, None if g else colab, b)
         if acao == 'devolver':
             return 200, chamados.devolver(c, ident, None if g else colab)
+    m = re.fullmatch(r'/sugestoes/(\d+)/base', rota)
+    if metodo == 'POST' and m:
+        return 200, sugestao.para_base(c, int(m[1]), None if g else colab)
     m = re.fullmatch(r'/leads/(\d+)', rota)
     if metodo == 'GET' and m:
         lead_id = int(m[1])
@@ -323,6 +331,16 @@ def rotear_gestor(c, metodo, rota, q, b):
             return 200, gestao.config_publica(c)
         if metodo == 'PUT':
             return 200, gestao.gravar_config(c, b)
+    if metodo == 'GET' and rota == '/base':
+        return 200, consolidada.ler(c)
+    if metodo == 'GET' and rota == '/base.json':
+        return 200, Bruto(json.dumps(consolidada.exportar_json(c), ensure_ascii=False, indent=2), 'application/json',
+                          {'Content-Disposition': 'attachment; filename="base.json"'})
+    if metodo == 'GET' and rota == '/base.md':
+        return 200, Bruto(consolidada.exportar_md(c), 'text/markdown; charset=utf-8',
+                          {'Content-Disposition': 'attachment; filename="base.md"'})
+    if metodo == 'POST' and rota == '/base/importar':
+        return 200, consolidada.importar(c, b, str(q.get('aplicar') or '') in ('1', 'true', 'sim'))
     if metodo == 'GET' and rota == '/exportar.csv':
         return 200, Bruto(gestao.exportar_csv(c), 'text/csv',
                           {'Content-Disposition': 'attachment; filename="leads.csv"'})
@@ -594,7 +612,15 @@ def main(argv=None):
     rs = sub.add_parser('restaurar')
     rs.add_argument('--dados', required=True)
     rs.add_argument('--arquivo', required=True)
+    mn = sub.add_parser('manutencao')
+    mn.add_argument('tarefa', choices=['limpar-bastidores'])
+    mn.add_argument('--dados', required=True)
+    mn.add_argument('--aplicar', action='store_true')
     a = p.parse_args(argv)
+    if a.comando == 'manutencao':
+        from . import manutencao
+        manutencao.limpar_bastidores(a.dados, a.aplicar)
+        return
     if a.comando == 'backup':
         try:
             backup.copiar(a.dados, a.saida)

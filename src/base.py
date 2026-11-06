@@ -112,6 +112,36 @@ def resposta_info(c, t):
     return None
 
 
+# ---------- preço vigente (promoção com validade) ----------
+def promocao_ativa(c, p):
+    """Promoção do produto vale se tem `preco_promocao` e (sem `promocao_ate` ou hoje ≤ `promocao_ate`)."""
+    if not isinstance(p, dict) or not str(p.get('preco_promocao') or '').strip():
+        return False
+    ate = str(p.get('promocao_ate') or '').strip()
+    return not ate or c.agora().strftime('%Y-%m-%d') <= ate
+
+
+def preco_vigente(c, p):
+    """O preço que o agente e o cérebro dizem: o promocional dentro da validade, senão o normal ('' se nenhum)."""
+    if promocao_ativa(c, p):
+        ate = str(p.get('promocao_ate') or '').strip()
+        rotulo = str(p.get('promocao') or '').strip() or 'promoção'
+        sufixo = f' até {ate[8:10]}/{ate[5:7]}' if len(ate) == 10 else ''
+        return f"{p['preco_promocao'].strip()} ({rotulo}{sufixo})"
+    v = p.get('preco') if isinstance(p, dict) else None
+    return v.strip() if isinstance(v, str) else ''
+
+
+# ---------- bastidores (recado interno que nunca vai para a base nem ao cliente) ----------
+BASTIDOR = re.compile(r'vendedor(a)? (informou|disse|falou|passou)|a base (atual )?(diz|mostra|informa)|'
+                      r'confirmar com a equipe|segundo o vendedor|base de conhecimento|informa[cç][aã]o interna',
+                      re.I)
+
+
+def tem_bastidor(texto):
+    return bool(BASTIDOR.search(texto or ''))
+
+
 # ---------- base para o cérebro ----------
 def texto_base(c):
     linhas = [f"Negócio: {c.cfg.get('nome', '')}", f'{ROTULOS["horario_atendimento"]}: {texto_horario(c)}']
@@ -127,7 +157,8 @@ def texto_base(c):
     if prods:
         linhas.append('\nProdutos:')
         for p in prods:
-            linhas.append(f"- {p.get('nome')}" + (f" — preço {p['preco']}" if p.get('preco') else ' — sem preço informado'))
+            pv = preco_vigente(c, p)
+            linhas.append(f"- {p.get('nome')}" + (f' — preço {pv}' if pv else ' — sem preço informado'))
     return '\n'.join(linhas)
 
 

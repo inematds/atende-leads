@@ -27,6 +27,7 @@
     <button role="tab" id="t-hoje" aria-controls="p-hoje" data-aba="hoje" aria-selected="false" tabindex="-1"><svg class="i" aria-hidden="true"><use href="#i-chart"/></svg>Hoje</button>
     <button role="tab" id="t-leads" aria-controls="p-leads" data-aba="leads" aria-selected="false" tabindex="-1"><svg class="i" aria-hidden="true"><use href="#i-list"/></svg>Leads</button>
     <button role="tab" id="t-base" aria-controls="p-base" data-aba="base" aria-selected="false" tabindex="-1"><svg class="i" aria-hidden="true"><use href="#i-book"/></svg>Base de conhecimento</button>
+    <button role="tab" id="t-consolidada" aria-controls="p-consolidada" data-aba="consolidada" aria-selected="false" tabindex="-1"><svg class="i" aria-hidden="true"><use href="#i-file"/></svg>Base consolidada</button>
     <button role="tab" id="t-aprendizado" aria-controls="p-aprendizado" data-aba="aprendizado" aria-selected="false" tabindex="-1"><svg class="i" aria-hidden="true"><use href="#i-bulb"/></svg>Aprendizado</button>
     <button role="tab" id="t-cadastros" aria-controls="p-cadastros" data-aba="cadastros" aria-selected="false" tabindex="-1"><svg class="i" aria-hidden="true"><use href="#i-sliders"/></svg>Cadastros</button>
     <button role="tab" id="t-exportar" aria-controls="p-exportar" data-aba="exportar" aria-selected="false" tabindex="-1" class="fim"><svg class="i" aria-hidden="true"><use href="#i-download"/></svg>Exportar</button>
@@ -100,6 +101,21 @@
           <p class="mut peq">A chave (<code>CEREBRO_API_KEY</code>) fica só no <code>.env</code> do servidor; nunca aparece nem é editada aqui. Sem chave ou com erro, tudo funciona por regras.</p>
           <p id="b-saude" class="mut peq"></p>
         </fieldset>
+        <fieldset class="painel form-sec"><legend>Cérebro da curadoria</legend>
+          <p class="mut peq">Modelo mais forte para decidir o que entra na base (propostas do Aprendizado). Roda poucas vezes. Vazio = usa o cérebro do agente. Sugestões, respostas ao cliente e resumos continuam no cérebro do agente.</p>
+          <div class="linha-campos">
+            <label class="campo">Tipo <select id="c-tipo">
+              <option value="">igual ao cérebro do agente</option><option value="regras">regras (sem IA)</option><option value="anthropic">anthropic (API Claude)</option>
+              <option value="openrouter">openrouter (API)</option><option value="openai">openai (endpoint compatível)</option>
+              <option value="ollama">ollama (local)</option><option value="claude_cli">claude_cli (assinatura, só fora do Docker)</option>
+              <option value="codex_cli">codex_cli (assinatura, só fora do Docker)</option></select></label>
+            <label class="campo" data-cur="modelo">Modelo <input id="c-modelo" placeholder="claude-opus-5-5"></label>
+            <label class="campo" data-cur="esforco">Esforço <select id="c-esforco"><option>low</option><option selected>medium</option><option>high</option><option>xhigh</option><option>max</option></select></label>
+            <label class="campo" data-cur="url">URL <input id="c-url" placeholder="http://localhost:11434"></label>
+          </div>
+          <p class="mut peq">Chave: a mesma <code>CEREBRO_API_KEY</code>; se a curadoria usar outro provedor, ponha <code>CEREBRO_CURADORIA_API_KEY</code> no <code>.env</code>.</p>
+          <p id="c-saude" class="mut peq"></p>
+        </fieldset>
         <div class="salvar"><span class="mut">Salve antes de testar mudanças.</span><button id="salvar-base" class="btn pri" type="button"><svg class="i" aria-hidden="true"><use href="#i-check"/></svg>Salvar base de conhecimento</button></div>
         <fieldset class="painel form-sec bloco"><legend>Testar</legend>
           <p class="mut">Escreva como o cliente escreveria. Mostra o que o agente responderia agora (nada é gravado).</p>
@@ -110,6 +126,19 @@
       </section>
 
       <!-- APRENDIZADO -->
+      <section id="p-consolidada" role="tabpanel" aria-labelledby="t-consolidada" data-painel="consolidada" hidden>
+        <p class="mut" style="margin-bottom:14px;max-width:72ch">O texto exato que a IA recebe, organizado por seção, e os conflitos que as regras acharam (horário, preço, promoção vencida, FAQ repetido, recado interno). Baixe para revisar fora daqui e importe de volta: a prévia mostra o que muda antes de gravar.</p>
+        <div class="painel form-sec" id="bc-conflitos"></div>
+        <div class="acoes" style="margin:12px 0">
+          <button type="button" class="btn" id="bc-md"><svg class="i" aria-hidden="true"><use href="#i-download"/></svg>Baixar .md</button>
+          <button type="button" class="btn" id="bc-json"><svg class="i" aria-hidden="true"><use href="#i-download"/></svg>Baixar .json</button>
+          <label class="btn" for="bc-arquivo"><svg class="i" aria-hidden="true"><use href="#i-file"/></svg>Importar .json</label>
+          <input type="file" id="bc-arquivo" accept="application/json,.json" hidden>
+        </div>
+        <div class="painel form-sec" id="bc-importar" hidden></div>
+        <div id="bc-secoes"></div>
+        <details class="painel form-sec"><summary>Texto exato que a IA recebe</summary><pre id="bc-texto" class="previa"></pre></details>
+      </section>
       <section id="p-aprendizado" role="tabpanel" aria-labelledby="t-aprendizado" data-painel="aprendizado" hidden>
         <p class="mut" style="margin-bottom:12px;max-width:72ch">Cada resposta da equipe a uma mensagem do cliente: o que o cliente disse, o que a IA sugeriu e o que o vendedor mandou.</p>
         <form id="form-apr" class="filtros">

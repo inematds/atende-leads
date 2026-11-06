@@ -9,7 +9,7 @@
     const el = $('aviso'); el.textContent = t || ''; el.className = 'toast' + (erro ? ' erro' : '');
     clearTimeout(tAviso); if (t) tAviso = setTimeout(() => { el.textContent = ''; }, erro ? 8000 : 3500);
   };
-  const TITULOS = {aovivo: 'Ao vivo', hoje: 'Hoje', leads: 'Leads', base: 'Base de conhecimento', aprendizado: 'Aprendizado', cadastros: 'Cadastros', exportar: 'Exportar'};
+  const TITULOS = {aovivo: 'Ao vivo', hoje: 'Hoje', leads: 'Leads', base: 'Base de conhecimento', consolidada: 'Base consolidada', aprendizado: 'Aprendizado', cadastros: 'Cadastros', exportar: 'Exportar'};
   const nomeColab = id => { const m = (cfg && cfg.equipe || []).find(x => x.id === id); return m ? m.nome : (id || ''); };
   const extremo = () => ((cfg && cfg.prazos) || {}).assumir_extremo_min || 10;
   const vazio = t => '<p class="vazio">' + esc(t) + '</p>';
@@ -181,6 +181,13 @@
     const ult = document.querySelector('[data-faq="' + (faqEd.length - 1) + '"]');
     if (ult) { ult.scrollIntoView({behavior: 'smooth', block: 'center'}); ult.querySelector('textarea').focus(); }
   }
+  function camposCuradoria() {
+    const t = $('c-tipo').value;
+    if (t === 'anthropic' && !$('c-modelo').value) { $('c-modelo').value = 'claude-opus-5-5'; }
+    document.querySelector('[data-cur=modelo]').hidden = !t || t === 'regras';
+    document.querySelector('[data-cur=esforco]').hidden = t !== 'anthropic';
+    document.querySelector('[data-cur=url]').hidden = !['ollama', 'openai'].includes(t);
+  }
   function camposCerebro() {
     const t = $('b-tipo').value;
     document.querySelector('[data-cer=modelo]').hidden = t === 'regras';
@@ -198,9 +205,14 @@
     const c = cfg.cerebro || {tipo: 'regras'};
     $('b-tipo').value = c.tipo || 'regras'; $('b-modelo').value = c.modelo || ''; $('b-esforco').value = c.esforco || 'low'; $('b-url').value = c.url || '';
     camposCerebro();
+    const k = cfg.cerebro_curadoria || {};
+    $('c-tipo').value = k.tipo || ''; $('c-modelo').value = k.modelo || ''; $('c-esforco').value = k.esforco || 'medium'; $('c-url').value = k.url || '';
+    camposCuradoria();
     try {
       const s = await AL.api('GET', '/api/saude');
       $('b-saude').textContent = 'Agora no servidor: ' + s.cerebro + (s.cerebro_ok ? ' · ligado' : ' · desligado — ' + (s.cerebro_motivo || '') + ' (respondendo por regras)');
+      const cu = s.cerebro_curadoria || {};
+      $('c-saude').textContent = 'Curadoria agora: ' + (cu.propria ? cu.tipo + (cu.modelo ? ' · ' + cu.modelo : '') + (cu.esforco ? ' · ' + cu.esforco : '') : 'usa o cérebro do agente') + (cu.ok ? ' · ligado' : ' · desligado — ' + (cu.motivo || '') + ' (propostas por regras)');
     } catch (e) { $('b-saude').textContent = ''; }
   }
   async function salvarBase() {
@@ -210,9 +222,16 @@
     if (t !== 'regras' && $('b-modelo').value.trim()) cer.modelo = $('b-modelo').value.trim();
     if (t === 'anthropic') cer.esforco = $('b-esforco').value;
     if (['ollama', 'openai'].includes(t)) cer.url = $('b-url').value.trim();
+    const ct = $('c-tipo').value, cur = {};
+    if (ct) {
+      cur.tipo = ct;
+      if (ct !== 'regras' && $('c-modelo').value.trim()) cur.modelo = $('c-modelo').value.trim();
+      if (ct === 'anthropic') cur.esforco = $('c-esforco').value;
+      if (['ollama', 'openai'].includes(ct)) cur.url = $('c-url').value.trim();
+    }
     const faq = faqEd.filter(f => f.perguntas.length || f.resposta);
     if (faq.some(f => !f.perguntas.length || !f.resposta)) throw new Error('Cada pergunta do FAQ precisa de ao menos uma forma e de uma resposta.');
-    cfg = await api('PUT', '/api/gestor/config', Object.assign({}, cfg, {token_gestor: '***', info, faq, cerebro: cer}));
+    cfg = await api('PUT', '/api/gestor/config', Object.assign({}, cfg, {token_gestor: '***', info, faq, cerebro: cer, cerebro_curadoria: cur}));
     aviso('Base de conhecimento salva.'); await base();
   }
 
@@ -241,18 +260,114 @@
       : vazio('Nenhum registro neste filtro.');
     await propostas();
   }
+  let propLista = [];
   async function propostas() {
     const ps = await api('GET', '/api/gestor/propostas');
+    propLista = ps;
     const novas = ps.filter(p => p.status === 'nova'), velhas = ps.filter(p => p.status !== 'nova').slice(0, 10);
-    const TIPO = {faq: 'FAQ novo', info: 'informação do negócio', correcao: 'correção do FAQ'};
+    const TIPO = {faq: 'FAQ novo', info: 'informação do negócio', correcao: 'correção do FAQ', preco: 'preço de produto', produto: 'produto novo', horario: 'horário de atendimento'};
+    const ORIG = {cerebro: 'pelo cérebro da curadoria', regras: 'pelas regras', vendedor: 'pedido do vendedor'};
+    const nomeProd = id => { const x = (cfg && cfg.produtos || []).find(p => p.id === id); return x ? x.nome : id; };
     $('a-propostas').innerHTML = (novas.length ? novas.map(p => '<div class="proposta" data-prop="' + p.id + '"><div class="l1"><h3>#' + p.id + ' · ' +
-      esc(TIPO[p.tipo] || p.tipo) + (p.campo ? ' · ' + esc(p.campo) : '') + (p.faq_id ? ' · ' + esc(p.faq_id) : '') + '</h3><span class="selo">' + esc(p.origem === 'cerebro' ? 'pelo cérebro' : 'pelas regras') + '</span></div>' +
-      (p.justificativa ? '<p class="mut">' + esc(p.justificativa) + '</p>' : '') + '<div class="grade2">' +
-      (p.tipo !== 'info' ? '<label class="campo">Perguntas (uma por linha) <textarea rows="3" data-prop-perg="' + p.id + '">' + esc((p.perguntas || []).join('\n')) + '</textarea></label>' : '') +
-      '<label class="campo">Resposta <textarea rows="3" data-prop-resp="' + p.id + '">' + esc(p.resposta) + '</textarea></label></div>' +
-      '<div class="acoes"><button type="button" class="btn pri" data-incorporar="' + p.id + '">' + ic('plus') + 'Incorporar à base</button><button type="button" class="btn sutil" data-descartar="' + p.id + '">Descartar</button></div></div>').join('')
+      esc(TIPO[p.tipo] || p.tipo) + (p.campo ? ' · ' + esc(p.campo) : '') + (p.faq_id ? ' · ' + esc(p.faq_id) : '') + (p.produto_id ? ' · ' + esc(nomeProd(p.produto_id)) : '') +
+      '</h3><span class="selo">' + esc(ORIG[p.origem] || p.origem) + '</span></div>' +
+      (p.destino ? '<p class="destino"><strong>Vai alterar:</strong> ' + esc(p.destino) + '</p>' : '') +
+      (p.justificativa ? '<p class="mut" style="white-space:pre-wrap">Para o gestor (não vai para a base): ' + esc(p.justificativa) + '</p>' : '') + '<div class="grade2">' +
+      (p.tipo === 'produto'
+        ? '<label class="campo">Nome <input data-prop-nome="' + p.id + '" value="' + esc(p.nome) + '"></label>' +
+          '<label class="campo">Preço <input data-prop-preco="' + p.id + '" value="' + esc(p.preco_novo) + '" placeholder="R$ 0,00"></label>' +
+          '<label class="campo">Palavras (vírgula) <input data-prop-pal="' + p.id + '" value="' + esc((p.palavras || []).join(', ')) + '"></label>'
+        : p.tipo === 'horario'
+        ? '<label class="campo">Horários (um dia por linha: seg 08:00-18:00; vazio = fechado) <textarea rows="4" data-prop-hor="' + p.id + '">' +
+          esc(Object.keys(p.horarios || {}).map(d => d + ' ' + (p.horarios[d] || []).map(j => j[0] + '-' + j[1]).join(', ')).join('\n')) + '</textarea></label>' +
+          '<label class="campo">Texto para o cliente (opcional) <textarea rows="2" data-prop-resp="' + p.id + '">' + esc(p.resposta) + '</textarea></label>'
+        : p.tipo === 'preco'
+        ? '<label class="campo">Preço novo <input data-prop-preco="' + p.id + '" value="' + esc(p.preco_novo) + '" placeholder="R$ 670"></label>' +
+          '<label class="campo">Promoção (opcional) <input data-prop-promo="' + p.id + '" value="' + esc(p.promocao) + '" placeholder="Promoção Black"></label>' +
+          '<label class="campo">Válida até (opcional) <input type="date" data-prop-val="' + p.id + '" value="' + esc(p.validade) + '"></label>'
+        : (p.tipo !== 'info' ? '<label class="campo">Perguntas (uma por linha) <textarea rows="3" data-prop-perg="' + p.id + '">' + esc((p.perguntas || []).join('\n')) + '</textarea></label>' : '') +
+          '<label class="campo">Texto que vai para a base (como o cliente vai ler) <textarea rows="3" data-prop-resp="' + p.id + '">' + esc(p.resposta) + '</textarea></label>') +
+      '</div><div class="previa" data-prop-previa="' + p.id + '" hidden></div>' +
+      '<div class="acoes"><button type="button" class="btn pri" data-incorporar="' + p.id + '">' + ic('plus') + 'Revisar e incorporar</button><button type="button" class="btn sutil" data-descartar="' + p.id + '">Descartar</button></div></div>').join('')
       : vazio('Nenhuma proposta nova.')) +
       (velhas.length ? '<p class="vazio peq">Já tratadas: ' + velhas.map(p => '#' + p.id + ' ' + esc(p.status)).join(' · ') + '</p>' : '');
+  }
+  function corpoProposta(id) {
+    const q = k => document.querySelector('[data-prop-' + k + '="' + id + '"]'), corpo = {};
+    if (q('resp')) corpo.resposta = q('resp').value;
+    if (q('perg')) corpo.perguntas = linhas(q('perg').value);
+    if (q('preco')) corpo.preco_novo = q('preco').value.trim();
+    if (q('promo')) { corpo.promocao = q('promo').value.trim(); corpo.validade = q('val').value; }
+    if (q('nome')) { corpo.nome = q('nome').value.trim(); corpo.palavras = q('pal').value.split(',').map(x => x.trim()).filter(Boolean); }
+    if (q('hor')) {
+      corpo.horarios = {};
+      linhas(q('hor').value).forEach(l => { const m = l.trim().split(/\s+/), d = m.shift();
+        corpo.horarios[d] = m.join(' ').split(',').map(x => x.trim()).filter(Boolean).map(x => x.split(/\s*[-–]\s*/)); });
+    }
+    return corpo;
+  }
+  // Prévia: como o alvo da base fica depois de incorporar (info acrescenta uma linha; preço troca o do produto).
+  function previaProposta(id) {
+    const p = propLista.find(x => String(x.id) === String(id)), b = corpoProposta(id);
+    if (!p) return '';
+    if (p.tipo === 'preco') {
+      const promo = b.promocao || b.validade;
+      return 'Antes: ' + (p.atual || '—') + '\nDepois: ' + (b.preco_novo || '?') + (promo ? ' (' + (b.promocao || 'promoção') + (b.validade ? ' até ' + b.validade.split('-').reverse().slice(0, 2).join('/') : '') + '; o preço normal continua valendo depois)' : '');
+    }
+    if (p.tipo === 'produto') return 'Cadastros → Produtos → novo: ' + (b.nome || '?') + ' — ' + (b.preco_novo || 'sem preço') + ' · palavras: ' + (b.palavras || []).join(', ');
+    if (p.tipo === 'horario') return 'Antes: ' + (p.atual || '—') + '\nDepois: ' + Object.keys(b.horarios || {}).map(d => d + ' ' + ((b.horarios[d] || []).map(j => j.join('–')).join(' e ') || 'fechado')).join('; ');
+    if (p.tipo === 'info') return 'Como fica ' + p.campo + ':\n' + ((p.atual ? p.atual + '\n' : '') + (b.resposta || '').trim());
+    if (p.tipo === 'correcao') return 'Antes: ' + (p.atual || '—') + '\nDepois: ' + (b.resposta || '').trim();
+    return 'P: ' + (b.perguntas || []).join(' / ') + '\nR: ' + (b.resposta || '').trim();
+  }
+
+  // A configuração muda por incorporar/importar/salvar: relê do servidor para nenhuma aba gravar um cfg velho.
+  async function recarregarCfg() {
+    cfg = await api('GET', '/api/gestor/config');
+    if (typeof preencherColabs === 'function' && cfg.equipe) preencherColabs();
+    return cfg;
+  }
+
+  // ---------- Base consolidada ----------
+  const ROT_INFO = {endereco: 'Endereço', pagamento: 'Formas de pagamento', entrega: 'Entrega', garantia: 'Garantia e trocas', site: 'Site', observacoes: 'Observações'};
+  async function consolidada() {
+    const d = await api('GET', '/api/gestor/base'), s = d.secoes;
+    $('bc-texto').textContent = d.texto;
+    $('bc-conflitos').innerHTML = '<h3 style="margin:0 0 6px">' + (d.conflitos.length ? d.conflitos.length + ' conflito(s)' : 'Nenhum conflito encontrado') + '</h3>' +
+      (d.conflitos.length ? '<ul class="lista-conf">' + d.conflitos.map(x => '<li data-conf="' + esc(x.tipo) + '">' + ic('alert') + '<span>' + esc(x.mensagem) +
+        '</span> <button type="button" class="btn peq" data-editar="' + esc(x.alvo) + '">editar</button></li>').join('') + '</ul>' : '');
+    const bloco = (t, h) => '<fieldset class="painel form-sec"><legend>' + esc(t) + '</legend>' + h + '</fieldset>';
+    $('bc-secoes').innerHTML =
+      bloco('Negócio e horário', '<p><strong>' + esc(s.negocio) + '</strong></p><p>' + esc(s.horario) + '</p>') +
+      bloco('Informações', Object.keys(s.info).filter(k => s.info[k]).map(k => '<p><strong>' + esc(ROT_INFO[k] || k) + ':</strong> <span style="white-space:pre-wrap">' + esc(s.info[k]) + '</span></p>').join('') || vazio('Nenhuma informação.')) +
+      bloco('Perguntas frequentes', s.faq.map(f => '<p><strong>' + esc(f.perguntas.join(' / ')) + '</strong><br>' + esc(f.resposta) + '</p>').join('') || vazio('Nenhuma pergunta.')) +
+      bloco('Produtos', s.produtos.map(p => '<p><strong>' + esc(p.nome) + '</strong>: ' + esc(p.preco_vigente || 'sem preço informado') +
+        (p.preco_promocao && !p.promocao_ativa ? ' <span class="mut">(promoção ' + esc(p.preco_promocao) + ' vencida)</span>' : '') + '</p>').join('') || vazio('Nenhum produto.'));
+  }
+  async function baixar(rota, nome) {
+    const r = await fetch(rota, {headers: {'X-Token': token}});
+    if (!r.ok) throw new Error('Erro ' + r.status);
+    const url = URL.createObjectURL(await r.blob());
+    const a = document.createElement('a'); a.href = url; a.download = nome; a.click(); URL.revokeObjectURL(url);
+  }
+  let importando = null;
+  async function previaImportar(json) {
+    importando = json;
+    const r = await api('POST', '/api/gestor/base/importar', json);
+    $('bc-importar').hidden = false;
+    $('bc-importar').innerHTML = '<h3 style="margin:0 0 6px">Prévia da importação: ' + (r.mudancas.length ? r.mudancas.length + ' mudança(s)' : 'nada muda') + '</h3>' +
+      r.mudancas.map(m => '<div class="previa"><strong>' + esc(m.onde) + '</strong>\nAntes: ' + esc(m.antes || '—') + '\nDepois: ' + esc(m.depois || '(removido)') + '</div>').join('') +
+      '<div class="acoes">' + (r.mudancas.length ? '<button type="button" class="btn pri" id="bc-aplicar">' + ic('check') + 'Gravar na base</button>' : '') +
+      '<button type="button" class="btn sutil" id="bc-cancelar">Cancelar</button></div>';
+  }
+  async function irPara(alvo) {
+    const [tipo, id] = [alvo.slice(0, alvo.indexOf(':')), alvo.slice(alvo.indexOf(':') + 1)];
+    if (tipo === 'produto') { await mostrar('cadastros'); const el = document.querySelector('[data-pr][data-k="preco"]'); if (el) el.focus(); return; }
+    await mostrar('base');
+    let el = null;
+    if (tipo === 'info') el = $('i-' + id);
+    if (tipo === 'faq') { const i = faqEd.findIndex(f => f.id === id); el = i >= 0 ? document.querySelector('[data-faq-resp="' + i + '"]') : null; }
+    if (el) { el.scrollIntoView({behavior: 'smooth', block: 'center'}); el.focus(); }
   }
 
   // ---------- Cadastros (formulário) ----------
@@ -379,6 +494,7 @@
       if (aba === 'cadastros' && trocou) await cadastros();
       if (aba === 'base' && trocou) await base();
       if (aba === 'aprendizado' && trocou) await aprendizado();
+      if (aba === 'consolidada' && trocou) await consolidada();
     } catch (e) { aviso(e.message, true); }
   }
   function preencherColabs() {
@@ -450,9 +566,13 @@
         await mostrar('base'); addFaq(linhas(i.msg_lead), i.enviado); aviso('Revise a pergunta e a resposta e clique em Salvar base de conhecimento.');
       }
       if (b.dataset.incorporar) {
-        const id = b.dataset.incorporar, corpo = {resposta: document.querySelector('[data-prop-resp="' + id + '"]').value};
-        const pg = document.querySelector('[data-prop-perg="' + id + '"]'); if (pg) corpo.perguntas = linhas(pg.value);
-        await api('POST', '/api/gestor/propostas/' + id + '/incorporar', corpo); aviso('Proposta #' + id + ' incorporada à base.'); await propostas();
+        const id = b.dataset.incorporar, pv = document.querySelector('[data-prop-previa="' + id + '"]');
+        if (pv.hidden) {  // 1º clique: mostra a prévia; o 2º confirma
+          pv.textContent = previaProposta(id); pv.hidden = false; b.lastChild.textContent = 'Confirmar incorporação';
+          return;
+        }
+        await api('POST', '/api/gestor/propostas/' + id + '/incorporar', corpoProposta(id)); aviso('Proposta #' + id + ' incorporada à base.');
+        await recarregarCfg(); await propostas();
       }
       if (b.dataset.descartar) { await api('POST', '/api/gestor/propostas/' + b.dataset.descartar + '/descartar', {}); aviso('Proposta descartada.'); await propostas(); }
       // cadastros
@@ -490,6 +610,18 @@
   window.addEventListener('beforeunload', ev => { if (sujo && aba === 'cadastros') { ev.preventDefault(); ev.returnValue = ''; } });
   $('faq-add').addEventListener('click', () => addFaq());
   $('b-tipo').addEventListener('change', camposCerebro);
+  $('c-tipo').addEventListener('change', camposCuradoria);
+  $('a-propostas').addEventListener('input', ev => {  // prévia aberta acompanha a edição
+    const card = ev.target.closest('[data-prop]'); if (!card) return;
+    const pv = card.querySelector('[data-prop-previa]'); if (pv && !pv.hidden) pv.textContent = previaProposta(card.dataset.prop);
+    const p = propLista.find(x => String(x.id) === card.dataset.prop), dst = card.querySelector('.destino');
+    if (p && p.tipo === 'preco' && dst) {  // o destino acompanha: com promoção vai para o preço promocional
+      const b = corpoProposta(p.id), pr = (cfg.produtos || []).find(x => x.id === p.produto_id) || {};
+      dst.innerHTML = '<strong>Vai alterar:</strong> ' + esc('Cadastros → Produtos → ' + (pr.nome || p.produto_id) + (b.promocao || b.validade
+        ? ' → preço promocional: ' + (pr.preco_promocao || '—') + ' → ' + b.preco_novo + ' (' + (b.promocao || 'promoção') + (b.validade ? ' até ' + b.validade : '') + '); preço normal ' + (pr.preco || '—') + ' fica'
+        : ' → preço: ' + (pr.preco || '—') + ' → ' + b.preco_novo));
+    }
+  });
   $('salvar-base').addEventListener('click', () => salvarBase().catch(e => aviso(e.message, true)));
   $('form-testar').addEventListener('submit', async ev => {
     ev.preventDefault();
@@ -502,7 +634,7 @@
     } catch (e) { $('t-resultado').innerHTML = '<p class="erro">' + esc(e.message) + '</p>'; }
   });
   $('a-periodo-salvar').addEventListener('click', async () => {
-    try { cfg = await api('PUT', '/api/gestor/config', Object.assign({}, cfg, {token_gestor: '***', aprendizado: {periodo: $('a-periodo').value}})); aviso('Período salvo.'); }
+    try { await recarregarCfg(); cfg = await api('PUT', '/api/gestor/config', Object.assign({}, cfg, {token_gestor: '***', aprendizado: {periodo: $('a-periodo').value}})); aviso('Período salvo.'); }
     catch (e) { aviso(e.message, true); }
   });
   $('a-gerar').addEventListener('click', async ev => {
@@ -510,6 +642,23 @@
     try { const r = await api('POST', '/api/gestor/propostas/gerar', {de: $('a-de').value || undefined, ate: $('a-ate').value || undefined});
       aviso(r.criadas ? r.criadas + ' proposta(s) nova(s).' : 'Nenhuma proposta nova no período.'); await propostas(); }
     catch (e) { aviso(e.message, true); } finally { b.disabled = false; }
+  });
+  $('bc-md').addEventListener('click', () => baixar('/api/gestor/base.md', 'base.md').catch(e => aviso(e.message, true)));
+  $('bc-json').addEventListener('click', () => baixar('/api/gestor/base.json', 'base.json').catch(e => aviso(e.message, true)));
+  $('bc-arquivo').addEventListener('change', async ev => {
+    const f = ev.target.files[0]; ev.target.value = ''; if (!f) return;
+    try { await previaImportar(JSON.parse(await f.text())); } catch (e) { aviso(e.message || 'Arquivo inválido', true); }
+  });
+  $('p-consolidada').addEventListener('click', async ev => {
+    const b = ev.target.closest('button'); if (!b) return;
+    try {
+      if (b.dataset.editar) await irPara(b.dataset.editar);
+      if (b.id === 'bc-cancelar') { importando = null; $('bc-importar').hidden = true; }
+      if (b.id === 'bc-aplicar' && importando) {
+        const r = await api('POST', '/api/gestor/base/importar?aplicar=1', importando);
+        importando = null; $('bc-importar').hidden = true; await recarregarCfg(); aviso('Base importada (' + r.mudancas.length + ' mudança(s); backup ' + r.backup + ').'); await consolidada();
+      }
+    } catch (e) { aviso(e.message, true); }
   });
   $('exportar').addEventListener('click', async () => {
     try {

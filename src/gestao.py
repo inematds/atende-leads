@@ -199,6 +199,12 @@ def validar_config(c, novo):
     for p in cfg.get('produtos', []):
         if not isinstance(p.get('nome'), str) or not p['nome'].strip():
             _erro('produtos: nome obrigatório')
+        for k in ('preco', 'preco_promocao', 'promocao'):
+            if p.get(k) not in (None, '') and (not isinstance(p[k], str) or len(p[k]) > 200):
+                _erro(f'produtos: {k} deve ser texto (até 200 caracteres)')
+        if p.get('promocao_ate') not in (None, '') and (not isinstance(p['promocao_ate'], str)
+                                                         or not re.fullmatch(r'\d{4}-\d{2}-\d{2}', p['promocao_ate'])):
+            _erro('produtos: promocao_ate no formato AAAA-MM-DD')
         if not isinstance(p.get('palavras', []), list):
             _erro('produtos: palavras deve ser lista')
     for f in cfg.get('faq', []):
@@ -226,19 +232,12 @@ def validar_config(c, novo):
             _erro(f'prazos.{k} deve ser inteiro ≥ 1')
     if prazos.get('assumir_imediato_min', 1) >= prazos.get('assumir_extremo_min', 10):
         _erro('prazos: assumir_imediato_min deve ser menor que assumir_extremo_min')
-    cer = cfg.get('cerebro', {'tipo': 'regras'})
-    if not isinstance(cer, dict) or cer.get('tipo', 'regras') not in cerebro.TIPOS:
-        _erro('cerebro.tipo deve ser ' + ', '.join(cerebro.TIPOS))
-    if any(k.lower() in ('api_key', 'apikey', 'chave', 'key', 'token', 'x-api-key') for k in cer):
-        _erro('a chave do cérebro vai em CEREBRO_API_KEY (.env), não no JSON')
-    if cer.get('modelo') not in (None, '') and (not isinstance(cer['modelo'], str)
-                                                or not cerebro.MODELO_OK.match(cer['modelo'])):
-        _erro('cerebro.modelo: só letras, dígitos e .:/@_- (até 100, sem começar com -)')
-    if cer.get('esforco') not in (None, '') and cer['esforco'] not in cerebro.ESFORCOS:
-        _erro('cerebro.esforco deve ser ' + ', '.join(cerebro.ESFORCOS))
-    if cer.get('url') not in (None, '') and (not isinstance(cer['url'], str)
-                                             or not re.match(r'^https?://[^\s]+$', cer['url'])):
-        _erro('cerebro.url deve começar com http:// ou https://')
+    _validar_cerebro(cfg.get('cerebro', {'tipo': 'regras'}), 'cerebro')
+    cur = cfg.get('cerebro_curadoria')
+    if cur not in (None, {}):  # ausente/vazio = usa o cerebro principal
+        if not isinstance(cur, dict):
+            _erro('cerebro_curadoria deve ser objeto')
+        _validar_cerebro(cur, 'cerebro_curadoria', vazio_ok=True)
     info = cfg.get('info', {})
     if not isinstance(info, dict):
         _erro('info deve ser objeto')
@@ -332,6 +331,24 @@ def testar(c, texto):
         if fila is not None:
             del fila[n_fila:]
         c.sujo = sujo
+
+
+def _validar_cerebro(cer, nome, vazio_ok=False):
+    if not isinstance(cer, dict):
+        _erro(f'{nome} deve ser objeto')
+    t = cer.get('tipo', 'regras')
+    if not (vazio_ok and t in (None, '')) and t not in cerebro.TIPOS:
+        _erro(f'{nome}.tipo deve ser ' + ', '.join(cerebro.TIPOS))
+    if any(k.lower() in ('api_key', 'apikey', 'chave', 'key', 'token', 'x-api-key') for k in cer):
+        _erro('a chave do cérebro vai em CEREBRO_API_KEY (.env), não no JSON')
+    if cer.get('modelo') not in (None, '') and (not isinstance(cer['modelo'], str)
+                                                or not cerebro.MODELO_OK.match(cer['modelo'])):
+        _erro(f'{nome}.modelo: só letras, dígitos e .:/@_- (até 100, sem começar com -)')
+    if cer.get('esforco') not in (None, '') and cer['esforco'] not in cerebro.ESFORCOS:
+        _erro(f'{nome}.esforco deve ser ' + ', '.join(cerebro.ESFORCOS))
+    if cer.get('url') not in (None, '') and (not isinstance(cer['url'], str)
+                                             or not re.match(r'^https?://[^\s]+$', cer['url'])):
+        _erro(f'{nome}.url deve começar com http:// ou https://')
 
 
 def gravar_config(c, novo):
