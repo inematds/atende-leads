@@ -19,8 +19,8 @@ from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlsplit
 
 from .core import App, Erro, ROOT, log, versao
-from . import (backup, bot, cerebro, chamados, consolidada, contatos, conversa, equipe, evolution, gestao, limite, paginas, polling,
-               saida, sugestao, tarefas)
+from . import (backup, bot, cerebro, chamados, chatbase, consolidada, contatos, conversa, equipe, evolution, fontes, gestao,
+               limite, paginas, polling, saida, sugestao, tarefas)
 from . import telegram as tg
 
 
@@ -319,6 +319,10 @@ def rotear_gestor(c, metodo, rota, q, b):
         return 200, sugestao.listar(c, q)
     if metodo == 'GET' and rota == '/propostas':
         return 200, sugestao.propostas(c, q)
+    if metodo == 'POST' and rota == '/propostas':
+        return 200, sugestao.criar_manual(c, b)
+    if metodo == 'POST' and rota == '/propostas/incorporar-lote':
+        return 200, sugestao.incorporar_lote(c, b)
     if metodo == 'POST' and rota == '/propostas/gerar':
         return 200, sugestao.gerar(c, b.get('de') or None, b.get('ate') or None)
     m = re.fullmatch(r'/propostas/(\d+)/(incorporar|descartar)', rota)
@@ -339,6 +343,14 @@ def rotear_gestor(c, metodo, rota, q, b):
     if metodo == 'GET' and rota == '/base.md':
         return 200, Bruto(consolidada.exportar_md(c), 'text/markdown; charset=utf-8',
                           {'Content-Disposition': 'attachment; filename="base.md"'})
+    if metodo == 'POST' and rota == '/base/fonte':
+        return 200, fontes.pedir_link(c, b)
+    if metodo == 'POST' and rota == '/base/arquivo':
+        return 200, fontes.pedir_arquivo(c, b)
+    if metodo == 'GET' and rota == '/base/fontes':
+        return 200, fontes.listar(c)
+    if metodo == 'POST' and rota == '/base/perguntar':
+        return 200, chatbase.perguntar(c, b)
     if metodo == 'POST' and rota == '/base/importar':
         return 200, consolidada.importar(c, b, str(q.get('aplicar') or '') in ('1', 'true', 'sim'))
     if metodo == 'GET' and rota == '/exportar.csv':
@@ -464,8 +476,10 @@ def criar_handler(app):
                 return self._json(200, saude(app))
             try:
                 tamanho = int(self.headers.get('Content-Length') or 0)
-                if tamanho < 0 or tamanho > 2 * 1024 * 1024:
-                    raise Erro(413, 'Corpo muito grande')
+                # o arquivo da base (até 10 MB) vem em base64 dentro do JSON: só essa rota passa de 2 MB
+                teto = 14 * 1024 * 1024 if rota == '/api/gestor/base/arquivo' else 2 * 1024 * 1024
+                if tamanho < 0 or tamanho > teto:
+                    raise Erro(413, 'Arquivo maior que 10 MB' if teto > 2 * 1024 * 1024 else 'Corpo muito grande')
                 bruto = self.rfile.read(tamanho) if tamanho else b''
                 if webhook:
                     status, resposta = self.webhook(rota, bruto)
@@ -657,6 +671,7 @@ def main(argv=None):
     parar = threading.Event()
     despachantes = saida.iniciar(app)
     trabalhador = sugestao.Trabalhador(app).iniciar()
+    leitor_fontes = fontes.Trabalhador(app).iniciar()
     if not app.modo_teste:
         threading.Thread(target=relogio_automatico, args=(app, parar), daemon=True).start()
     leitor = None
@@ -676,6 +691,7 @@ def main(argv=None):
             leitor.encerrar()
         servidor.server_close()
         trabalhador.encerrar()
+        leitor_fontes.encerrar()
         for d in despachantes:
             d.encerrar()
         time.sleep(0.05)

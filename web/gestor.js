@@ -2,7 +2,7 @@
 (function () {
   const $ = id => document.getElementById(id);
   const ic = AL.ic, esc = AL.esc;
-  let token = null, cfg = null, aba = 'aovivo', timer = null;
+  let token = null, cfg = null, aba = 'aovivo', timer = null, sujoBase = false;
   const api = (m, r, c) => AL.api(m, r, c, {'X-Token': token});
   let tAviso = null;
   const aviso = (t, erro) => {
@@ -177,7 +177,7 @@
     return id;
   }
   function addFaq(perguntas, resposta) {
-    lerFaq(); faqEd.push({id: novoId(faqEd, 'faq-'), perguntas: perguntas || [], resposta: resposta || ''}); renderFaq();
+    lerFaq(); faqEd.push({id: novoId(faqEd, 'faq-'), perguntas: perguntas || [], resposta: resposta || ''}); renderFaq(); sujoBase = true;
     const ult = document.querySelector('[data-faq="' + (faqEd.length - 1) + '"]');
     if (ult) { ult.scrollIntoView({behavior: 'smooth', block: 'center'}); ult.querySelector('textarea').focus(); }
   }
@@ -198,6 +198,7 @@
   }
   async function base() {
     cfg = await api('GET', '/api/gestor/config');
+    sujoBase = false;
     const info = cfg.info || {};
     CAMPOS.forEach(k => { $('i-' + k).value = info[k] || ''; });
     $('i-horario-gerado').textContent = 'Vazio = gerado dos horários dos Cadastros.';
@@ -232,7 +233,7 @@
     const faq = faqEd.filter(f => f.perguntas.length || f.resposta);
     if (faq.some(f => !f.perguntas.length || !f.resposta)) throw new Error('Cada pergunta do FAQ precisa de ao menos uma forma e de uma resposta.');
     cfg = await api('PUT', '/api/gestor/config', Object.assign({}, cfg, {token_gestor: '***', info, faq, cerebro: cer, cerebro_curadoria: cur}));
-    aviso('Base de conhecimento salva.'); await base();
+    sujoBase = false; aviso('Base de conhecimento salva.'); await base();
   }
 
   // ---------- Aprendizado ----------
@@ -266,11 +267,15 @@
     propLista = ps;
     const novas = ps.filter(p => p.status === 'nova'), velhas = ps.filter(p => p.status !== 'nova').slice(0, 10);
     const TIPO = {faq: 'FAQ novo', info: 'informação do negócio', correcao: 'correção do FAQ', preco: 'preço de produto', produto: 'produto novo', horario: 'horário de atendimento'};
-    const ORIG = {cerebro: 'pelo cérebro da curadoria', regras: 'pelas regras', vendedor: 'pedido do vendedor'};
+    const ORIG = {cerebro: 'pelo cérebro da curadoria', regras: 'pelas regras', vendedor: 'pedido do vendedor', fonte: 'de link ou arquivo',
+      chat: 'do chat da base', gestor: 'escrita pelo gestor'};
     const nomeProd = id => { const x = (cfg && cfg.produtos || []).find(p => p.id === id); return x ? x.nome : id; };
-    $('a-propostas').innerHTML = (novas.length ? novas.map(p => '<div class="proposta" data-prop="' + p.id + '"><div class="l1"><h3>#' + p.id + ' · ' +
+    $('a-propostas').innerHTML = (novas.length ? novas.map(p => '<div class="proposta" data-prop="' + p.id + '"><div class="l1">' +
+      '<label class="sel-prop"><input type="checkbox" data-sel="' + p.id + '"' + (selecionadas.has(p.id) ? ' checked' : '') + '><span class="sr">Selecionar a proposta</span></label><h3>#' + p.id + ' · ' +
       esc(TIPO[p.tipo] || p.tipo) + (p.campo ? ' · ' + esc(p.campo) : '') + (p.faq_id ? ' · ' + esc(p.faq_id) : '') + (p.produto_id ? ' · ' + esc(nomeProd(p.produto_id)) : '') +
-      '</h3><span class="selo">' + esc(ORIG[p.origem] || p.origem) + '</span></div>' +
+      '</h3><span class="selo">' + esc(ORIG[p.origem] || p.origem) + '</span>' + (p.contradiz ? '<span class="selo contradiz">' + ic('alert') + 'contradiz a base</span>' : '') + '</div>' +
+      (p.fonte ? '<p class="de-fonte">Fonte: ' + linkFonte(p.fonte) + '</p>' : '') +
+      (p.evidencia ? '<blockquote class="evid" aria-label="Trecho que comprova">' + esc(p.evidencia) + '</blockquote>' : '') +
       (p.destino ? '<p class="destino"><strong>Vai alterar:</strong> ' + esc(p.destino) + '</p>' : '') +
       (p.justificativa ? '<p class="mut" style="white-space:pre-wrap">Para o gestor (não vai para a base): ' + esc(p.justificativa) + '</p>' : '') + '<div class="grade2">' +
       (p.tipo === 'produto'
@@ -291,6 +296,32 @@
       '<div class="acoes"><button type="button" class="btn pri" data-incorporar="' + p.id + '">' + ic('plus') + 'Revisar e incorporar</button><button type="button" class="btn sutil" data-descartar="' + p.id + '">Descartar</button></div></div>').join('')
       : vazio('Nenhuma proposta nova.')) +
       (velhas.length ? '<p class="vazio peq">Já tratadas: ' + velhas.map(p => '#' + p.id + ' ' + esc(p.status)).join(' · ') + '</p>' : '');
+    selecionadas.forEach(id => { if (!novas.some(p => p.id === id)) selecionadas.delete(id); });
+    $('a-lote').hidden = novas.length < 2; $('a-lote-previa').hidden = true; contarLote();
+  }
+  const selecionadas = new Set();
+  const linkFonte = f => /^https?:\/\//i.test(f) ? '<a href="' + esc(f) + '" target="_blank" rel="noopener noreferrer">' + esc(f) + '</a>' : esc(f);
+  function contarLote() {
+    const n = selecionadas.size;
+    $('a-lote-btn').disabled = !n;
+    $('a-lote-n').textContent = n ? n + (n === 1 ? ' proposta marcada.' : ' propostas marcadas.') : 'Marque as propostas que quer incorporar de uma vez.';
+  }
+  function previaLote() {
+    const ids = propLista.filter(p => selecionadas.has(p.id) && p.status === 'nova').map(p => p.id);
+    $('a-lote-previa').hidden = false;
+    $('a-lote-previa').innerHTML = '<h3 style="margin:0">Prévia: ' + ids.length + (ids.length === 1 ? ' proposta vai' : ' propostas vão') + ' para a base</h3><ol>' +
+      ids.map(id => { const p = propLista.find(x => x.id === id);
+        return '<li><strong>#' + id + '</strong> · ' + esc(p.destino || '') + '<div class="previa">' + esc(previaProposta(id)) + '</div></li>'; }).join('') + '</ol>' +
+      '<div class="acoes"><button type="button" class="btn pri" id="a-lote-ok">' + ic('check') + 'Confirmar incorporação (' + ids.length + ')</button>' +
+      '<button type="button" class="btn sutil" id="a-lote-cancelar">Cancelar</button></div>';
+    $('a-lote-previa').scrollIntoView({behavior: 'smooth', block: 'nearest'});
+  }
+  async function incorporarLote() {
+    const ids = propLista.filter(p => selecionadas.has(p.id) && p.status === 'nova').map(p => p.id);
+    const r = await api('POST', '/api/gestor/propostas/incorporar-lote', {itens: ids.map(id => Object.assign({id}, corpoProposta(id)))});
+    selecionadas.clear();
+    aviso(r.incorporadas.length + ' incorporada(s)' + (r.erros.length ? '; ' + r.erros.length + ' não: ' + r.erros.map(e => '#' + e.id + ' ' + e.erro).join(' · ') : '') + '.', !!r.erros.length);
+    await recarregarCfg(); await propostas();
   }
   function corpoProposta(id) {
     const q = k => document.querySelector('[data-prop-' + k + '="' + id + '"]'), corpo = {};
@@ -334,7 +365,7 @@
     const d = await api('GET', '/api/gestor/base'), s = d.secoes;
     $('bc-texto').textContent = d.texto;
     $('bc-conflitos').innerHTML = '<h3 style="margin:0 0 6px">' + (d.conflitos.length ? d.conflitos.length + ' conflito(s)' : 'Nenhum conflito encontrado') + '</h3>' +
-      (d.conflitos.length ? '<ul class="lista-conf">' + d.conflitos.map(x => '<li data-conf="' + esc(x.tipo) + '">' + ic('alert') + '<span>' + esc(x.mensagem) +
+      (d.conflitos.length ? '<ul class="lista-conf">' + d.conflitos.map((x, i) => '<li data-conf="' + esc(x.tipo) + '" data-conf-i="' + i + '">' + ic('alert') + '<span>' + esc(x.mensagem) +
         '</span> <button type="button" class="btn peq" data-editar="' + esc(x.alvo) + '">editar</button></li>').join('') + '</ul>' : '');
     const bloco = (t, h) => '<fieldset class="painel form-sec"><legend>' + esc(t) + '</legend>' + h + '</fieldset>';
     $('bc-secoes').innerHTML =
@@ -436,7 +467,7 @@
   }
   async function cadastros() {
     cfg = await api('GET', '/api/gestor/config');
-    $('c-nome').value = cfg.nome || ''; $('c-url').value = cfg.url_publica || '';
+    $('c-nome').value = cfg.nome || ''; $('c-urlpub').value = cfg.url_publica || '';
     const ap = cfg.aparencia || {};
     $('c-tema').value = ap.tema || 'claro'; $('c-cor').value = ap.cor_destaque || ''; $('c-nome-exibido').value = ap.nome_exibido || '';
     previaCor();
@@ -470,7 +501,7 @@
     const aparencia = {tema: $('c-tema').value};
     if ($('c-cor').value.trim()) aparencia.cor_destaque = $('c-cor').value.trim();
     if ($('c-nome-exibido').value.trim()) aparencia.nome_exibido = $('c-nome-exibido').value.trim();
-    const novo = Object.assign({}, cfg, {nome: $('c-nome').value.trim(), url_publica: $('c-url').value.trim(), token_gestor: '***',
+    const novo = Object.assign({}, cfg, {nome: $('c-nome').value.trim(), url_publica: $('c-urlpub').value.trim(), token_gestor: '***',
       equipe, produtos, horarios: horEd, prazos, aparencia});
     cfg = await api('PUT', '/api/gestor/config', novo);
     try { localStorage.setItem('al_tema_negocio', aparencia.tema); if (!localStorage.getItem('al_tema')) AL.aplicarTema(aparencia.tema); } catch (e) { /* */ }
@@ -492,7 +523,7 @@
       if (aba === 'hoje') await hoje();
       if (aba === 'leads' && trocou) await leads();
       if (aba === 'cadastros' && trocou) await cadastros();
-      if (aba === 'base' && trocou) await base();
+      if (aba === 'base' && trocou) { await base(); await carregarFontes(); }
       if (aba === 'aprendizado' && trocou) await aprendizado();
       if (aba === 'consolidada' && trocou) await consolidada();
     } catch (e) { aviso(e.message, true); }
@@ -560,7 +591,7 @@
         if (!confirm('Reabrir o chamado #' + b.dataset.reabrir + '? Ele volta para a fila.')) return;
         await api('POST', '/api/gestor/chamados/' + b.dataset.reabrir + '/reabrir', {}); aviso('Chamado reaberto: voltou para a fila.');
       }
-      if (b.dataset.faqRm) { lerFaq(); faqEd.splice(+b.dataset.faqRm, 1); renderFaq(); }
+      if (b.dataset.faqRm) { lerFaq(); faqEd.splice(+b.dataset.faqRm, 1); renderFaq(); sujoBase = true; }
       if (b.dataset.virar) {
         const i = aprItens[+b.dataset.virar];
         await mostrar('base'); addFaq(linhas(i.msg_lead), i.enviado); aviso('Revise a pergunta e a resposta e clique em Salvar base de conhecimento.');
@@ -608,7 +639,7 @@
     salvarCadastros().catch(e => aviso('Não salvou: ' + e.message, true)).finally(() => { $('salvar').disabled = false; });
   });
   window.addEventListener('beforeunload', ev => { if (sujo && aba === 'cadastros') { ev.preventDefault(); ev.returnValue = ''; } });
-  $('faq-add').addEventListener('click', () => addFaq());
+  $('faq-add').addEventListener('click', () => { addFaq(); sujoBase = true; });
   $('b-tipo').addEventListener('change', camposCerebro);
   $('c-tipo').addEventListener('change', camposCuradoria);
   $('a-propostas').addEventListener('input', ev => {  // prévia aberta acompanha a edição
@@ -659,6 +690,166 @@
         importando = null; $('bc-importar').hidden = true; await recarregarCfg(); aviso('Base importada (' + r.mudancas.length + ' mudança(s); backup ' + r.backup + ').'); await consolidada();
       }
     } catch (e) { aviso(e.message, true); }
+  });
+  // ---------- Importar de link ou arquivo (1.7.8) ----------
+  const ST_FONTE = {lendo: 'lendo', analisando: 'analisando', pronto: 'pronto', erro: 'erro'};
+  let tFontes = null, fontesAtivas = new Set();
+  const n = (v, um, varios) => v + ' ' + (v === 1 ? um : varios);
+  function detalheFonte(f) {
+    if (f.status === 'lendo') return f.tipo === 'link' ? 'lendo as páginas…' : 'lendo o arquivo…';
+    if (f.status === 'erro') return esc(f.erro || 'não deu para ler');
+    const base = (f.tipo === 'link' ? n(f.paginas, 'página', 'páginas') + ' · ' : '') + (f.caracteres ? f.caracteres.toLocaleString('pt-BR') + ' caracteres' : 'documento');
+    if (f.status === 'analisando') return esc(base) + ' · propondo itens para a base…';
+    const av = (f.avisos || []).filter(a => !/^propostas pel/.test(a));
+    return esc(base + ' · ' + n(f.propostas, 'proposta', 'propostas')) +
+      (av.length ? ' · <span title="' + esc(av.join('\n')) + '">' + n(av.length, 'aviso', 'avisos') + '</span>' : '') +
+      (f.propostas ? ' <button type="button" class="btn peq" data-ir="aprendizado">Revisar no Aprendizado' + ic('arrow') + '</button>' : '');
+  }
+  async function carregarFontes() {
+    const r = await api('GET', '/api/gestor/base/fontes');
+    $('fo-tipos').textContent = 'TXT, MD, CSV, HTML, DOCX ou PDF, até 10 MB.' +
+      (r.pdf.anthropic || r.pdf.pdftotext ? '' : ' PDF só com o cérebro da curadoria Anthropic ou o pdftotext no servidor.');
+    $('fo-lista').innerHTML = r.fontes.slice(0, 8).map(f => '<div class="fonte-it">' + ic(f.tipo === 'link' ? 'link' : 'file') +
+      '<span class="nome" title="' + esc(f.fonte) + '">' + esc(f.fonte) + '</span><span class="selo st-' + esc(f.status) + '">' + esc(ST_FONTE[f.status] || f.status) + '</span>' +
+      '<span class="det' + (f.status === 'erro' ? ' erro' : '') + '">' + detalheFonte(f) + '</span></div>').join('');
+    r.fontes.forEach(f => {
+      if (fontesAtivas.has(f.id) && (f.status === 'pronto' || f.status === 'erro')) {
+        fontesAtivas.delete(f.id);
+        aviso(f.status === 'pronto' ? f.fonte + ': ' + n(f.propostas, 'proposta nova', 'propostas novas') + ' no Aprendizado.' : f.fonte + ': ' + (f.erro || 'erro'), f.status === 'erro');
+      }
+      if (f.status === 'lendo' || f.status === 'analisando') fontesAtivas.add(f.id);
+    });
+    clearTimeout(tFontes);
+    if (fontesAtivas.size && aba === 'base') tFontes = setTimeout(() => carregarFontes().catch(() => {}), 1500);
+  }
+  $('form-fonte').addEventListener('submit', async ev => {
+    ev.preventDefault();
+    const b = $('fo-ler'); b.disabled = true;
+    try {
+      const r = await api('POST', '/api/gestor/base/fonte', {url: $('fo-url').value.trim(), max_paginas: parseInt($('fo-max').value, 10) || 8});
+      fontesAtivas.add(r.fonte.id); $('fo-url').value = ''; aviso('Lendo o site. As propostas aparecem no Aprendizado.'); await carregarFontes();
+    } catch (e) { aviso(e.message, true); } finally { b.disabled = false; }
+  });
+  $('fo-arquivo').addEventListener('change', async ev => {
+    const f = ev.target.files[0]; ev.target.value = ''; if (!f) return;
+    if (f.size > 10 * 1024 * 1024) { aviso('Arquivo maior que 10 MB.', true); return; }
+    try {
+      const dados = await new Promise((ok, falha) => { const l = new FileReader(); l.onload = () => ok(String(l.result).split(',')[1] || ''); l.onerror = falha; l.readAsDataURL(f); });
+      const r = await api('POST', '/api/gestor/base/arquivo', {nome: f.name, conteudo_base64: dados});
+      fontesAtivas.add(r.fonte.id); aviso('Lendo ' + f.name + '. As propostas aparecem no Aprendizado.'); await carregarFontes();
+    } catch (e) { aviso(e.message, true); }
+  });
+
+  // ---------- Chat da base (1.7.8): só o que está na base, com a seção citada; nada é gravado ----------
+  let chatHist = [], chatProp = null;
+  function desenharChat() {
+    if (!chatHist.length) return;
+    $('bc-conv').innerHTML = chatHist.map((m, i) => {
+      if (m.de === 'gestor') return '<div class="b eu"><small>Você</small>' + esc(m.texto) + '</div>';
+      if (m.carregando) return '<div class="b lead"><small>' + ic('book') + 'Base</small>Procurando na base…</div>';
+      const r = m.r || {};
+      return '<div class="b lead"><small>' + ic('book') + 'Base' + (r.origem === 'regras' ? ' · busca por palavras' : '') + '</small>' + esc(m.texto) +
+        (r.fontes && r.fontes.length ? '<ul class="fontes-b">' + r.fontes.map(f => '<li><strong>' + esc(f.secao) + '</strong> — ' + esc(f.trecho) + '</li>').join('') + '</ul>' : '') +
+        (r.contradicao || (r.conflitos && r.conflitos.length) ? '<div class="contra">' + esc(r.contradicao || 'Há conflito na base sobre isso.') + ' ' +
+          (r.conflitos || []).map(x => '<button type="button" class="btn peq" data-conf-ir="' + x.indice + '">' + ic('alert') + 'ver conflito</button>').join(' ') + '</div>' : '') +
+        (r.lacuna ? '<div class="acao-b"><button type="button" class="btn peq pri" data-criar-prop="' + i + '">' + ic('plus') + 'Criar proposta</button></div>' : '') + '</div>';
+    }).join('');
+    $('bc-conv').scrollTop = 1e9;
+  }
+  const TIPO_FORM = {faq: 'Pergunta do FAQ', info: 'Informação do negócio', produto: 'Produto novo', preco: 'Preço de produto'};
+  function formProposta(p) {
+    chatProp = Object.assign({tipo: 'faq', perguntas: [], resposta: '', campo: 'observacoes', nome: '', preco_novo: '', produto_id: '', palavras: []}, p);
+    const t = chatProp.tipo, prods = (cfg && cfg.produtos) || [];
+    const campos = {faq: '<label class="campo">Perguntas (uma por linha) <textarea id="np-perg" rows="2">' + esc(chatProp.perguntas.join('\n')) + '</textarea></label>' +
+        '<label class="campo">Resposta (como o cliente vai ler) <textarea id="np-resp" rows="3">' + esc(chatProp.resposta) + '</textarea></label>',
+      info: '<label class="campo">Campo <select id="np-campo">' + Object.keys(ROT_INFO).map(k => '<option value="' + k + '"' + (k === chatProp.campo ? ' selected' : '') + '>' + esc(ROT_INFO[k]) + '</option>').join('') + '</select></label>' +
+        '<label class="campo">Texto (como o cliente vai ler) <textarea id="np-resp" rows="3">' + esc(chatProp.resposta) + '</textarea></label>',
+      produto: '<div class="grade2"><label class="campo">Nome <input id="np-nome" value="' + esc(chatProp.nome) + '"></label><label class="campo">Preço <input id="np-preco" value="' + esc(chatProp.preco_novo) + '" placeholder="R$ 0,00"></label></div>' +
+        '<label class="campo">Palavras que indicam interesse (vírgula) <input id="np-pal" value="' + esc((chatProp.palavras || []).join(', ')) + '"></label>',
+      preco: '<div class="grade2"><label class="campo">Produto <select id="np-prod">' + prods.map(x => '<option value="' + esc(x.id) + '"' + (x.id === chatProp.produto_id ? ' selected' : '') + '>' + esc(x.nome) + '</option>').join('') + '</select></label>' +
+        '<label class="campo">Preço novo <input id="np-preco" value="' + esc(chatProp.preco_novo) + '" placeholder="R$ 670"></label></div>'};
+    $('bc-prop').hidden = false;
+    $('bc-prop').innerHTML = '<h3 style="margin:0">Nova proposta para a base</h3><p class="mut peq" style="margin:0">Revise e complete: ela vai para a aba Aprendizado e só entra na base quando você incorporar.</p>' +
+      '<label class="campo">Tipo <select id="np-tipo">' + Object.keys(TIPO_FORM).map(k => '<option value="' + k + '"' + (k === t ? ' selected' : '') + '>' + TIPO_FORM[k] + '</option>').join('') + '</select></label>' +
+      campos[t] + '<div class="acoes"><button type="button" class="btn pri" id="np-criar">' + ic('plus') + 'Criar proposta</button><button type="button" class="btn sutil" id="np-cancelar">Cancelar</button></div>';
+    const foco = $('np-resp') || $('np-nome') || $('np-preco'); if (foco) foco.focus();
+  }
+  function lerFormProposta() {
+    const v = id => $(id) ? $(id).value : undefined, o = {tipo: $('np-tipo').value, origem: 'chat'};
+    if (v('np-perg') !== undefined) o.perguntas = linhas(v('np-perg'));
+    if (v('np-resp') !== undefined) o.resposta = v('np-resp').trim();
+    if (v('np-campo') !== undefined) o.campo = v('np-campo');
+    if (v('np-nome') !== undefined) o.nome = v('np-nome').trim();
+    if (v('np-preco') !== undefined) o.preco_novo = v('np-preco').trim();
+    if (v('np-prod') !== undefined) o.produto_id = v('np-prod');
+    if (v('np-pal') !== undefined) o.palavras = v('np-pal').split(',').map(x => x.trim()).filter(Boolean);
+    return o;
+  }
+  $('form-chat').addEventListener('submit', async ev => {
+    ev.preventDefault();
+    const q = $('bc-pergunta').value.trim(); if (!q) return;
+    const historico = chatHist.filter(m => !m.carregando).slice(-6).map(m => ({de: m.de, texto: m.texto}));
+    chatHist.push({de: 'gestor', texto: q}); const pend = {de: 'base', carregando: true}; chatHist.push(pend);
+    $('bc-pergunta').value = ''; desenharChat();
+    try {
+      const r = await api('POST', '/api/gestor/base/perguntar', {pergunta: q, historico});
+      Object.assign(pend, {carregando: false, texto: r.resposta, r, pergunta: q});
+    } catch (e) { Object.assign(pend, {carregando: false, texto: 'Não consegui perguntar: ' + e.message, r: {}}); }
+    desenharChat();
+  });
+  $('bc-chat').addEventListener('change', ev => { if (ev.target.id === 'np-tipo') formProposta(Object.assign(lerFormProposta(), {tipo: ev.target.value})); });
+  $('bc-chat').addEventListener('click', async ev => {
+    const b = ev.target.closest('button'); if (!b) return;
+    try {
+      if (b.dataset.criarProp) { const m = chatHist[+b.dataset.criarProp]; formProposta(Object.assign({perguntas: [m.pergunta]}, m.r.proposta || {})); }
+      if (b.id === 'np-cancelar') { $('bc-prop').hidden = true; chatProp = null; }
+      if (b.id === 'np-criar') {
+        const r = await api('POST', '/api/gestor/propostas', lerFormProposta());
+        $('bc-prop').hidden = true; chatProp = null;
+        aviso('Proposta #' + r.proposta.id + ' criada. Revise e incorpore na aba Aprendizado.');
+      }
+      if (b.dataset.confIr !== undefined) {
+        const li = document.querySelector('#bc-conflitos [data-conf-i="' + b.dataset.confIr + '"]');
+        if (li) { document.querySelectorAll('#bc-conflitos li.foco').forEach(x => x.classList.remove('foco')); li.classList.add('foco');
+          li.scrollIntoView({behavior: 'smooth', block: 'center'}); const e = li.querySelector('button'); if (e) e.focus({preventScroll: true}); }
+      }
+    } catch (e) { aviso(e.message, true); }
+  });
+
+  // ---------- Atualizar (1.7.8): relê a configuração e a aba atual, sem sair; pergunta antes de descartar o que não foi salvo ----------
+  const CARREGAR = {aovivo: () => aoVivo(), hoje: () => hoje(), leads: () => leads(), base: async () => { await base(); await carregarFontes(); },
+    consolidada: () => consolidada(), aprendizado: () => aprendizado(), cadastros: () => cadastros()};
+  let atualizando = false;
+  async function atualizar() {
+    if (atualizando || !token) return;
+    const pendente = (aba === 'cadastros' && sujo) || (aba === 'base' && sujoBase);
+    if (pendente && !(await AL.confirmar('Há alterações não salvas nesta aba. Descartar alterações e atualizar?', 'Descartar e atualizar'))) return;
+    atualizando = true;
+    document.querySelectorAll('#atualizar,[data-atualizar]').forEach(x => { x.disabled = true; });
+    try {
+      await recarregarCfg();
+      $('negocio-nav').textContent = cfg.nome; $('logo').textContent = AL.iniciais(cfg.nome);
+      if (CARREGAR[aba]) await CARREGAR[aba]();
+      $('atualizado').textContent = 'Atualizado às ' + AL.agoraHM();
+      if (window.innerWidth < 1024) aviso($('atualizado').textContent + '.');
+    } catch (e) { aviso(e.message, true); }
+    finally { atualizando = false; document.querySelectorAll('#atualizar,[data-atualizar]').forEach(x => { x.disabled = false; }); }
+  }
+  $('atualizar').addEventListener('click', atualizar);
+  document.querySelectorAll('[data-atualizar]').forEach(b => b.addEventListener('click', atualizar));
+  AL.atalhoAtualizar(() => { if (!$('painel').hidden) atualizar(); });
+  $('p-base').addEventListener('input', ev => { if (!ev.target.closest('#fonte-sec, #form-testar')) sujoBase = true; });
+  $('p-base').addEventListener('change', ev => { if (ev.target.matches('select') && !ev.target.closest('#fonte-sec')) sujoBase = true; });
+  $('a-propostas').addEventListener('change', ev => {
+    const c = ev.target.closest('[data-sel]'); if (!c) return;
+    if (c.checked) selecionadas.add(+c.dataset.sel); else selecionadas.delete(+c.dataset.sel);
+    contarLote(); if (!$('a-lote-previa').hidden) previaLote();
+  });
+  $('a-lote-btn').addEventListener('click', previaLote);
+  $('a-lote-previa').addEventListener('click', async ev => {
+    const b = ev.target.closest('button'); if (!b) return;
+    if (b.id === 'a-lote-cancelar') { $('a-lote-previa').hidden = true; return; }
+    if (b.id === 'a-lote-ok') { b.disabled = true; try { await incorporarLote(); } catch (e) { aviso(e.message, true); b.disabled = false; } }
   });
   $('exportar').addEventListener('click', async () => {
     try {

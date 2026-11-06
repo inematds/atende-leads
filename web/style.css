@@ -515,3 +515,44 @@ tr.clic:hover td{background:var(--sup2)}
 .lista-conf li>.i{width:16px;height:16px;flex:none;margin-top:2px;color:var(--dica-tinta)}
 .lista-conf li span{flex:1}
 .destino{margin:4px 0 8px;font-size:13.5px}
+
+/* ======================================================= 1.7.8: atualizar, confirmação na página, fontes, chat da base */
+.atualizar{display:inline-flex;align-items:center;gap:8px}
+.atualizar .quando{font-size:12.5px;color:var(--mut);white-space:nowrap}
+.aba-acoes{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin:-4px 0 12px;flex-wrap:wrap}
+.confirma{position:fixed;left:50%;top:72px;transform:translateX(-50%);z-index:70;display:flex;gap:10px;align-items:center;flex-wrap:wrap;
+  width:max-content;max-width:min(620px,calc(100vw - 24px));padding:12px 14px;background:var(--sup);border:1px solid var(--linha2);border-radius:12px;box-shadow:var(--sombra)}
+.confirma p{margin:0;flex:1;min-width:200px;color:var(--tinta);font-weight:600}
+.confirma .i{width:20px;height:20px;color:var(--dica-tinta);flex:none}
+.fontes-lista{display:grid;margin-top:12px;border:1px solid var(--linha);border-radius:10px;overflow:hidden}
+.fontes-lista:empty{display:none}
+.fonte-it{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:4px 10px;align-items:center;padding:10px 12px;border-top:1px solid var(--linha);background:var(--sup)}
+.fonte-it:first-child{border-top:0}
+.fonte-it>.i{width:18px;height:18px;color:var(--mut)}
+.fonte-it .nome{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fonte-it .det{grid-column:2/-1;font-size:13px;color:var(--mut)}
+.fonte-it .det.erro{color:var(--ruim)}
+.st-lendo,.st-analisando{background:var(--info-f);color:var(--info)}
+.st-pronto{background:var(--ok-f);color:var(--ok)}
+.st-erro{background:var(--ruim-f);color:var(--ruim)}
+.arquivo-linha{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px}
+.evid{margin:0;padding:6px 10px;border-radius:8px;background:var(--faixa);font-size:13px;color:var(--tinta);quotes:"“" "”"}
+.evid::before{content:open-quote}.evid::after{content:close-quote}
+.de-fonte{font-size:13px;color:var(--mut);overflow-wrap:anywhere}
+.de-fonte a{color:var(--link);text-decoration:underline;text-decoration-color:var(--link-sub);text-underline-offset:2px}
+.contradiz{background:var(--ruim-f);color:var(--ruim)}
+.sel-prop{display:inline-flex;align-items:center;gap:6px;font:600 13px var(--corpo);color:var(--mut);cursor:pointer;min-height:32px}
+.sel-prop input{width:18px;height:18px;min-height:0;accent-color:var(--amb-borda)}
+.lote{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 10px}
+.lote .mut{font-size:13.5px}
+.lote-previa{padding:12px 14px;margin-bottom:12px;display:grid;gap:8px}
+.lote-previa ol{margin:0;padding-left:20px;display:grid;gap:6px;font-size:13.5px}
+.chat-base .conv{max-height:440px;min-height:120px;overflow:auto;padding:12px;background:var(--bg);border-radius:10px;margin-bottom:10px}
+.chat-base .b.lead{max-width:92%}
+.chat-base .fontes-b{margin:6px 0 0;padding:0;list-style:none;display:grid;gap:4px;font-size:13px;color:var(--mut);white-space:normal}
+.chat-base .fontes-b strong{color:var(--tinta)}
+.chat-base .contra{margin-top:8px;font-size:13px;color:var(--ruim);white-space:normal}
+.chat-base .acao-b{margin-top:8px;display:flex;gap:8px;flex-wrap:wrap}
+.form-prop{padding:12px 14px;display:grid;gap:10px;margin-bottom:10px}
+.lista-conf li.foco{outline:2px solid var(--foco);outline-offset:3px;border-radius:6px}
+@media (max-width:1023px){.atualizar .quando{display:none}.confirma{top:auto;bottom:16px}}

@@ -178,3 +178,22 @@ Fora de escopo, mantido de propósito: `/entrar` do Telegram continua barrando a
 |---|---|---|---|
 | 2026-11-06 | tests/test_sugestao_conflito.py (+4: produto/horário no cadastro, destino do preço, conflitos da base consolidada com o caso real, exportar/importar ida e volta + prévia sem gravar + aplicar com backup) | §13a destino estruturado; §13b | pedidos do dono no mesmo dia |
 | 2026-11-06 | Playwright: incorporar preço → aba Cadastros mostra R$ 670 sem relogar; "Vai alterar" acompanha a edição; aba Base consolidada | §13, §13a, §13b | idem |
+
+### 1.7.8 — base a partir de link/arquivo, chat da base, Atualizar
+
+| data | o que quebrou / risco | menor correção | prompt \| infra |
+|---|---|---|---|
+| 2026-11-06 | upload de 10 MB em base64 nunca chegaria: o servidor recusa corpo > 2 MB antes de rotear | teto de 14 MB só para `POST /api/gestor/base/arquivo` | infra |
+| 2026-11-06 | `urlopen` segue redirecionamento sozinho: um site público poderia mandar para 127.0.0.1/metadados (SSRF) | GET próprio em `http.client`: resolve, confere TODOS os IPs, conecta no IP conferido, refaz a conferência a cada 3xx (máx 3) | infra |
+| 2026-11-06 | `ATENDE_FONTE_PERMITIR_LOCAL=1` liberaria também o redirecionamento para 127.0.0.1 que o teste precisa recusar | a variável aceita `host:porta` exato (o site falso); `1` só para uso manual; documentada como só teste | prompt |
+| 2026-11-06 | `consolidada.horario_do_texto` devolve 3 valores; o leitor de horários das regras desempacotava 2 → trabalho em `erro` | desempacota `(dias, janela, completo)` | prompt |
+| 2026-11-06 | leitura longa no mesmo trabalhador das sugestões atrasaria o `💡` da equipe por minutos | trabalhador próprio (`acordar['fonte']`), um trabalho por vez | infra |
+| 2026-11-06 | anexo PDF (lista) entraria na chave hashable do `c.pronto` → `TypeError` dentro de `executar` | a chave leva só o sha256 do anexo | prompt |
+| 2026-11-06 | `id="c-url"` duplicado (URL da curadoria e endereço público em Cadastros): Cadastros nunca mostrava o `url_publica` | Cadastros usa `c-urlpub` | prompt |
+| 2026-11-06 | Playwright da equipe lia "Atualizado às" antes do fim do clique (o ciclo de 2 s já tinha atualizado o status) | esperar o texto, não o status | prompt |
+
+| data | teste | trecho do contrato | motivo |
+|---|---|---|---|
+| 2026-11-06 | tests/test_fontes.py (9) | §13c, §13a lote, §14 anexo | site falso: mesmo domínio, robots.txt, link para outro host não seguido, 302 para 127.0.0.1:<outra porta> recusado, página > 2 MB pulada, User-Agent, limite de páginas e validação (IP literal interno, credenciais, ftp); sem liberação local o próprio host é recusado; SSRF/HTML/horários como funções puras; DOCX montado com zipfile pela curadoria (json_schema, bastidor/repetição/preço igual descartados, nada do arquivo fica no banco); PDF como bloco `document`; PDF sem anthropic nem pdftotext 422; 10 MB 413; blocos de ~15 mil com deduplicação; incorporar em lote com erro parcial |
+| 2026-11-06 | tests/test_chat_base.py (4) | §13a POST propostas, §13b chat | sem cérebro: trechos por palavras e lacuna; com cérebro principal: seções citadas, json_schema, histórico, conflito ligado com `indice`; lacuna → proposta editável → incorporar; validação 422/409; texto livre e recusa |
+| 2026-11-06 | Playwright (scratchpad, servidor em porta livre, site e cérebro falsos) nos 3 temas | §12, §13, §13b, §13c | link → 3 propostas com fonte/evidência/`contradiz` → Incorporar selecionadas (prévia única) → config gravada; chat cita seção, "ver conflito", lacuna → Criar proposta; Atualizar relê config mudada por outra requisição, pergunta "Descartar alterações e atualizar?" na página (Cancelar mantém, tecla R + Descartar relê); equipe: Atualizar relê o status. Capturas em ~/projetos/output/atende-leads-visual/178/ |

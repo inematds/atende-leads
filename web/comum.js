@@ -40,6 +40,8 @@
     play: '<path d="m6 3 14 9-14 9Z"/>',
     file: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/>',
     reopen: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/>',
+    link: '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
+    upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>',
   };
   const sprite = '<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">' +
     Object.keys(P).map(k => '<symbol id="i-' + k + '" viewBox="0 0 24 24">' + P[k] + '</symbol>').join('') + '</svg>';
@@ -53,6 +55,34 @@
 
   window.AL = {
     esc,
+    // Confirmação dentro da página (sem confirm()/alert()): uma faixa com a pergunta e dois botões. Promise<boolean>.
+    confirmar(texto, rotuloOk) {
+      const velho = document.getElementById('confirma'); if (velho) velho.remove();
+      return new Promise(ok => {
+        const d = document.createElement('div');
+        d.id = 'confirma'; d.className = 'confirma'; d.setAttribute('role', 'alertdialog'); d.setAttribute('aria-labelledby', 'confirma-txt');
+        d.innerHTML = AL.ic('alert') + '<p id="confirma-txt">' + esc(texto) + '</p><button type="button" class="btn pri" data-sim>' + esc(rotuloOk || 'Confirmar') +
+          '</button><button type="button" class="btn sutil" data-nao>Cancelar</button>';
+        const antes = document.activeElement;
+        const fim = v => { d.remove(); document.removeEventListener('keydown', tecla, true); if (antes && antes.focus) antes.focus(); ok(v); };
+        const tecla = ev => { if (ev.key === 'Escape') { ev.preventDefault(); fim(false); } };
+        d.querySelector('[data-sim]').addEventListener('click', () => fim(true));
+        d.querySelector('[data-nao]').addEventListener('click', () => fim(false));
+        document.addEventListener('keydown', tecla, true);
+        document.body.appendChild(d); d.querySelector('[data-sim]').focus();
+      });
+    },
+    agoraHM() { const d = new Date(); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); },
+    // Atalho R (atualizar) só com o foco fora de campos de texto e sem teclas modificadoras.
+    atalhoAtualizar(fn) {
+      document.addEventListener('keydown', ev => {
+        if ((ev.key !== 'r' && ev.key !== 'R') || ev.ctrlKey || ev.metaKey || ev.altKey) return;
+        const a = document.activeElement;
+        if (a && (a.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))) return;
+        if (document.getElementById('confirma')) return;
+        ev.preventDefault(); fn();
+      });
+    },
     ic(nome, extra) { return '<svg class="i' + (extra ? ' ' + extra : '') + '" aria-hidden="true" focusable="false"><use href="#i-' + nome + '"/></svg>'; },
     async api(metodo, rota, corpo, headers) {
       const r = await fetch(rota, {method: metodo, headers: Object.assign({'Content-Type': 'application/json'}, headers || {}),

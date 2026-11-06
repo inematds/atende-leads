@@ -14,7 +14,7 @@ Complete guide (landing page + walkthrough): **https://inematds.github.io/atende
 
 🎬 Explainer video (2 min 37 s, in Portuguese): **https://inematds.github.io/atende-leads/videos/** · [YouTube](https://www.youtube.com/watch?v=-6VKlGAYwKY)
 
-**WhatsApp lead** handling with an agent that replies, qualifies leads, and forwards them to the **available team member** via Telegram, with all the details and a button to call. Python 3 using only the standard library, SQLite for state, Docker for VPS deployment. Open source, version `1.6.8`.
+**WhatsApp lead** handling with an agent that replies, qualifies leads, and forwards them to the **available team member** via Telegram, with all the details and a button to call. Python 3 using only the standard library, SQLite for state, Docker for VPS deployment. Open source, version `1.7.8`.
 
 ## What it does
 
@@ -48,7 +48,7 @@ Who does what: 🧠 owner/manager · ⚙️ system · 🤖 agent.
 9. ⚙️ **🚨 Alert** in the group when the deadline expires or no one is available.
 10. 🧠 **Team member takes over**, calls (📞) or replies via WhatsApp (💬) or in a reply in the bot itself; ⚙️ each time a lead sends a message, a `💡 Sugestão` arrives (✅ Enviar / ✏️ Editar), and each reply is added to learning.
 11. 🧠 **Closes** with the outcome; ⚙️ records the history, schedules a follow-up, and returns the team member to the queue.
-12. 🧠 **Manager monitors** in `/gestor` (live, today, leads, export CSV) and, in the **Learning** tab, incorporates or discards proposals for the knowledge base (⚙️ generated every week by default).
+12. 🧠 **Manager monitors** in `/gestor` (live, today, leads, export CSV) and, in the **Learning** tab, incorporates or discards proposals for the knowledge base (⚙️ generated every week by default). Since 1.7.8, **Import from link or file** reads the business website or a document and creates proposals with source and evidence, **Ask the knowledge base** checks what the agent knows, and **Refresh** reloads any panel without logging in again.
 13. ⚙️ **Daily backup** via the single cron job installed by `instalar-vps.sh` (`docker compose exec -T atende ./atende backup ...` → `/opt/atende-leads-backups/`).
 
 > You can complete steps 2 to 12 **on your machine**, without a domain or HTTPS, before moving to the VPS: see [Test on your machine (no domain)](#test-on-your-machine-no-domain) (Telegram with `TELEGRAM_MODO=polling`).
@@ -156,7 +156,9 @@ Then run `docker compose up -d` (or restart `./atende serve`). `esforco` = `low`
 
 ## Roadmap (outside v1)
 
-Automatic voice agent · reply to WhatsApp from the panel · draggable funnel · external CRM via webhook · goals and rankings · multiple numbers · official Meta API · customer satisfaction survey.
+**Next version:** online knowledge lookup — the agent searches the business website on the spot (with cache and page citation) when the knowledge base has no answer.
+
+Later: automatic voice agent · reply to WhatsApp from the panel · draggable funnel · external CRM via webhook · goals and rankings · multiple numbers · official Meta API · customer satisfaction survey.
 
 ## License
 

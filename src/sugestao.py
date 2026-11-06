@@ -298,7 +298,8 @@ def periodo(c):
 
 
 CHAVES = ('perguntas', 'resposta', 'campo', 'faq_id', 'justificativa', 'exemplos', 'produto_id', 'preco_novo',
-          'promocao', 'validade', 'sugestao_id', 'nome', 'palavras', 'horarios')
+          'promocao', 'validade', 'sugestao_id', 'nome', 'palavras', 'horarios', 'fonte', 'evidencia', 'contradiz',
+          'fonte_id')
 TIPOS_PROP = ('faq', 'info', 'correcao', 'preco', 'produto', 'horario')
 HHMM = re.compile(r'([01]\d|2[0-3]):[0-5]\d')
 DIAS_ORDEM = ('seg', 'ter', 'qua', 'qui', 'sex', 'sab', 'dom')
@@ -313,7 +314,9 @@ def _proposta_json(r, c=None):
            'faq_id': d.get('faq_id'), 'justificativa': d.get('justificativa') or '', 'exemplos': d.get('exemplos') or [],
            'produto_id': d.get('produto_id'), 'preco_novo': d.get('preco_novo') or '',
            'promocao': d.get('promocao') or '', 'validade': d.get('validade') or '', 'sugestao_id': d.get('sugestao_id'),
-           'nome': d.get('nome') or '', 'palavras': d.get('palavras') or [], 'horarios': d.get('horarios') or {}}
+           'nome': d.get('nome') or '', 'palavras': d.get('palavras') or [], 'horarios': d.get('horarios') or {},
+           'fonte': d.get('fonte') or '', 'evidencia': d.get('evidencia') or '', 'contradiz': bool(d.get('contradiz')),
+           'fonte_id': d.get('fonte_id')}
     if c is not None:
         out['atual'] = _atual(c, out)
         out['destino'] = destino(c, out)
@@ -750,6 +753,55 @@ def _incorporar_cadastro(c, pid, p, b):
         novo['info'] = info
     gestao.gravar_config(c, novo)
     return _marcar(c, pid, p)
+
+
+def incorporar_lote(c, b):
+    """Várias propostas de uma vez (botão "Incorporar selecionadas"): cada uma pela mesma validação do incorporar,
+    na ordem. Uma que falha não desfaz as outras (o negocio.json de cada uma já foi gravado): volta em `erros`."""
+    itens = b.get('itens') if isinstance(b, dict) else None
+    if not isinstance(itens, list) or not itens or len(itens) > 100:
+        raise Erro(422, 'itens: lista de {id, ...campos editados} (1 a 100)')
+    feitas, erros = [], []
+    for it in itens:
+        if not isinstance(it, dict):
+            raise Erro(422, 'cada item precisa ser um objeto com id')
+        try:
+            pid = int(it.get('id'))
+        except (TypeError, ValueError):
+            raise Erro(422, 'cada item precisa de id')
+        try:
+            incorporar(c, pid, {k: v for k, v in it.items() if k != 'id'})
+            feitas.append(pid)
+        except Erro as e:
+            erros.append({'id': pid, 'erro': e.mensagem})
+    return {'ok': True, 'incorporadas': feitas, 'erros': erros}
+
+
+def criar_manual(c, b):
+    """Proposta escrita pelo gestor (ex.: "Criar proposta" no chat da base, quando a base não tem a resposta).
+    Passa pela mesma validação das propostas do cérebro e fica `nova`, para a revisão de sempre."""
+    if not isinstance(b, dict) or b.get('tipo') not in TIPOS_PROP:
+        raise Erro(422, 'tipo: faq, info, correcao, preco, produto ou horario')
+    p = dict(b)
+    for k in ('perguntas', 'palavras'):
+        if isinstance(p.get(k), str):
+            p[k] = [x.strip() for x in p[k].split('\n' if k == 'perguntas' else ',') if x.strip()]
+    lido = _limpar(c, p)
+    if not lido:
+        raise Erro(422, {'faq': 'FAQ precisa de pergunta e de resposta (sem recado interno)',
+                         'info': 'informação precisa de campo válido e de texto (sem recado interno)',
+                         'correcao': 'correção precisa de um faq_id existente e da resposta nova',
+                         'preco': 'preço precisa de produto existente e de preco_novo como "R$ 670"',
+                         'produto': 'produto precisa de nome novo (e preço como "R$ 670", se houver)',
+                         'horario': 'horários: {"seg": [["08:00", "18:00"]]} com início antes do fim'}[p['tipo']])
+    tipo, d = lido
+    d['justificativa'] = d.get('justificativa') or 'Criada pelo gestor'
+    ids = _inserir(c, [(tipo, d)], _texto(b.get('origem'), 20) if b.get('origem') in ('chat', 'gestor') else 'gestor',
+                   {normalizar(_proposta_json(r)['resposta']) for r in
+                    c.db.execute("SELECT * FROM propostas WHERE status='nova'")})
+    if not ids:
+        raise Erro(409, 'Já existe uma proposta nova (ou item do FAQ) com esse mesmo texto')
+    return {'ok': True, 'proposta': _proposta_json(c.db.execute('SELECT * FROM propostas WHERE id=?', (ids[0],)).fetchone(), c)}
 
 
 def descartar(c, pid):

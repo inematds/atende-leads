@@ -6,6 +6,7 @@ Qualquer erro, timeout, recusa ou resposta vazia cai na regra. A chave vem só d
 JSON). anthropic/openrouter têm URL fixa (host sempre permitido); openai/ollama usam cerebro.url, e a chave só
 vai a host de CEREBRO_HOSTS_PERMITIDOS. Nenhuma chamada (rede ou subprocesso) acontece dentro do lock do banco.
 """
+import hashlib
 import os
 import re
 import shutil
@@ -205,13 +206,15 @@ def limpar_md(texto):
     t = re.sub(r'(?m)^\s*[-*]\s+', '• ', t)
     return t.replace('**', '').strip()
 
-def perguntar(c, instrucoes, usuario, base_txt=None, papel='principal', formato=None, limpar=True):
+def perguntar(c, instrucoes, usuario, base_txt=None, papel='principal', formato=None, limpar=True, anexo=None):
     """A chamada ao modelo roda FORA do lock: c.pronto desfaz a transação, chama e repete com o resultado.
     Fora de uma transação (trabalhador em segundo plano), chama direto.
 
     `papel`: 'principal' (respostas, resumo, sugestão) ou 'curadoria' (propostas para a base).
     `formato`: JSON Schema da saída (structured outputs só no tipo anthropic; nos outros vale a instrução).
-    `limpar=False` devolve o texto cru (saída JSON: quem chama limpa o campo de texto)."""
+    `limpar=False` devolve o texto cru (saída JSON: quem chama limpa o campo de texto).
+    `anexo`: {'media_type': 'application/pdf', 'data': <base64>} — vai como bloco `document` (só no tipo anthropic;
+    nos outros tipos é ignorado, e quem chama só manda anexo com curadoria anthropic)."""
     ok, _motivo = disponivel(c, papel)
     t = tipo(c, papel)
     if t == 'regras' or not ok:
@@ -221,9 +224,11 @@ def perguntar(c, instrucoes, usuario, base_txt=None, papel='principal', formato=
     k['_max_tokens'] = MAX_TOKENS_CURADORIA if papel == 'curadoria' else MAX_TOKENS
     k['_formato'] = formato
     k['_papel'] = papel
-    # a chave da API nunca entra nesta tupla (ela vira texto de exceção/log)
+    k['_anexo'] = anexo if t == 'anthropic' else None
+    marca = hashlib.sha256(str((anexo or {}).get('data') or '').encode()).hexdigest() if anexo else ''
+    # a chave da API nunca entra nesta tupla (ela vira texto de exceção/log); o anexo entra só como hash
     chave = ('cerebro', papel, t, str(k.get('url') or ''), str(k.get('modelo') or ''), str(k.get('esforco') or ''),
-             instrucoes, base_txt or '', usuario, bool(formato))
+             instrucoes, base_txt or '', usuario, bool(formato), marca)
     r = c.pronto(chave, lambda: _perguntar(t, k, instrucoes, base_txt, usuario))
     return limpar_md(r) if limpar else r
 
@@ -255,8 +260,18 @@ def corpo_anthropic(k, instrucoes, base_txt, usuario):
     if k.get('_formato'):
         saida['format'] = {'type': 'json_schema', 'schema': k['_formato']}
     return {'model': k.get('modelo'), 'max_tokens': k.get('_max_tokens') or MAX_TOKENS, 'system': system,
-            'messages': [{'role': 'user', 'content': usuario}],
+            'messages': [{'role': 'user', 'content': _conteudo(k, usuario)}],
             'output_config': saida, 'fallbacks': 'default'}
+
+
+def _conteudo(k, usuario):
+    """Texto puro, ou [bloco document (PDF em base64), texto] quando há anexo."""
+    a = k.get('_anexo')
+    if not a:
+        return usuario
+    return [{'type': 'document', 'source': {'type': 'base64', 'media_type': a.get('media_type') or 'application/pdf',
+                                            'data': a.get('data') or ''}},
+            {'type': 'text', 'text': usuario}]
 
 
 def _texto_anthropic(r):

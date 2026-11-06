@@ -36,6 +36,7 @@
     <header class="topo">
       <div class="marca"><h1 id="titulo">Ao vivo</h1><span class="sub" id="data"></span></div>
       <div class="dir">
+        <span class="atualizar"><span class="quando" id="atualizado" aria-live="polite"></span><button id="atualizar" type="button" class="btn" title="Atualizar (tecla R)" aria-keyshortcuts="r"><svg class="i" aria-hidden="true"><use href="#i-refresh"/></svg>Atualizar</button></span>
         <div class="seg tema" role="group" aria-label="Tema" id="tema"></div>
         <button id="sair" type="button" class="btn sutil"><svg class="i" aria-hidden="true"><use href="#i-logout"/></svg>Sair</button>
       </div>
@@ -70,8 +71,23 @@
 
       <!-- BASE -->
       <section id="p-base" role="tabpanel" aria-labelledby="t-base" data-painel="base" hidden>
+        <div class="aba-acoes"><button type="button" class="btn sutil" data-atualizar="base"><svg class="i" aria-hidden="true"><use href="#i-refresh"/></svg>Atualizar esta aba</button></div>
         <p class="mut" style="margin-bottom:14px;max-width:72ch">Tudo o que o agente sabe. As respostas automáticas usam estes campos (vazio = o agente não fala do assunto e segue o fluxo normal) e o cérebro LLM recebe a base inteira (informações + FAQ + produtos).</p>
-        <fieldset class="painel form-sec"><legend>Informações do negócio</legend>
+        <fieldset class="painel form-sec" id="fonte-sec"><legend>Importar de link ou arquivo</legend>
+          <p class="mut" style="max-width:72ch">Leia o site do negócio (a página e as do mesmo site ligadas a ela) ou um documento. O conteúdo vira <strong>propostas</strong> com a fonte e o trecho que as prova, na aba Aprendizado; nada entra na base sem a sua revisão, e o que foi lido não fica guardado.</p>
+          <form id="form-fonte" class="linha-campos">
+            <label class="campo" style="flex:3 1 320px">Link da página <input id="fo-url" type="url" inputmode="url" placeholder="https://seunegocio.com.br" required></label>
+            <label class="campo" style="flex:0 1 150px">Páginas (1 a 20) <input id="fo-max" type="number" min="1" max="20" step="1" value="8" inputmode="numeric"></label>
+            <button class="btn pri" type="submit" id="fo-ler"><svg class="i" aria-hidden="true"><use href="#i-link"/></svg>Ler o site</button>
+          </form>
+          <div class="arquivo-linha">
+            <label class="btn" for="fo-arquivo"><svg class="i" aria-hidden="true"><use href="#i-upload"/></svg>Enviar arquivo</label>
+            <input type="file" id="fo-arquivo" hidden accept=".txt,.md,.csv,.html,.htm,.docx,.pdf,text/plain,text/markdown,text/csv,text/html,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
+            <span class="mut peq" id="fo-tipos">TXT, MD, CSV, HTML, DOCX ou PDF, até 10 MB.</span>
+          </div>
+          <div id="fo-lista" class="fontes-lista" aria-live="polite"></div>
+        </fieldset>
+        <fieldset class="painel form-sec" id="info-sec"><legend>Informações do negócio</legend>
           <label class="campo">Horário de atendimento humano <textarea id="i-horario_atendimento" rows="2"></textarea></label>
           <p class="previa" id="i-horario-gerado"></p>
           <div class="grade2">
@@ -127,7 +143,15 @@
 
       <!-- APRENDIZADO -->
       <section id="p-consolidada" role="tabpanel" aria-labelledby="t-consolidada" data-painel="consolidada" hidden>
+        <div class="aba-acoes"><button type="button" class="btn sutil" data-atualizar="consolidada"><svg class="i" aria-hidden="true"><use href="#i-refresh"/></svg>Atualizar esta aba</button></div>
         <p class="mut" style="margin-bottom:14px;max-width:72ch">O texto exato que a IA recebe, organizado por seção, e os conflitos que as regras acharam (horário, preço, promoção vencida, FAQ repetido, recado interno). Baixe para revisar fora daqui e importe de volta: a prévia mostra o que muda antes de gravar.</p>
+        <fieldset class="painel form-sec chat-base" id="bc-chat"><legend>Perguntar à base</legend>
+          <p class="mut peq" style="max-width:72ch">Pergunte como um cliente perguntaria. A resposta usa só o que está na base e diz de qual seção veio; o que faltar vira um rascunho de proposta. A conversa não é gravada.</p>
+          <div class="conv" id="bc-conv" aria-live="polite"><p class="vazio">Ex.: “vocês entregam no sábado?”, “quanto custa o plano anual?”</p></div>
+          <div class="painel form-prop" id="bc-prop" hidden></div>
+          <form id="form-chat" class="escrever"><label for="bc-pergunta" class="sr">Pergunta para a base</label><input id="bc-pergunta" placeholder="Pergunte à base…" autocomplete="off" required maxlength="1000">
+            <button class="btn pri" type="submit"><svg class="i" aria-hidden="true"><use href="#i-send"/></svg>Perguntar</button></form>
+        </fieldset>
         <div class="painel form-sec" id="bc-conflitos"></div>
         <div class="acoes" style="margin:12px 0">
           <button type="button" class="btn" id="bc-md"><svg class="i" aria-hidden="true"><use href="#i-download"/></svg>Baixar .md</button>
@@ -156,6 +180,9 @@
           <button id="a-periodo-salvar" type="button" class="btn">Salvar período</button>
           <button id="a-gerar" class="btn pri" type="button"><svg class="i" aria-hidden="true"><use href="#i-spark"/></svg>Gerar propostas agora</button>
         </div>
+        <div class="lote" id="a-lote" hidden><button type="button" class="btn pri" id="a-lote-btn" disabled><svg class="i" aria-hidden="true"><use href="#i-check"/></svg>Incorporar selecionadas</button>
+          <span class="mut" id="a-lote-n">Marque as propostas que quer incorporar de uma vez.</span></div>
+        <div class="painel lote-previa" id="a-lote-previa" hidden></div>
         <div id="a-propostas" class="painel"></div>
         <h2 class="bloco">Registros</h2>
         <div id="a-itens" class="painel tab"></div>
@@ -163,10 +190,11 @@
 
       <!-- CADASTROS -->
       <section id="p-cadastros" role="tabpanel" aria-labelledby="t-cadastros" data-painel="cadastros" hidden>
+        <div class="aba-acoes"><button type="button" class="btn sutil" data-atualizar="cadastros"><svg class="i" aria-hidden="true"><use href="#i-refresh"/></svg>Atualizar esta aba</button></div>
         <div class="grade2">
           <fieldset class="painel form-sec"><legend>Negócio</legend>
             <label class="campo">Nome do negócio <input id="c-nome" required></label>
-            <label class="campo">Endereço público (URL) <input id="c-url" placeholder="https://atendimento.seunegocio.com.br"></label>
+            <label class="campo">Endereço público (URL) <input id="c-urlpub" placeholder="https://atendimento.seunegocio.com.br"></label>
           </fieldset>
           <fieldset class="painel form-sec"><legend>Aparência do chat do lead</legend>
             <div class="linha-campos">

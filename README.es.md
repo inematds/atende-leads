@@ -14,7 +14,7 @@ Guía completa (landing + paso a paso): **https://inematds.github.io/atende-lead
 
 🎬 Video explicativo (2 min 37 s, en portugués): **https://inematds.github.io/atende-leads/videos/** · [YouTube](https://www.youtube.com/watch?v=-6VKlGAYwKY)
 
-Atención de **leads por WhatsApp** con un agente que responde, califica y asigna el lead al **colaborador disponible** por Telegram, con todos los datos y un botón para llamar. Python 3 solo con la biblioteca estándar, estado en SQLite, Docker para VPS. Código abierto, versión `1.6.8`.
+Atención de **leads por WhatsApp** con un agente que responde, califica y asigna el lead al **colaborador disponible** por Telegram, con todos los datos y un botón para llamar. Python 3 solo con la biblioteca estándar, estado en SQLite, Docker para VPS. Código abierto, versión `1.7.8`.
 
 ## Qué hace
 
@@ -48,7 +48,7 @@ Quién hace qué: 🧠 el dueño/gerente · ⚙️ el sistema · 🤖 el agente.
 9. ⚙️ **Alerta 🚨** en el grupo cuando vence el plazo o no hay nadie disponible.
 10. 🧠 **El colaborador se hace cargo**, llama (📞) o responde por WhatsApp (💬) o con una respuesta en el propio bot; ⚙️ con cada mensaje del lead llega una `💡 Sugerencia` (✅ Enviar / ✏️ Editar) y cada respuesta se incorpora al aprendizaje.
 11. 🧠 **Cierra** con el resultado; ⚙️ el sistema guarda el historial, programa el próximo contacto y devuelve al colaborador a la fila.
-12. 🧠 **El gestor hace seguimiento** en `/gestor` (en vivo, hoy, leads, exportar CSV) y, en la pestaña **Aprendizaje**, incorpora o descarta las propuestas para la base (⚙️ se generan cada semana, de forma predeterminada).
+12. 🧠 **El gestor hace seguimiento** en `/gestor` (en vivo, hoy, leads, exportar CSV) y, en la pestaña **Aprendizaje**, incorpora o descarta las propuestas para la base (⚙️ se generan cada semana, de forma predeterminada). Desde la 1.7.8, **Importar desde enlace o archivo** lee el sitio del negocio o un documento y crea propuestas con fuente y evidencia, **Preguntar a la base** comprueba lo que sabe el agente y **Actualizar** recarga cualquier panel sin volver a entrar.
 13. ⚙️ **Respaldo diario** mediante el único cron que instala `instalar-vps.sh` (`docker compose exec -T atende ./atende backup ...` → `/opt/atende-leads-backups/`).
 
 > Puedes realizar los pasos 2 a 12 **en tu máquina**, sin dominio ni HTTPS, antes de pasar a la VPS: consulta [Probar en tu máquina (sin dominio)](#probar-en-tu-máquina-sin-dominio) (Telegram en `TELEGRAM_MODO=polling`).
@@ -156,7 +156,9 @@ Luego ejecuta `docker compose up -d` (o reinicia `./atende serve`). `esforco` = 
 
 ## Próximamente (fuera de la v1)
 
-Agente de voz automático · responder WhatsApp desde el panel · embudo arrastrable · CRM externo por webhook · metas y clasificación · varios números · API oficial de Meta · encuesta de satisfacción.
+**Próxima versión:** consulta en línea de la base — el agente busca en el sitio del negocio en el momento (con caché y cita de la página) cuando la base no responde.
+
+Después: agente de voz automático · responder WhatsApp desde el panel · embudo arrastrable · CRM externo por webhook · metas y clasificación · varios números · API oficial de Meta · encuesta de satisfacción.
 
 ## Licencia
 

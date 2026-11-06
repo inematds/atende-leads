@@ -190,7 +190,7 @@
   const CHAVE = 'al_codigo_equipe';
   function sair() {
     codigo = null; localStorage.removeItem(CHAVE); sessionStorage.removeItem(CHAVE);
-    ['espera', 'corpo', 'status-seg', 'quem', 'sair'].forEach(id => { $(id).hidden = true; });
+    ['espera', 'corpo', 'status-seg', 'quem', 'sair', 'atualizar-w'].forEach(id => { $(id).hidden = true; });
     $('login').hidden = false; clearInterval(relogio);
   }
   async function entrar(valor, lembrar) {
@@ -198,7 +198,7 @@
     try {
       const e0 = await api('GET', '/api/equipe/eu'); produtos = e0.produtos || [];
       (lembrar ? localStorage : sessionStorage).setItem(CHAVE, valor);
-      $('login').hidden = true; ['corpo', 'status-seg', 'quem', 'sair'].forEach(id => { $(id).hidden = false; });
+      $('login').hidden = true; ['corpo', 'status-seg', 'quem', 'sair', 'atualizar-w'].forEach(id => { $(id).hidden = false; });
       $('f-produto').innerHTML = '<option value="">—</option>' + produtos.map(p => '<option value="' + esc(p.id) + '">' + esc(p.nome) + '</option>').join('');
       camposFechar(); await carregar();
       // Atualização: 2 s com atendimento/ficha aberta, 5 s no resto, 15 s com a aba escondida.
@@ -259,6 +259,25 @@
     contatos();
   });
   $('busca').addEventListener('input', desenharContatos);
+  // Atualizar (1.7.8): relê /api/equipe/eu, contatos e a ficha aberta sem sair; o texto da caixa de resposta fica.
+  async function atualizar() {
+    if (!codigo) return;
+    const b = $('atualizar'); b.disabled = true;
+    try {
+      const e0 = await api('GET', '/api/equipe/eu');
+      const prod = e0.produtos || [], sel = $('f-produto').value;
+      if (JSON.stringify(prod) !== JSON.stringify(produtos)) {
+        produtos = prod;
+        $('f-produto').innerHTML = '<option value="">—</option>' + produtos.map(p => '<option value="' + esc(p.id) + '">' + esc(p.nome) + '</option>').join('');
+        $('f-produto').value = sel;
+      }
+      await carregar();
+      $('atualizado').textContent = 'Atualizado às ' + AL.agoraHM();
+      if (window.innerWidth < 1024) aviso($('atualizado').textContent + '.');
+    } catch (e) { aviso(e.message, true); } finally { b.disabled = false; }
+  }
+  $('atualizar').addEventListener('click', atualizar);
+  AL.atalhoAtualizar(atualizar);
   $('voltar').addEventListener('click', fecharFicha);
   $('abrir-encerrar').addEventListener('click', () => {
     if (celular()) { $('area').classList.add('encerrando'); $('f-resultado').focus(); }

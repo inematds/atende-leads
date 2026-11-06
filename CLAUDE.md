@@ -13,3 +13,5 @@ Atendimento de leads pelo WhatsApp (Evolution) com agente por regras e roteament
 When I correct you, or you catch yourself making a mistake: before continuing, add the lesson as a one-line rule at the TOP of the Lessons section below.
 
 ## Lessons
+- Antes de desempacotar o retorno de uma função do próprio projeto, conferir quantos valores ela devolve (`consolidada.horario_do_texto` devolve 3). (06/11/2026)
+- Antes de criar ou usar um `id` no HTML, `grep` o arquivo: id duplicado faz `getElementById` pegar o campo errado em silêncio (`c-url`). (06/11/2026)

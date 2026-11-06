@@ -14,7 +14,7 @@ Guia completo (landing + passo a passo): **https://inematds.github.io/atende-lea
 
 🎬 Vídeo explicativo (2 min 37 s): **https://inematds.github.io/atende-leads/videos/** · [YouTube](https://www.youtube.com/watch?v=-6VKlGAYwKY)
 
-Atendimento de **leads pelo WhatsApp** com um agente que responde, qualifica e passa o lead para o **colaborador livre** pelo Telegram, com todos os dados e um botão para ligar. Python 3 só com biblioteca padrão, estado em SQLite, Docker para VPS. Código aberto, versão `1.6.8`.
+Atendimento de **leads pelo WhatsApp** com um agente que responde, qualifica e passa o lead para o **colaborador livre** pelo Telegram, com todos os dados e um botão para ligar. Python 3 só com biblioteca padrão, estado em SQLite, Docker para VPS. Código aberto, versão `1.7.8`.
 
 ## O que faz
 
@@ -29,6 +29,9 @@ Atendimento de **leads pelo WhatsApp** com um agente que responde, qualifica e p
 - **LGPD:** `PARAR`, `apagar meus dados`, e o grupo nunca recebe telefone nem texto do lead.
 - **Base de conhecimento** (`/gestor` → Base de conhecimento): informações do negócio (horário de atendimento humano, endereço, pagamento, entrega, garantia, site, observações) e FAQ num formulário, com a caixa **Testar** ("o que o agente responderia?"). "Que hora tem atendimento humano?" responde o horário e se agora está aberto; campo vazio nunca vira resposta inventada.
 - **Sugestão de resposta para a equipe:** quando o lead escreve num atendimento, o dono recebe `💡 Sugestão` no Telegram com **✅ Enviar / ✏️ Editar** (e no painel, já na caixa de resposta). Cada resposta vira um registro de **aprendizado** (usou sem editar, editou ou ignorou), e a aba **Aprendizado** gera **propostas para a base** (diária, semanal ou na hora) para o gestor incorporar ou descartar.
+- **Gerar a base a partir do site ou de um documento** (1.7.8, Base de conhecimento → **Importar de link ou arquivo**): o sistema lê a página e as do mesmo site ligadas a ela (até 20; sem login, só endereço público, respeita o `robots.txt`) ou um arquivo TXT, MD, CSV, HTML, DOCX ou PDF (até 10 MB) e o cérebro da curadoria propõe informações, produtos, preços, horários e FAQ com a **fonte** e o **trecho** que prova cada um, avisando quando contradiz a base. Sem IA, as regras tiram só o óbvio (telefone, e-mail, endereço com CEP, preços, horários). Tudo passa pela revisão do Aprendizado (agora também **Incorporar selecionadas**, com uma prévia única). O conteúdo lido não fica guardado.
+- **Perguntar à base** (1.7.8, aba Base consolidada): o gestor conversa com a base; a resposta usa só o que está nela e diz a seção (Produtos, FAQ, Informações, Horários); o que falta vira **Criar proposta** e a contradição leva ao conflito da lista.
+- **Atualizar** (1.7.8): botão no topo do gestor e da equipe (e nas abas da base e de Cadastros; tecla `R`) que relê tudo sem sair; com alteração não salva, pergunta antes de descartar.
 - **Cérebro:** regras por padrão (sem custo, sem API). Opcional: **Anthropic (Claude)**, **OpenRouter**, Ollama local, endpoint compatível com OpenAI ou o CLI da sua assinatura (`claude`/`codex`, só para teste local), com volta automática às regras se falhar.
 
 Contrato completo: [`docs/ESPECIFICACAO.md`](docs/ESPECIFICACAO.md).
@@ -48,7 +51,7 @@ Quem faz: 🧠 o dono/gestor · ⚙️ o sistema · 🤖 o agente.
 9. ⚙️ **Alerta 🚨** no grupo quando estoura o prazo ou não há ninguém livre.
 10. 🧠 **Colaborador assume**, liga (📞) ou responde pelo WhatsApp (💬) ou em resposta no próprio bot; ⚙️ a cada mensagem do lead chega a `💡 Sugestão` (✅ Enviar / ✏️ Editar) e cada resposta entra no aprendizado.
 11. 🧠 **Fecha** com o resultado; ⚙️ grava o histórico, agenda o retorno e devolve o colaborador à fila.
-12. 🧠 **Gestor acompanha** em `/gestor` (ao vivo, hoje, leads, exportar CSV) e, na aba **Aprendizado**, incorpora ou descarta as propostas para a base (⚙️ geradas toda semana, por padrão) — 🤖 o **cérebro da curadoria** (opcional, modelo mais forte) gera as propostas; o vendedor também manda as divergências com **Atualizar a base**; o gestor revisa o texto e a prévia antes de confirmar. Recado interno que já entrou na base sai com `./atende manutencao limpar-bastidores --dados DIR [--aplicar]` (servidor parado).
+12. 🧠 **Gestor acompanha** em `/gestor` (ao vivo, hoje, leads, exportar CSV) e, na aba **Aprendizado**, incorpora ou descarta as propostas para a base (⚙️ geradas toda semana, por padrão) — 🤖 o **cérebro da curadoria** (opcional, modelo mais forte) gera as propostas; o vendedor também manda as divergências com **Atualizar a base**; o gestor revisa o texto e a prévia antes de confirmar. 🧠 Para começar a base do zero, **Importar de link ou arquivo** (1.7.8) lê o site ou um documento e gera propostas com fonte e evidência; **Perguntar à base** confere o que o agente sabe. Recado interno que já entrou na base sai com `./atende manutencao limpar-bastidores --dados DIR [--aplicar]` (servidor parado).
 13. ⚙️ **Backup diário** pelo cron único que o `instalar-vps.sh` instala (`docker compose exec -T atende ./atende backup ...` → `/opt/atende-leads-backups/`).
 
 > Dá para fazer os passos 2 a 12 **na sua máquina**, sem domínio nem HTTPS, antes de ir para a VPS: veja [Testar na sua máquina (sem domínio)](#testar-na-sua-máquina-sem-domínio) (Telegram em `TELEGRAM_MODO=polling`).
@@ -164,11 +167,14 @@ Depois `docker compose up -d` (ou reinicie o `./atende serve`). `esforco` = `low
 - A Evolution não é a API oficial do WhatsApp: use um número dedicado e não faça disparo em massa para quem não falou com você.
 - Os dados de leads ficam no seu servidor (`dados/`). O backup contém dados pessoais: guarde com acesso restrito.
 - A Evolution do compose **não guarda** cópia das mensagens, contatos e conversas (`DATABASE_SAVE_*` = `false`, por LGPD): o que o atendimento precisa fica em `dados/leads.db`, que o "apagar meus dados" limpa.
+- **Importar de link** (1.7.8) só lê endereços públicos: IP interno (rede local, `localhost`, metadados da nuvem) é recusado, também depois de redirecionamento. `ATENDE_FONTE_PERMITIR_LOCAL` existe **só para os testes** — nunca ponha no `.env` de produção.
 - **Quem tem o token do gestor pode mudar `cerebro.url`** no `/gestor`. Por isso a `CEREBRO_API_KEY` só é enviada a um host listado em `CEREBRO_HOSTS_PERMITIDOS` no `.env` (ex.: `CEREBRO_HOSTS_PERMITIDOS=api.seuprovedor.com`); vazio = a chave não vai a ninguém. Um token do gestor novo pelo `/gestor` precisa de 16+ caracteres e não pode ser o do exemplo.
 
 ## Roteiro (fora da v1)
 
-Agente de voz automático · responder o WhatsApp pelo painel · funil arrastável · CRM externo por webhook · metas e ranking · vários números · API oficial da Meta · pesquisa de satisfação.
+**Próxima versão:** consulta online da base — o agente busca no site do negócio na hora (com cache e citação da página) quando a base não responde.
+
+Depois: agente de voz automático · responder o WhatsApp pelo painel · funil arrastável · CRM externo por webhook · metas e ranking · vários números · API oficial da Meta · pesquisa de satisfação.
 
 ## Licença
 

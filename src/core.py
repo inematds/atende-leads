@@ -153,6 +153,10 @@ CREATE TABLE IF NOT EXISTS aprendizado (
     sugestao_id INTEGER, sugestao TEXT, enviado TEXT, origem TEXT, distancia REAL);
 CREATE TABLE IF NOT EXISTS propostas (
     id INTEGER PRIMARY KEY, em TEXT, tipo TEXT, dados TEXT NOT NULL, origem TEXT, status TEXT NOT NULL DEFAULT 'nova');
+CREATE TABLE IF NOT EXISTS fontes (
+    id INTEGER PRIMARY KEY, em TEXT, tipo TEXT NOT NULL, fonte TEXT NOT NULL, status TEXT NOT NULL,
+    paginas INTEGER NOT NULL DEFAULT 0, caracteres INTEGER NOT NULL DEFAULT 0, propostas INTEGER NOT NULL DEFAULT 0,
+    erro TEXT, avisos TEXT);
 '''
 
 COLUNAS_LEADS = ('id, token, nome, telefone, status, status_antes, nota, interesse, urgencia, nao_contatar, canal, '
@@ -214,7 +218,9 @@ class App:
         migrar(self.db)
         self.sujo = False
         self._local = threading.local()
-        self.acordar = {'tg': threading.Event(), 'evo': threading.Event(), 'sug': threading.Event()}
+        self.acordar = {'tg': threading.Event(), 'evo': threading.Event(), 'sug': threading.Event(),
+                        'fonte': threading.Event()}
+        self.fonte_mem = {}  # conteúdo das fontes em processamento (só em memória; sai ao terminar)
         fixo = os.environ.get('ATENDE_AGORA')
         self.modo_teste = bool(fixo)
         self._agora = datetime.strptime(fixo[:16], FMT) if fixo else None
