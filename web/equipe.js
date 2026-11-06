@@ -57,7 +57,10 @@
       eu.retornos_hoje.map(r => '<tr><td>' + esc(r.em.slice(11, 16)) + '</td><td>' + esc(r.nome || 'Lead') + '</td><td>' +
         esc(AL.fone(r.telefone)) + '</td></tr>').join('') + '</tbody></table>' : '<p class="vazio">Nenhum retorno marcado para hoje.</p>';
     await contatos();
-    if (fichaLeadId && !digitando()) abrirFicha(fichaLeadId, fichaChId, true);
+    if (fichaLeadId) {
+      if (!digitando()) await abrirFicha(fichaLeadId, fichaChId, true);
+      else await atualizarMensagens();  // digitando: só a conversa e a sugestão; o texto da caixa fica intacto
+    }
   }
 
   // ---------- meus contatos ----------
@@ -82,6 +85,21 @@
 
   // ---------- ficha / atendimento ----------
   const digitando = () => document.activeElement === $('resposta') || !!$('resposta').value.trim();
+
+  // Atualiza só as mensagens (e a sugestão) da ficha aberta, sem mexer na caixa de resposta nem no formulário.
+  async function atualizarMensagens() {
+    let f;
+    try { f = await api('GET', '/api/equipe/leads/' + fichaLeadId); } catch (_) { return; }
+    const box = $('at-msgs');
+    const noFim = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
+    const html = f.mensagens.map(m => AL.bolhaEquipe(m, f.lead.nome)).join('') || '<p class="vazio">Sem mensagens ainda.</p>';
+    if (box.innerHTML !== html) { box.innerHTML = html; if (noFim) box.scrollTop = 1e9; }
+    ficha = f;
+    const ch = f.chamados.find(c => String(c.id) === String(fichaChId));
+    const meu = ch && ch.status === 'atendendo' && ch.dono === eu.id;
+    const sg = meu && f.sugestao && f.sugestao.id !== descartada ? f.sugestao : null;
+    if (sg && sg.id !== sugestaoId) { sugestaoId = sg.id; $('at-sug-txt').textContent = sg.texto; $('at-sug').hidden = false; }
+  }
 
   async function abrirFicha(leadId, chId, recarga) {
     let f;
