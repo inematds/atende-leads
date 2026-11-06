@@ -139,12 +139,13 @@
   <div class="glow"></div>
   <div class="wrap">
     <div>
-      <span class="chip">WhatsApp + Telegram · código aberto · v1.0.3</span>
+      <span class="chip">WhatsApp + Telegram · código aberto · v1.1.3</span>
       <h1>Nenhum lead fica <span class="amb">esperando</span></h1>
       <p class="lead">Um agente atende no WhatsApp, qualifica e passa o lead para o colaborador livre há mais tempo, pelo Telegram, com tudo o que ele precisa para ligar.</p>
       <p class="mut" style="margin:-.6em 0 1.4em;font-size:.95rem">A instalação no servidor pede um técnico: veja <a href="#deploy">Deploy na VPS</a>.</p>
       <div class="cta">
         <a class="btn" href="#guia">Começar o guia</a>
+        <a class="btn ghost" href="../videos/">▶ Assistir ao vídeo</a>
         <a class="btn ghost" href="https://github.com/inematds/atende-leads" target="_blank" rel="noopener">Ver no GitHub</a>
       </div>
     </div>
@@ -331,7 +332,7 @@
   </div></div>
   <div class="step"><div class="b">6</div><div>
     <h3>Rode os testes</h3>
-    <p>São 313 testes de contrato. O build e o container Docker só entram com <code>TESTAR_DOCKER=1</code>.</p>
+    <p>São 320 testes de contrato. O build e o container Docker só entram com <code>TESTAR_DOCKER=1</code>.</p>
 <pre><span class="k">python3 -m pytest</span> -q tests/</pre>
   </div></div>
 
@@ -448,8 +449,8 @@ leads.seudominio.com { reverse_proxy 127.0.0.1:8080 }</pre>
 <section id="roadmap"><div class="wrap">
   <span class="chip">Roteiro</span>
   <h2>O que fica fora da v1</h2>
-  <p class="sub">A versão 1.0.3 faz o que está descrito acima. Estas ideias ficaram para depois.</p>
-  <div class="phase"><div class="tag">v1.0.3</div><div class="d"><strong>Hoje</strong><span>Agente por regras, roteamento pelo Telegram, alerta, painel fixo, fechamento, três painéis web, Docker e backup.</span></div></div>
+  <p class="sub">A versão 1.1.3 faz o que está descrito acima. Estas ideias ficaram para depois.</p>
+  <div class="phase"><div class="tag">v1.1.3</div><div class="d"><strong>Hoje</strong><span>Agente por regras, roteamento pelo Telegram, alerta, painel fixo, fechamento, três painéis web, Docker e backup.</span></div></div>
   <div class="phase"><div class="tag">Depois</div><div class="d"><strong>Fora da v1</strong><span>Agente de voz automático · responder o WhatsApp pelo painel · funil arrastável · CRM externo por webhook · metas e ranking · vários números · API oficial da Meta · pesquisa de satisfação.</span></div></div>
 </div></section>
 

@@ -12,7 +12,9 @@ Un sistema de código abierto que atiende a los leads que llegan por WhatsApp (y
 
 Guía completa (landing + paso a paso): **https://inematds.github.io/atende-leads/guia/es/**
 
-Atención de **leads por WhatsApp** con un agente que responde, califica y asigna el lead al **colaborador disponible** por Telegram, con todos los datos y un botón para llamar. Python 3 solo con la biblioteca estándar, estado en SQLite, Docker para VPS. Código abierto, versión `1.0.3`.
+🎬 Video explicativo (2 min 37 s, en portugués): **https://inematds.github.io/atende-leads/videos/** · [YouTube](https://www.youtube.com/watch?v=-6VKlGAYwKY)
+
+Atención de **leads por WhatsApp** con un agente que responde, califica y asigna el lead al **colaborador disponible** por Telegram, con todos los datos y un botón para llamar. Python 3 solo con la biblioteca estándar, estado en SQLite, Docker para VPS. Código abierto, versión `1.1.3`.
 
 ## Qué hace
 
@@ -47,15 +49,37 @@ Quién hace qué: 🧠 el dueño/gerente · ⚙️ el sistema · 🤖 el agente.
 12. 🧠 **El gerente hace seguimiento** en `/gestor` (en vivo, hoy, leads, exportar CSV).
 13. ⚙️ **Respaldo diario** mediante el único cron que instala `instalar-vps.sh` (`docker compose exec -T atende ./atende backup ...` → `/opt/atende-leads-backups/`).
 
+> Puedes realizar los pasos 2 a 12 **en tu máquina**, sin dominio ni HTTPS, antes de pasar a la VPS: consulta [Probar en tu máquina (sin dominio)](#probar-en-tu-máquina-sin-dominio) (Telegram en `TELEGRAM_MODO=polling`).
+
 ## Ejecutar localmente
 
 ```bash
 ./atende serve --porta 8080 --dados dados
 # chat do lead: http://localhost:8080/   equipe: /equipe   gestor: /gestor (token em dados/negocio.json)
-python3 -m pytest -q tests/        # contrato (313 testes; build e container Docker só com TESTAR_DOCKER=1)
+python3 -m pytest -q tests/        # contrato (320 testes; build e container Docker só com TESTAR_DOCKER=1)
 ```
 
 Reloj fijo para probar: `ATENDE_AGORA=2026-11-09T10:00 ./atende serve ...` y `POST /api/tarefas/rodar`.
+
+## Probar en tu máquina (sin dominio)
+
+Para ver todo el sistema funcionando (WhatsApp real + bot de Telegram) en una computadora con Docker, sin dominio público ni HTTPS. Telegram queda en **modo polling**: el servidor busca los mensajes del bot por su cuenta (`getUpdates`), así que no necesita `setWebhook` ni `TELEGRAM_SEGREDO`.
+
+```bash
+git clone https://github.com/inematds/atende-leads && cd atende-leads
+# genera .env y dados/negocio.json con secretos nuevos; responde: dominio localhost:8080, modo de Telegram polling
+INSTALAR_SO_GERAR=1 ./instalar-vps.sh
+sudo chown -R 1000:1000 dados
+docker compose --profile evolution up -d --build
+```
+
+Sin preguntas: `NEGOCIO_NOME="Minha Loja" DOMINIO=localhost:8080 TELEGRAM_TOKEN=<token do BotFather> TELEGRAM_GRUPO_ID=<id do grupo> TELEGRAM_MODO=polling COM_EVOLUTION=1 INSTALAR_SO_GERAR=1 ./instalar-vps.sh --sem-perguntas`. Si ya existe un `.env`, basta con añadir `TELEGRAM_MODO=polling` y ejecutar `docker compose up -d`.
+
+1. **WhatsApp:** abre el manager de Evolution en <http://localhost:8081/manager> (API Key global = `EVOLUTION_API_KEY` de `.env`), crea la instancia con el nombre de `.env` (`EVOLUTION_INSTANCIA`) y escanea el código QR con el celular del número de prueba.
+2. **Telegram:** añade el bot al grupo del equipo; cada colaborador envía `/entrar <código>` por privado al bot (el instalador imprimió los códigos y están en `dados/negocio.json`). `GET http://localhost:8080/api/saude` muestra `"telegram_modo": "polling"`.
+3. **Paneles:** chat del lead en <http://localhost:8080/>, equipo en <http://localhost:8080/equipe>, gestor en <http://localhost:8080/gestor> (token en `dados/negocio.json`).
+
+El bot solo habla con **un** servidor: al iniciarse en polling, desactiva el webhook del bot. Al pasar a la VPS, vuelve a `TELEGRAM_MODO=webhook` y ejecuta `setWebhook` (paso 3 del instalador).
 
 ## Implementar en la VPS
 
