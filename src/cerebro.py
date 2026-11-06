@@ -1,7 +1,7 @@
 """Cérebro do agente (seção 14). 'regras' cobre tudo; ollama/openai só resumem e tiram dúvida.
 
 Qualquer erro, timeout (15 s) ou resposta vazia cai na regra. A URL vem só do negocio.json
-e a chave só de CEREBRO_API_KEY.
+e a chave só de CEREBRO_API_KEY. Nenhuma chamada acontece dentro do lock do banco.
 """
 import os
 
@@ -68,14 +68,22 @@ def responder_duvida(c, texto):
 
 
 def perguntar(c, sistema, usuario):
-    cfg = c.cfg.get('cerebro') or {}
+    """A chamada ao modelo roda FORA do lock: c.pronto desfaz a transação, chama e repete com o resultado."""
+    cfg = dict(c.cfg.get('cerebro') or {})
+    t = tipo(c)
+    if not str(cfg.get('url') or '') or not cfg.get('modelo'):
+        return None
+    return c.pronto(('cerebro', t, str(cfg.get('url')), str(cfg.get('modelo')), sistema, usuario),
+                    lambda: _perguntar(t, cfg, sistema, usuario))
+
+
+def _perguntar(t, cfg, sistema, usuario):
+    """Só rede: não toca no banco."""
     url = str(cfg.get('url') or '').rstrip('/')
     modelo = cfg.get('modelo')
-    if not url or not modelo:
-        return None
     msgs = [{'role': 'system', 'content': sistema}, {'role': 'user', 'content': usuario}]
     try:
-        if tipo(c) == 'ollama':
+        if t == 'ollama':
             ok, r = rede.postar(url + '/api/chat', {'model': modelo, 'messages': msgs, 'stream': False},
                                 timeout=TIMEOUT)
             texto = ((r.get('message') or {}).get('content') if ok else None)

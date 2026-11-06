@@ -4,7 +4,7 @@ from . import chamados, equipe, evolution, horario
 from . import telegram as tg
 
 
-def rodar(c):
+def rodar(c, forcar=False):
     agora = c.agora()
     acoes = 0
     acoes += abrir_expediente(c, agora)
@@ -13,7 +13,7 @@ def rodar(c):
     acoes += lembretes(c, agora)
     acoes += retornos(c, agora)
     acoes += fim_expediente(c, agora)
-    acoes += evolution.reenviar(c)
+    acoes += evolution.reenviar(c, forcar)
     chamados.distribuir(c)  # rede de segurança: chamado ativo sem oferta e alguém livre
     return {'ok': True, 'acoes': acoes}
 
@@ -105,5 +105,5 @@ def fim_expediente(c, agora):
         linhas = ['Fim do expediente — ainda abertos:']
         for ch in abertos:
             linhas.append(f"🟡 #{ch['id']} {primeiro_nome(c.lead(ch['lead_id'])['nome'])} · {c.nome_colab(ch['dono'])}")
-        tg.enviar(gid, '\n'.join(linhas))
+        tg.enviar(c, gid, '\n'.join(linhas))
     return 1

@@ -9,7 +9,7 @@ import tempfile
 from datetime import datetime, timedelta
 
 from .core import Erro, formatar_telefone, iso, log, normalizar
-from . import chamados, equipe
+from . import chamados, equipe, limite
 from . import telegram as tg
 
 ENTRAR = 'Envie /entrar <seu código>.'
@@ -124,10 +124,16 @@ def valor_texto(texto):
         return None
 
 
-def transcrever(file_id):
+def transcrever(c, file_id):
+    """Baixar e transcrever roda FORA do lock (c.pronto desfaz a transação e repete com o texto)."""
     cmd = os.environ.get('WHISPER_CMD')
     if not cmd or not file_id:
         return '[áudio]'
+    return c.pronto(('audio', str(file_id)), lambda: _transcrever(cmd, file_id)) or '[áudio]'
+
+
+def _transcrever(cmd, file_id):
+    """Só rede e subprocesso: não toca no banco."""
     with tempfile.TemporaryDirectory() as tmp:
         caminho = os.path.join(tmp, 'audio.ogg')
         if not tg.baixar_arquivo(file_id, caminho):
@@ -148,9 +154,9 @@ def callback(c, cq):
     from_id = str((cq.get('from') or {}).get('id', ''))
     colab = equipe.colab_por_telegram(c, from_id)
     if not colab:
-        tg.responder_callback(cid, ENTRAR)
+        tg.responder_callback(c, cid, ENTRAR)
         if from_id:
-            tg.enviar(from_id, ENTRAR)
+            tg.enviar(c, from_id, ENTRAR)
         return
     resposta = ''
     try:
@@ -160,7 +166,7 @@ def callback(c, cq):
         equipe.privado(c, colab, e.mensagem)
     except (ValueError, KeyError, TypeError, IndexError):
         resposta = 'Botão inválido.'
-    tg.responder_callback(cid, resposta[:190])
+    tg.responder_callback(c, cid, resposta[:190])
 
 
 def _id(parte):
@@ -250,24 +256,35 @@ def mensagem(c, msg):
     cmd = cmd.split('@')[0].lower()
     resto = resto.strip()
     if no_grupo:
-        if cmd == '/status':
-            tg.enviar(chat_id, equipe.texto_painel(c))
+        # Só o grupo da equipe (TELEGRAM_GRUPO_ID); em qualquer outro grupo o bot fica calado.
+        if cmd == '/status' and grupo and chat_id == str(grupo):
+            tg.enviar(c, chat_id, equipe.texto_painel(c))
         return
     if not from_id:
         return
     if cmd == '/entrar':
-        membro = next((m for m in c.cfg.get('equipe', []) if resto and str(m.get('codigo')) == resto), None)
-        if not membro:
-            tg.enviar(chat_id or from_id, 'Código inválido.')
+        chave = ('entrar', from_id)
+        if limite.bloqueado(chave):
+            tg.enviar(c, chat_id or from_id, limite.MENSAGEM)
             return
+        membro = next((m for m in c.cfg.get('equipe', [])
+                       if resto and hmac.compare_digest(str(m.get('codigo', '')).encode(), resto.encode())), None)
+        if not membro:
+            limite.falhou(chave)
+            tg.enviar(c, chat_id or from_id, 'Código inválido.')
+            return
+        antes = equipe.vinculado(c, membro['id'])
+        if antes and str(antes) != from_id:
+            tg.enviar(c, antes, f"⚠️ Seu código foi usado em outra conta do Telegram e o bot passou a falar com ela. "
+                                f"Se não foi você, avise o gestor para trocar o seu código.")
         c.db.execute('UPDATE colaboradores SET telegram_id=NULL WHERE telegram_id=?', (from_id,))
         c.db.execute('UPDATE colaboradores SET telegram_id=? WHERE id=?', (from_id, membro['id']))
-        tg.enviar(from_id, f"Olá, {membro['nome']}!", botoes_status())
+        tg.enviar(c, from_id, f"Olá, {membro['nome']}!", botoes_status())
         chamados.distribuir(c)
         return
     colab = equipe.colab_por_telegram(c, from_id)
     if not colab:
-        tg.enviar(chat_id or from_id, ENTRAR)
+        tg.enviar(c, chat_id or from_id, ENTRAR)
         return
     try:
         _mensagem(c, colab, msg, texto, cmd, resto)
@@ -280,7 +297,7 @@ def _mensagem(c, colab, msg, texto, cmd, resto):
     f = fluxo(c, colab)
     if voz:
         if f and f.get('etapa') == 'nota':
-            concluir(c, colab, f, transcrever(voz.get('file_id')))
+            concluir(c, colab, f, transcrever(c, voz.get('file_id')))
         else:
             equipe.privado(c, colab, 'Áudio só é usado como nota durante o fechamento.')
         return

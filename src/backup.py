@@ -1,4 +1,5 @@
 """Backup consistente (SQLite online backup + negocio.json) em .tar.gz, e restauração."""
+import fcntl
 import io
 import json
 import os
@@ -37,10 +38,44 @@ def copiar(dados, saida):
         os.replace(arq, saida)
 
 
+TRAVA = '.serve.lock'
+PARE = 'o servidor está rodando com estes dados; pare o serviço antes: docker compose stop atende'
+
+
+def travar_servidor(dados):
+    """O `serve` segura esta trava enquanto roda (o `restaurar` recusa). Devolve o arquivo aberto ou None."""
+    f = open(Path(dados) / TRAVA, 'a+')
+    try:
+        fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        f.close()
+        return None
+    f.seek(0)
+    f.truncate()
+    f.write(f'{os.getpid()}\n')
+    f.flush()
+    return f
+
+
+def servidor_rodando(dados):
+    arq = Path(dados) / TRAVA
+    if not arq.exists():
+        return False
+    with open(arq, 'a+') as f:
+        try:
+            fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            return True
+        fcntl.flock(f, fcntl.LOCK_UN)
+    return False
+
+
 def restaurar(dados, arquivo):
-    """Com o servidor parado."""
+    """Só com o servidor parado (trava do `serve` livre)."""
     dados = Path(dados)
     dados.mkdir(parents=True, exist_ok=True)
+    if servidor_rodando(dados):
+        raise ValueError(PARE)
     with tempfile.TemporaryDirectory(dir=dados) as tmp:
         with tarfile.open(arquivo, 'r:gz') as t:
             membros = {m.name: m for m in t.getmembers() if m.isfile()}

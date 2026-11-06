@@ -70,7 +70,9 @@ def test_meu_falar_abre_pediu_humano_uma_vez(api):
 
 def test_meu_apagar(api):
     lead = api.msg_full(TEL, "oi", nome="Maria Souza")["lead"]
-    assert ok(api.post(f"/api/meu/{lead['token']}/apagar", token=None)[0])
+    assert api.post(f"/api/meu/{lead['token']}/apagar", token=None)[0] == 422  # §11: exige confirmação
+    assert api.lead_csv(lead["id"])["nome"] == "Maria Souza"
+    assert ok(api.post(f"/api/meu/{lead['token']}/apagar", {"confirmar": True}, token=None)[0])
     assert api.lead_csv(lead["id"])["nome"] == "apagado"
     assert api.lead_csv(lead["id"])["telefone"] == f"apagado-{lead['id']}"
 

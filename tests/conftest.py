@@ -161,7 +161,8 @@ class Cliente:
         corpo = {"telefone": telefone, "texto": texto, "canal": canal}
         if nome:
             corpo["nome"] = nome
-        st, r = self.post("/api/mensagens", corpo, token=None)
+        # §4: canal "whatsapp" por esta rota é a simulação do WhatsApp e exige [G]; o web é público (sessão).
+        st, r = self.post("/api/mensagens", corpo, token=TOKEN if canal == "whatsapp" else None)
         assert st == 200, (st, r)
         assert isinstance(r.get("respostas"), list), r
         return r
@@ -369,12 +370,20 @@ class Externo:
         self.falhas = 0            # próximos N pedidos (qualquer rota) devolvem 500
         self.falhar_metodo = {}    # método Telegram -> N próximas respostas com erro 400
         self.prox_msg = 1000
+        self.pendurar = False      # True: aceita a conexão e não responde (API pendurada)
+        self.solta = threading.Event()
         self.trava = threading.Lock()
         externo = self
 
         class H(http.server.BaseHTTPRequestHandler):
             def do_POST(self):
                 corpo = self.rfile.read(int(self.headers.get("Content-Length") or 0))
+                if externo.pendurar:
+                    with externo.trava:
+                        externo.pedidos.append({"rota": self.path, "metodo": "PENDURADO", "headers": {},
+                                                "json": {}, "status": 0})
+                    externo.solta.wait(30)
+                    return
                 try:
                     dados = json.loads(corpo or b"{}")
                 except ValueError:
@@ -478,6 +487,7 @@ class Externo:
             time.sleep(janela)
 
     def fechar(self):
+        self.solta.set()
         self.srv.shutdown()
         self.srv.server_close()
 

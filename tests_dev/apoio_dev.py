@@ -119,7 +119,10 @@ class Servidor:
         return self.req(metodo, rota, corpo, {'X-Codigo': codigo})
 
     def msg(self, telefone, texto, **extra):
-        return self.req('POST', '/api/mensagens', {'telefone': telefone, 'texto': texto, **extra})
+        # canal whatsapp pela API = simulação do WhatsApp, só com o token do gestor (§4)
+        corpo = {'telefone': telefone, 'texto': texto, 'canal': 'whatsapp', **extra}
+        h = {'X-Token': TOKEN} if corpo['canal'] == 'whatsapp' else None
+        return self.req('POST', '/api/mensagens', corpo, h)
 
     def relogio(self, agora):
         st, r = self.g('POST', '/api/relogio', {'agora': agora})

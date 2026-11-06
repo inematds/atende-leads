@@ -3,6 +3,7 @@ import os
 import re
 import shutil
 import subprocess
+import time
 
 import pytest
 
@@ -88,3 +89,25 @@ def test_docker_build_e_compose_config():
     finally:
         if criado:
             (RAIZ / ".env").unlink()
+    # Seção 1: com os segredos do exemplo e --host 0.0.0.0 (CMD da imagem) o container recusa subir...
+    r = subprocess.run(["docker", "run", "--rm", "atende-leads-teste"], capture_output=True, text=True, timeout=120)
+    assert r.returncode != 0 and "instalar-vps.sh" in r.stderr, (r.returncode, r.stderr)
+    # ...e ATENDE_PERMITIR_EXEMPLO=1 (só teste/demonstração) libera; o HEALTHCHECK responde.
+    nome = "atende-leads-teste-saude"
+    subprocess.run(["docker", "rm", "-f", nome], capture_output=True, timeout=60)
+    r = subprocess.run(["docker", "run", "-d", "--name", nome, "-e", "ATENDE_PERMITIR_EXEMPLO=1",
+                        "atende-leads-teste"], capture_output=True, text=True, timeout=120)
+    assert r.returncode == 0, r.stderr
+    try:
+        saude = None
+        for _ in range(40):
+            saude = subprocess.run(["docker", "exec", nome, "python3", "-c",
+                                    "import json,urllib.request; print(json.load(urllib.request.urlopen("
+                                    "'http://127.0.0.1:8080/api/saude', timeout=3))['ok'])"],
+                                   capture_output=True, text=True, timeout=30)
+            if saude.stdout.strip() == "True":
+                break
+            time.sleep(0.5)
+        assert saude.stdout.strip() == "True", (saude.stdout, saude.stderr)
+    finally:
+        subprocess.run(["docker", "rm", "-f", nome], capture_output=True, timeout=60)

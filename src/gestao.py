@@ -6,7 +6,7 @@ import json
 import re
 
 from .core import DIAS, Erro, minutos, parse
-from . import chamados, conversa, equipe
+from . import chamados, conversa, equipe, evolution
 
 
 def ao_vivo(c):
@@ -16,6 +16,7 @@ def ao_vivo(c):
                     c.db.execute("SELECT * FROM chamados WHERE status='alerta' ORDER BY aberto_em, id")]
     p['atendendo'] = [chamados.json_chamado(c, ch) for ch in
                       c.db.execute("SELECT * FROM chamados WHERE status='atendendo' ORDER BY assumido_em, id")]
+    p['descartes'] = evolution.descartes(c)
     return p
 
 
@@ -88,16 +89,26 @@ def ficha(c, lead_id):
 CABECALHO = 'lead_id,nome,telefone,status,nota,interesse,colaborador,resultado,valor,criado_em,ultimo_contato'
 
 
+PERIGOSOS = ('=', '+', '-', '@', '\t', '\r')
+
+
+def celula(v):
+    """Evita injeção de fórmula ao abrir o CSV numa planilha: texto que começa com = + - @ tab CR ganha '."""
+    if isinstance(v, str) and v.startswith(PERIGOSOS):
+        return "'" + v
+    return v
+
+
 def exportar_csv(c):
     buf = io.StringIO()
     w = csv.writer(buf, lineterminator='\n')
     w.writerow(CABECALHO.split(','))
     for lead in c.db.execute('SELECT * FROM leads ORDER BY id'):
         ult = _ultimo_chamado(c, lead['id'])
-        w.writerow([lead['id'], lead['nome'] or '', lead['telefone'], lead['status'], lead['nota'],
+        w.writerow([celula(x) for x in [lead['id'], lead['nome'] or '', lead['telefone'], lead['status'], lead['nota'],
                     lead['interesse'] or '', (ult['dono'] or '') if ult else '', (ult['resultado'] or '') if ult else '',
                     '' if not ult or ult['valor'] is None else ult['valor'], lead['criado_em'] or '',
-                    lead['ultimo_contato'] or ''])
+                    lead['ultimo_contato'] or '']])
     return buf.getvalue()
 
 

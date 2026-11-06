@@ -1,6 +1,7 @@
 """Agente por regras: lead, conversa e qualificação (seções 4 e 5)."""
 import json
 import re
+import secrets
 
 from .core import Erro, formatar_telefone, iso, normalizar, normalizar_telefone, novo_token, primeiro_nome
 from . import cerebro, chamados, equipe, evolution
@@ -26,19 +27,71 @@ URG_OPCOES = '1 - Hoje / esta semana\n2 - Este mês\n3 - Só pesquisando'
 SEM_TEXTO = 'Por enquanto só consigo ler mensagens de texto.'
 
 
+NEGACAO_1 = {'sem', 'nenhum', 'nenhuma'}
+NEGACAO_2 = {('nao', 'tem'), ('nao', 'ha'), ('nao', 'e'), ('nao', 'foi'), ('nao', 'teve')}
+
+
 def tem(t, termos):
     return any(normalizar(x) in t for x in termos)
 
 
+def negado(antes):
+    """As até 2 palavras antes do termo negam? ('sem problema', 'nenhum problema', 'não tem problema')."""
+    ws = antes.split()[-3:]
+    if any(w in NEGACAO_1 for w in ws[-2:]):
+        return True
+    return len(ws) >= 2 and tuple(ws[-2:]) in NEGACAO_2 or (len(ws) >= 3 and tuple(ws[-3:-1]) in NEGACAO_2)
+
+
+def tem_palavra(t, termos):
+    """Termo como palavra/expressão inteira (aceita plural com 's'), ignorando a forma negada simples."""
+    for termo in termos:
+        n = normalizar(termo)
+        if not n:
+            continue
+        for m in re.finditer(rf'(?<!\w){re.escape(n)}s?(?!\w)', t):
+            if n.startswith('nao ') or not negado(t[:m.start()]):
+                return True
+    return False
+
+
 # ---------- lead ----------
 def obter_lead(c, telefone, criar=True):
-    r = c.db.execute('SELECT * FROM leads WHERE telefone=?', (telefone,)).fetchone()
+    """Lead do WhatsApp: identidade = telefone (nunca mistura com leads do chat web)."""
+    r = c.db.execute('SELECT * FROM leads WHERE telefone=? AND sessao IS NULL', (telefone,)).fetchone()
     if r or not criar:
         return r, False
     agora = iso(c.agora())
     ident = c.db.execute('INSERT INTO leads(token,telefone,status,nota,criado_em,ultimo_contato) VALUES (?,?,?,?,?,?)',
                          (novo_token(), telefone, 'novo', 'frio', agora, agora)).lastrowid
     return c.lead(ident), True
+
+
+def novo_lead_web(c, telefone):
+    """Chat web: cada sessão é um lead novo; o telefone digitado é só dado de contato."""
+    agora = iso(c.agora())
+    ident = c.db.execute('INSERT INTO leads(token,telefone,status,nota,criado_em,ultimo_contato,sessao,canal) '
+                         'VALUES (?,?,?,?,?,?,?,?)',
+                         (novo_token(), telefone, 'novo', 'frio', agora, agora, secrets.token_urlsafe(24), 'web')
+                         ).lastrowid
+    return c.lead(ident)
+
+
+def lead_sessao(c, sessao):
+    r = c.db.execute('SELECT * FROM leads WHERE sessao=?', (str(sessao),)).fetchone() if sessao else None
+    if not r:
+        raise Erro(404, 'Sessão inexistente')
+    return r
+
+
+def mensagens_web(c, sessao):
+    """Chat web consulta as respostas da equipe pela própria sessão."""
+    lead = lead_sessao(c, sessao)
+    msgs = [{'de': r['de'], 'texto': r['texto'], 'em': r['em']} for r in
+            c.db.execute("SELECT de, texto, em FROM mensagens WHERE lead_id=? ORDER BY id DESC LIMIT 50", (lead['id'],))]
+    from . import paginas
+    _t, colab, _r = paginas.status_lead(c, lead)
+    return {'lead': lead_resumo(lead), 'colaborador': colab, 'mensagens': list(reversed(msgs))}
 
 
 def lead_resumo(lead):
@@ -136,13 +189,18 @@ def extrair_nome(texto):
 
 
 # ---------- entrada ----------
-def receber(c, telefone, texto, canal='web', nome=None, push_name=None):
-    tel = normalizar_telefone(telefone)
-    if not isinstance(texto, str) or not texto.strip():
-        raise Erro(422, 'Texto obrigatório')
+def receber(c, telefone, texto, canal='web', nome=None, push_name=None, sessao=None):
     if canal not in ('web', 'whatsapp'):
         canal = 'web'
-    lead, _novo = obter_lead(c, tel)
+    if canal == 'web' and sessao:
+        lead = lead_sessao(c, sessao)
+        if not isinstance(texto, str) or not texto.strip():
+            raise Erro(422, 'Texto obrigatório')
+    else:
+        tel = normalizar_telefone(telefone)
+        if not isinstance(texto, str) or not texto.strip():
+            raise Erro(422, 'Texto obrigatório')
+        lead = obter_lead(c, tel)[0] if canal == 'whatsapp' else novo_lead_web(c, tel)
     agora = iso(c.agora())
     c.db.execute('UPDATE leads SET ultimo_contato=?, canal=? WHERE id=?', (agora, canal, lead['id']))
     if isinstance(push_name, str) and push_name.strip():
@@ -216,7 +274,7 @@ def decidir(c, lead, texto, t, primeiro, aberto):
             if prod.get('preco'):
                 prefixo = f"{prod['nome']}: {prod['preco']}. "
         return _abrir(c, lid, 'venda', prefixo)
-    if tem(t, PRECISA):
+    if tem_palavra(t, PRECISA):
         return _abrir(c, lid, 'precisa')
     # 8. qualificação em andamento
     etapa = e.get('etapa')
@@ -385,7 +443,9 @@ def falar(c, token):
             'lead': lead_resumo(c.lead(lead['id']))}
 
 
-def apagar(c, token):
+def apagar(c, token, b=None):
     lead = c.lead_token(token)
+    if not isinstance(b, dict) or b.get('confirmar') is not True:
+        raise Erro(422, 'Confirme com {"confirmar": true}')
     anonimizar(c, lead['id'])
     return {'ok': True, 'mensagem': 'Seus dados foram apagados.'}

@@ -6,7 +6,7 @@
 
 Guia completo (landing + passo a passo): **https://inematds.github.io/atende-leads/guia/**
 
-Atendimento de **leads pelo WhatsApp** com um agente que responde, qualifica e passa o lead para o **colaborador livre** pelo Telegram, com todos os dados e um botão para ligar. Python 3 só com biblioteca padrão, estado em SQLite, Docker para VPS. Código aberto, versão `1.0.0`.
+Atendimento de **leads pelo WhatsApp** com um agente que responde, qualifica e passa o lead para o **colaborador livre** pelo Telegram, com todos os dados e um botão para ligar. Python 3 só com biblioteca padrão, estado em SQLite, Docker para VPS. Código aberto, versão `1.0.1`.
 
 ## O que faz
 
@@ -28,7 +28,7 @@ Contrato completo: [`docs/ESPECIFICACAO.md`](docs/ESPECIFICACAO.md).
 Quem faz: 🧠 o dono/gestor · ⚙️ o sistema · 🤖 o agente.
 
 1. 🧠 **Instalar na VPS:** `./instalar-vps.sh` (pergunta nome, domínio, Telegram; gera segredos, `.env` e `dados/negocio.json`; sobe o Docker).
-2. 🧠 **Conectar o WhatsApp:** abrir o painel da Evolution e ler o QR Code com o número do atendimento (use um número só para isso).
+2. 🧠 **Conectar o WhatsApp:** túnel `ssh -L 8081:127.0.0.1:8081 usuario@vps`, abrir `http://localhost:8081/manager`, criar a instância e ler o QR Code com o número do atendimento (use um número só para isso).
 3. 🧠 **Cadastrar** em `/gestor` → Cadastros: equipe (nome, telefone, código), produtos com palavras e preço, FAQ, horários e prazos.
 4. 🧠 **Equipe entra no bot:** cada colaborador manda `/entrar <código>` no privado do bot e toca 🟢 Livre.
 5. ⚙️ **Lead chega** pelo WhatsApp ou pela bolha do site.
@@ -39,29 +39,44 @@ Quem faz: 🧠 o dono/gestor · ⚙️ o sistema · 🤖 o agente.
 10. 🧠 **Colaborador assume**, liga (📞) ou responde pelo WhatsApp (💬) ou em resposta no próprio bot.
 11. 🧠 **Fecha** com o resultado; ⚙️ grava o histórico, agenda o retorno e devolve o colaborador à fila.
 12. 🧠 **Gestor acompanha** em `/gestor` (ao vivo, hoje, leads, exportar CSV).
-13. ⚙️ **Backup diário** pelo cron: `./atende backup --dados dados --saida backups/leads-$(date +%F).tar.gz`.
+13. ⚙️ **Backup diário** pelo cron único que o `instalar-vps.sh` instala (`docker compose exec -T atende ./atende backup ...` → `/opt/atende-leads-backups/`).
 
 ## Rodar local
 
 ```bash
 ./atende serve --porta 8080 --dados dados
 # chat do lead: http://localhost:8080/   equipe: /equipe   gestor: /gestor (token em dados/negocio.json)
-python3 -m pytest -q tests/        # contrato (257 testes; build Docker só com TESTAR_DOCKER=1)
+python3 -m pytest -q tests/        # contrato (282 testes; build e container Docker só com TESTAR_DOCKER=1)
 ```
 
 Relógio fixo para testar: `ATENDE_AGORA=2026-11-09T10:00 ./atende serve ...` e `POST /api/tarefas/rodar`.
 
 ## Deploy na VPS
 
-1. **Subir:** `./instalar-vps.sh` (ou `docker compose up -d`; com a Evolution no mesmo servidor: `docker compose --profile evolution up -d`). A aplicação escuta só em `127.0.0.1:8080` e a Evolution em `127.0.0.1:8081`.
-2. **HTTPS:** proxy reverso (Caddy ou Nginx) do seu domínio para `127.0.0.1:8080`. Ex. Caddy: `leads.seudominio.com { reverse_proxy 127.0.0.1:8080 }`. Ajuste `url_publica` no `negocio.json`.
-3. **Webhook da Evolution:** evento `MESSAGES_UPSERT` para `https://<domínio>/webhook/evolution/<WEBHOOK_SEGREDO>` (com o perfil `evolution` o compose já aponta pela rede interna).
-4. **Webhook do Telegram:** crie o bot no @BotFather, ponha no grupo da equipe como admin (para fixar o painel) e registre:
+1. **Subir:** `./instalar-vps.sh` (ou `docker compose up -d`; com a Evolution no mesmo servidor: `docker compose --profile evolution up -d`). A aplicação escuta só em `127.0.0.1:8080` e a Evolution em `127.0.0.1:8081`. O instalador gera o token do gestor e os **códigos da equipe** (aleatórios, `secrets.token_urlsafe`) e imprime todos no fim.
+2. **Segredos de exemplo não sobem na rede:** se o `negocio.json` ainda tem `token_gestor` = `TROQUE-ESTE-TOKEN` ou algum código igual ao do `exemplos/negocio.json`, o servidor só aceita subir em `127.0.0.1`/`localhost`. Em `0.0.0.0` (como no Docker) ele **recusa** com a mensagem "rode ./instalar-vps.sh ou troque os segredos". Para teste/demonstração apenas: `ATENDE_PERMITIR_EXEMPLO=1` no ambiente (nunca em produção).
+3. **HTTPS:** proxy reverso (Caddy ou Nginx) do seu domínio para `127.0.0.1:8080`. Ex. Caddy: `leads.seudominio.com { reverse_proxy 127.0.0.1:8080 }`. Ajuste `url_publica` no `negocio.json`. O limite de tentativas (5 senhas erradas por minuto → 429) usa o IP do `X-Forwarded-For` só quando a conexão vem do proxy local.
+4. **WhatsApp (QR Code):** a porta da Evolution só escuta em `127.0.0.1`, então abra um túnel do seu computador:
+   ```bash
+   ssh -L 8081:127.0.0.1:8081 usuario@vps
+   ```
+   e, com o túnel aberto, acesse `http://localhost:8081/manager`. Entre com a API Key global (`EVOLUTION_API_KEY` do `.env`), clique em **Instance +**, dê o nome de `EVOLUTION_INSTANCIA` (padrão `loja`), canal **Baileys**, salve, abra a instância e leia o **QR Code** pelo WhatsApp do celular (Aparelhos conectados → Conectar aparelho). Sem o manager, pela API na VPS: `curl -X POST http://127.0.0.1:8081/instance/create -H "apikey: <EVOLUTION_API_KEY>" -H 'Content-Type: application/json' -d '{"instanceName":"loja","integration":"WHATSAPP-BAILEYS","qrcode":true}'`.
+5. **Webhook da Evolution:** evento `MESSAGES_UPSERT` para `https://<domínio>/webhook/evolution/<WEBHOOK_SEGREDO>` (com o perfil `evolution` o compose já aponta pela rede interna). Mensagens com `remoteJid` `@lid` usam o telefone de `remoteJidAlt`/`senderPn`; sem ele, aparecem em **descartes** no `/gestor`.
+6. **Webhook do Telegram:** crie o bot no @BotFather, ponha no grupo da equipe como admin (para fixar o painel) e registre:
    `curl "https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://<domínio>/webhook/telegram&secret_token=<TELEGRAM_SEGREDO>"`
-5. **Backup diário** no cron: `0 3 * * * cd /opt/atende-leads && ./atende backup --dados dados --saida backups/leads-$(date +\%F).tar.gz`.
-6. **Restaurar:** `./atende restaurar --dados dados --arquivo backups/leads-AAAA-MM-DD.tar.gz`.
+7. **Backup diário — um único cron** (o `instalar-vps.sh` instala no crontab do root). Roda dentro do container e copia para **fora** do volume de dados:
+   ```cron
+   0 3 * * * cd /opt/atende-leads && docker compose exec -T atende ./atende backup --dados /dados --saida /dados/.backup-cron.tar.gz && mkdir -p /opt/atende-leads-backups && mv /opt/atende-leads/dados/.backup-cron.tar.gz /opt/atende-leads-backups/leads-$(date +\%F).tar.gz && find /opt/atende-leads-backups -name 'leads-*.tar.gz' -mtime +30 -delete # atende-leads-backup
+   ```
+8. **Restaurar:** pare o serviço antes (o `restaurar` recusa com o servidor no ar):
+   ```bash
+   docker compose stop atende
+   docker compose run --rm -v /opt/atende-leads-backups:/backups atende \
+     ./atende restaurar --dados /dados --arquivo /backups/leads-AAAA-MM-DD.tar.gz
+   docker compose start atende
+   ```
 
-Variáveis em [`.env.exemplo`](.env.exemplo). Sem as de uma integração, ela fica desligada e o resto funciona (painéis web).
+Variáveis em [`.env.exemplo`](.env.exemplo) (inclui `ATENDE_PERMITIR_EXEMPLO`, só para demonstração). Sem as de uma integração, ela fica desligada e o resto funciona (painéis web). Envios ao Telegram e ao WhatsApp saem por uma caixa de saída em segundo plano: se uma API travar, o atendimento e o `/api/saude` continuam respondendo.
 
 ## Cuidados
 

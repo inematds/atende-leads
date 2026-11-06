@@ -4,8 +4,9 @@
   const aviso = document.getElementById('aviso');
   const token = falar.dataset.token;
   function msg(t, erro) { aviso.textContent = t; aviso.className = erro ? 'aviso erro' : 'aviso'; }
-  async function post(rota) {
-    const r = await fetch('/api/meu/' + token + rota, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'});
+  async function post(rota, corpo) {
+    const r = await fetch('/api/meu/' + token + rota, {method: 'POST', headers: {'Content-Type': 'application/json'},
+                                                        body: JSON.stringify(corpo || {})});
     const d = await r.json();
     if (!r.ok) throw new Error(d.erro || 'Erro');
     return d;
@@ -17,7 +18,7 @@
   });
   apagar.addEventListener('click', async () => {
     if (!confirm('Apagar seus dados? Isso não pode ser desfeito.')) return;
-    try { await post('/apagar'); msg('Seus dados foram apagados.'); falar.hidden = true; apagar.hidden = true; }
+    try { await post('/apagar', {confirmar: true}); msg('Seus dados foram apagados.'); falar.hidden = true; apagar.hidden = true; }
     catch (e) { msg(e.message, true); }
   });
 })();

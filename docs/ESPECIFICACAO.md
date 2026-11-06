@@ -18,9 +18,12 @@ Python 3, **somente biblioteca padrão** (sem `pip install`), estado em SQLite.
   - Host padrão `127.0.0.1` (Docker passa `0.0.0.0` pelo comando, nunca no código).
   - `DIR/negocio.json` = configuração (seção 2). Se não existir, copiar `exemplos/negocio.json`.
   - Todo o estado persiste em `DIR/leads.db`. Reiniciar com o mesmo `DIR` mantém tudo.
+  - **Segredos de exemplo:** se `token_gestor` for `TROQUE-ESTE-TOKEN` (ou o do `exemplos/negocio.json`) ou algum `codigo` da equipe for igual a um código do `exemplos/negocio.json`, o servidor só sobe com host `127.0.0.1`/`localhost`/`::1`. Com outro host (ex.: `0.0.0.0`) recusa: mensagem no stderr com `rode ./instalar-vps.sh ou troque os segredos` e código de saída ≠ 0. `ATENDE_PERMITIR_EXEMPLO=1` libera (só teste/demonstração).
+  - Enquanto roda, o `serve` segura uma trava (`DIR/.serve.lock`, `flock`); um segundo `serve` no mesmo `DIR` recusa.
+  - **Rede fora do lock:** nenhuma chamada HTTP (Telegram, Evolution, cérebro) nem transcrição de áudio acontece dentro da transação do banco. Envios vão para a **caixa de saída** e saem por um despachante em segundo plano, na ordem, por destino; `GET /api/saude` responde sem esperar o banco. Socket da conexão HTTP com timeout de 30 s.
 - **Relógio:** `ATENDE_AGORA` (`AAAA-MM-DDTHH:MM`, hora local) fixa o "agora" no início do processo. `POST /api/relogio {"agora": "AAAA-MM-DDTHH:MM"}` [G] muda o relógio em execução **somente se** `ATENDE_AGORA` estava definida no início (senão 403). Sem ela, relógio real.
 - **Tarefas de tempo** (ofertas vencidas, alertas, lembretes, retornos, abertura do expediente): `POST /api/tarefas/rodar` [G] roda uma vez e devolve `{"ok": true, "acoes": n}`. Fora do modo `ATENDE_AGORA`, o servidor também roda isso sozinho a cada 30 s.
-- `./atende backup --dados DIR --saida ARQ` (cópia consistente do SQLite + `negocio.json` num `.tar.gz`) e `./atende restaurar --dados DIR --arquivo ARQ`.
+- `./atende backup --dados DIR --saida ARQ` (cópia consistente do SQLite + `negocio.json` num `.tar.gz`; funciona com o servidor no ar) e `./atende restaurar --dados DIR --arquivo ARQ` — **recusa** (código ≠ 0, stderr com `pare o serviço antes: docker compose stop atende`) se houver um `serve` rodando com esse `DIR`.
 - Integrações externas **só** por variáveis de ambiente (seções 15–17). Sem elas, nenhuma chamada de rede sai do processo. Nenhuma URL, chave ou token real no código.
 
 ## 2. `negocio.json`
@@ -49,13 +52,18 @@ Python 3, **somente biblioteca padrão** (sem `pip install`), estado em SQLite.
 
 - **[G] gestor:** header `X-Token` = `token_gestor`. Errado/ausente → 401.
 - **[E] equipe:** header `X-Codigo` = `codigo` de um colaborador → age como esse colaborador. Errado → 401. [G] também passa nas rotas [E] informando `"colaborador": "<id>"` no corpo quando precisa.
-- **Lead:** página `/meu/<token_lead>` e rotas `/api/meu/<token_lead>...`; token aleatório ≥ 16 caracteres gerado na criação do lead. Token inexistente → 404.
-- Públicas: `/`, `/widget.js`, `/equipe`, `/gestor` (páginas; os dados vêm de rotas protegidas), `/api/saude`, `POST /api/mensagens`, `/ligar/<token_chamado>`.
+- Comparação em tempo constante (`hmac.compare_digest`). **Limite de tentativas:** 5 `X-Token`/`X-Codigo` errados por IP em 1 minuto → as próximas (mesmo com o valor certo) recebem **429** `{"erro": "Muitas tentativas, aguarde."}` até a janela passar. O IP é o da conexão; `X-Forwarded-For` (último valor) só vale quando a conexão vem de `127.0.0.1`/`::1` (proxy reverso local).
+- **Lead:** página `/meu/<token_lead>` e rotas `/api/meu/<token_lead>...`; token aleatório ≥ 16 caracteres gerado na criação do lead. Token inexistente → 404. O token só é entregue ao próprio lead: ao lead do WhatsApp pelo próprio WhatsApp (link `Acompanhe aqui`), ao lead do chat web na resposta da sua sessão.
+- **Sessão do chat web:** token aleatório ≥ 24 caracteres (`sessao`), criado na primeira mensagem web; é a identidade do lead web.
+- Públicas: `/`, `/widget.js`, `/equipe`, `/gestor` (páginas; os dados vêm de rotas protegidas), `/api/saude`, `POST /api/mensagens` (canal `web`), `GET /api/web/<sessao>`, `/ligar/<token_chamado>`.
 - Webhooks com segredo próprio (seções 15–16).
 
 ## 4. Lead e conversa (`POST /api/mensagens`)
 
-Corpo: `{"telefone": "...", "texto": "...", "nome": "opcional", "canal": "web|whatsapp"}`. Telefone normalizado: só dígitos; com 10 ou 11 dígitos ganha `55` na frente; resultado com menos de 12 ou mais de 13 dígitos → 422. Resposta: `{"lead": {id, token, status, nota}, "respostas": ["..."]}` (lista de textos que o agente manda ao lead, na ordem; pode ser vazia).
+Corpo: `{"telefone": "...", "texto": "...", "nome": "opcional", "canal": "web|whatsapp", "sessao": "opcional"}`. Telefone normalizado: só dígitos; com 10 ou 11 dígitos ganha `55` na frente; resultado com menos de 12 ou mais de 13 dígitos → 422. Resposta: `{"lead": {id, token, status, nota}, "respostas": ["..."]}` (lista de textos que o agente manda ao lead, na ordem; pode ser vazia).
+
+- **`canal: "web"`** (padrão, público): sem `sessao` → cria **sempre um lead web novo** (o `telefone` é obrigatório, mas é só dado de contato, não identidade) e a resposta traz `"sessao": "<token ≥ 24>"`. Com `sessao` → a mensagem vai ao lead dessa sessão (`telefone` ignorado); sessão inexistente → 404. Um lead web **nunca** se mistura com o lead do WhatsApp de mesmo número. Mensagens ao lead web (avisos, respostas do colaborador) não vão por WhatsApp: ficam na caixa de saída com `status: "web"` e aparecem no chat por `GET /api/web/<sessao>` → `{"lead": {...}, "colaborador", "mensagens": [{de, texto, em}]}` (últimas 50).
+- **`canal: "whatsapp"`** por esta rota é a **simulação** do WhatsApp (testes/demonstração) e exige **[G]** (sem token → 401). O WhatsApp real chega pelo webhook (seção 15). Identidade = telefone.
 
 Lead criado no primeiro contato com `status: "novo"`, `nota: "frio"`. O texto é **normalizado** (minúsculas, sem acento, sem pontuação) para decidir. Ordem de decisão:
 
@@ -65,7 +73,7 @@ Lead criado no primeiro contato com `status: "novo"`, `nota: "frio"`. O texto é
 4. **Chamado aguardando** (`aguardando` ou `alerta`): o agente não abre outro; responde texto que contém `já avisei` e a mensagem entra no histórico do chamado.
 5. **Pediu humano** — contém `atendente`, `humano`, `falar com alguem`, `falar com uma pessoa`, `vendedor`, `me liga`, `me ligue` ou `ligacao`: abre chamado `motivo: "pediu_humano"`. Resposta contém `vou chamar`.
 6. **Chance de venda** — contém `quero comprar`, `quero contratar`, `como faco para comprar`, `como faco para contratar`, `fechar`, `quanto custa`, `qual o valor`, `qual o preco`, `forma de pagamento`, `parcela`, `orcamento`: o lead fica `nota: "quente"`. Se casar um produto (seção 5) com `preco`, a resposta inclui o preço (`<nome>: <preco>`). Abre chamado `motivo: "venda"`. Resposta contém `vou chamar`.
-7. **Necessidade** — contém `reclamacao`, `reclamar`, `problema`, `nao funciona`, `defeito`, `cancelar`, `reembolso`, `absurdo`, `pessimo`, `procon`: abre chamado `motivo: "precisa"`. Resposta contém `vou chamar`.
+7. **Necessidade** — contém, como **palavra ou expressão inteira** (aceita plural com `s`), `reclamacao`, `reclamar`, `problema`, `nao funciona`, `defeito`, `cancelar`, `reembolso`, `absurdo`, `pessimo`, `procon`: abre chamado `motivo: "precisa"`. Resposta contém `vou chamar`. **Negação simples não dispara:** o termo logo depois de `sem`, `nenhum`/`nenhuma`, `nao tem`, `nao ha`, `nao e` (ex.: `sem problema`, `nenhum problema`, `não tem problema`).
 8. **Qualificação em andamento** consome a mensagem (abaixo).
 9. **FAQ** — palavras significativas (≥ 3 letras, fora de artigos/preposições/pronomes comuns) de alguma pergunta: se ≥ 60 % aparecem no texto, responde **exatamente** a `resposta` (uma mensagem). Mais de um casa → maior %; empate → primeiro.
 10. **Interesse em produto** — casa algum produto (seção 5): lead `nota: "morno"` (se não for `quente`), `interesse = <id do produto>`; se o lead ainda não tem nome, inicia a qualificação; senão responde texto que contém o nome do produto e pergunta `Quer que eu chame alguém para te atender?`; um `sim`/`quero`/`pode` na mensagem seguinte abre chamado `motivo: "venda"`.
@@ -112,7 +120,7 @@ Chamado: `{id, lead_id, motivo: pediu_humano|venda|precisa, prioridade: quente|n
 
 - Uma mensagem no grupo com o título `EQUIPE AGORA`, a hora (`HH:MM`), uma linha por colaborador (`🟢 <nome> livre há N min`, a primeira da ordem de vez com `(próxima da vez)`; `🟡 <nome> atendendo <primeiro nome do lead> · N min`; `🔴 <nome> ocupado`; `⚫ <nome> fora`) e a seção `FILA` com os chamados `aguardando`/`alerta` (`🔥`/`🙋` `<primeiro nome> · esperando N min`, e `⚠️ sem dono` se em alerta).
 - Criada na primeira mudança (status, chamado). Depois é **editada** (`editMessageText`) em cada mudança, nunca reenviada; se a edição falhar com erro do Telegram, envia uma nova e guarda o novo `message_id`. Tenta fixar (`pinChatMessage`) ao criar; falha ao fixar é ignorada.
-- `/status` no grupo ou no privado → o bot manda o mesmo texto (mensagem nova).
+- `/status` no grupo da equipe (`TELEGRAM_GRUPO_ID`) ou no privado → o bot manda o mesmo texto (mensagem nova). Em outros grupos, ignorado.
 - `GET /api/painel` [G] ou [E] → `{"equipe": [{id, nome, status, livre_desde, minutos, proximo}], "fila": [{id, lead, prioridade, status, minutos, ofertado_a}]}`.
 
 ## 9. Fechamento
@@ -143,7 +151,8 @@ Chamado: `{id, lead_id, motivo: pediu_humano|venda|precisa, prioridade: quente|n
 - `GET /` → chat web (a mesma conversa da seção 4, telefone e nome pedidos na tela), estilo INEMA.
 - `GET /widget.js` → script que coloca uma bolha de chat em qualquer site e abre o chat num iframe para `{url_publica}/?widget=1`.
 - `GET /meu/<token_lead>` → página "meu atendimento": nome do negócio, status do lead em texto (`Recebemos sua mensagem`, `Alguém da equipe vai falar com você`, `<nome> está te atendendo`, `Retorno marcado para DD/MM às HH:MM`, ...), nome do colaborador se houver, botão **Quero falar agora** e botão **Apagar meus dados**.
-- `GET /api/meu/<token_lead>` → `{nome, status, colaborador, retornar_em}`. `POST /api/meu/<token_lead>/falar` → abre chamado `pediu_humano` (mesmas regras da seção 4 regra 4/5). `POST /api/meu/<token_lead>/apagar` → igual à regra 2.
+- `GET /api/meu/<token_lead>` → **só** `{nome, status, colaborador, retornar_em}` (nunca o texto das mensagens). `POST /api/meu/<token_lead>/falar` → abre chamado `pediu_humano` (mesmas regras da seção 4 regra 4/5). `POST /api/meu/<token_lead>/apagar` com `{"confirmar": true}` → igual à regra 2; sem a confirmação → 422 e nada muda.
+- O chat web guarda a `sessao` no `localStorage` do navegador e manda em cada mensagem; as respostas da equipe chegam por `GET /api/web/<sessao>`.
 - O link `/meu/<token>` é enviado ao lead quando abre chamado (`Acompanhe aqui: {url_publica}/meu/<token>`).
 
 ## 12. Painel da equipe (`/equipe`, rotas [E])
@@ -156,37 +165,38 @@ Chamado: `{id, lead_id, motivo: pediu_humano|venda|precisa, prioridade: quente|n
 
 ## 13. Painel do gestor (`/gestor`, rotas [G])
 
-- `GET /api/gestor/ao-vivo` → igual a `/api/painel` + alertas abertos.
+- `GET /api/gestor/ao-vivo` → igual a `/api/painel` + alertas abertos + `descartes`: as últimas 20 mensagens de entrada que não deu para atender (`{em, origem, motivo, ...}`, ex.: `remoteJid` `@lid` sem telefone).
 - `GET /api/gestor/hoje` → `{leads_novos, chamados_abertos, assumidos, vendas, valor_vendido, tempo_medio_assumir_min, por_colaborador: [{id, nome, assumidos, vendas, valor}]}` do dia do relógio.
 - `GET /api/gestor/leads?status=&colaborador=&de=&ate=` → lista. `GET /api/gestor/leads/{id}` → ficha completa.
 - `POST /api/gestor/chamados/{id}/transferir {"colaborador": "<id>"}` → o chamado (aberto, assumido ou não) passa a ser do colaborador, como se ele tivesse assumido; o antigo dono volta a livre se ficar sem chamados. `POST /api/gestor/chamados/{id}/reabrir` → chamado fechado volta a `aguardando` (novo roteamento). `POST /api/gestor/equipe/{id}/status`.
 - `GET /api/gestor/config` / `PUT /api/gestor/config` → lê e grava o `negocio.json` inteiro (valida: ids únicos, códigos únicos, horários `HH:MM`, prazos inteiros ≥ 1; inválido → 422 e nada muda). `token_gestor` nunca é devolvido no GET (vem `"***"`; `***` no PUT mantém o atual).
-- `GET /api/gestor/exportar.csv` → CSV UTF-8 com cabeçalho `lead_id,nome,telefone,status,nota,interesse,colaborador,resultado,valor,criado_em,ultimo_contato`.
+- `GET /api/gestor/exportar.csv` → CSV UTF-8 com cabeçalho `lead_id,nome,telefone,status,nota,interesse,colaborador,resultado,valor,criado_em,ultimo_contato`. Célula de texto que começa com `=`, `+`, `-`, `@`, tab ou CR ganha `'` na frente (sem injeção de fórmula na planilha).
 - Página `/gestor`: entra com o token; abas Ao vivo, Hoje, Leads, Cadastros (equipe, produtos, FAQ, horários, prazos), Exportar.
 
 ## 14. Cérebro do agente
 
 - `regras` (padrão): tudo da seção 4. **Resumo** do chamado = até 3 linhas montadas por regra: `Quer: <produto ou assunto>`, `Urgência: <hoje/este mês/pesquisando>` (se respondeu), `Disse: "<última mensagem, até 120 caracteres>"`.
-- `ollama` (`{"tipo": "ollama", "url": "...", "modelo": "..."}`) e `openai` (qualquer endpoint compatível com `/v1/chat/completions`; chave em `CEREBRO_API_KEY`, nunca no JSON): usados **só** para (a) escrever o resumo e (b) responder dúvidas que caíram em "não entendi", usando FAQ e produtos como base, com instrução de não inventar preço/prazo. Timeout de 15 s; erro, timeout ou resposta vazia → cai na regra. As decisões de abrir chamado continuam sendo as da seção 4 (podem ser acrescidas por uma classificação do cérebro com saída `pediu_humano|venda|precisa|nada`).
+- `ollama` (`{"tipo": "ollama", "url": "...", "modelo": "..."}`) e `openai` (qualquer endpoint compatível com `/v1/chat/completions`; chave em `CEREBRO_API_KEY`, nunca no JSON): usados **só** para (a) escrever o resumo e (b) responder dúvidas que caíram em "não entendi", usando FAQ e produtos como base, com instrução de não inventar preço/prazo. Timeout de 15 s; erro, timeout ou resposta vazia → cai na regra. A chamada roda **fora** do lock do banco (a transação lê o necessário, solta o lock, chama e grava numa transação curta). As decisões de abrir chamado continuam sendo as da seção 4 (podem ser acrescidas por uma classificação do cérebro com saída `pediu_humano|venda|precisa|nada`).
 - Os testes rodam com `regras` e com um servidor falso local; nenhum teste chama serviço real.
 
 ## 15. WhatsApp pela Evolution API
 
 Variáveis: `EVOLUTION_URL`, `EVOLUTION_API_KEY`, `EVOLUTION_INSTANCIA`, `WEBHOOK_SEGREDO`. Sem `EVOLUTION_URL` → canal simulado (só caixa de saída, `status: "simulado"`).
 
-- **Entrada** `POST /webhook/evolution/{WEBHOOK_SEGREDO}` (segredo errado → 404). Formato Evolution v2: `{"event": "messages.upsert", "instance": "...", "data": {"key": {"remoteJid": "5541999990001@s.whatsapp.net", "fromMe": false, "id": "ABC"}, "pushName": "Maria", "message": {"conversation": "oi"}, "messageType": "conversation"}}`. Sempre 200. Ignora: outro `event`, `fromMe: true`, grupo (`@g.us`), `key.id` repetido. Texto = `message.conversation` ou `message.extendedTextMessage.text`; sem texto → responde `Por enquanto só consigo ler mensagens de texto.` `pushName` vira nome sugerido (usado como `nome` só se o lead não tiver nome **e** depois de confirmar na qualificação — a pergunta do nome passa a ser `Posso te chamar de <pushName>?`; `sim` aceita, outra resposta vira o nome).
-- **Saída:** `POST {EVOLUTION_URL}/message/sendText/{EVOLUTION_INSTANCIA}`, header `apikey`, corpo `{"number": "<dígitos>", "text": "..."}`, na ordem.
-- `GET /api/saida` [G] → caixa de saída `[{id, telefone, texto, tipo: agente|humano|aviso, status: enviado|pendente|simulado, em}]`. `pendente` (erro HTTP/conexão) é reenviado pela tarefa de tempo.
+- **Entrada** `POST /webhook/evolution/{WEBHOOK_SEGREDO}` (segredo errado → 404). Formato Evolution v2: `{"event": "messages.upsert", "instance": "...", "data": {"key": {"remoteJid": "5541999990001@s.whatsapp.net", "fromMe": false, "id": "ABC"}, "pushName": "Maria", "message": {"conversation": "oi"}, "messageType": "conversation"}}`. Sempre 200. Ignora: outro `event`, `fromMe: true`, grupo (`@g.us`), `key.id` repetido. **`remoteJid` terminado em `@lid`** (identificador oculto do WhatsApp): o telefone vem de `key.remoteJidAlt` (Evolution 2.3+), `key.senderPn` ou `data.senderPn`, o primeiro que existir; sem nenhum, a mensagem é descartada e registrada em `descartes` (seção 13). Texto = `message.conversation` ou `message.extendedTextMessage.text`; sem texto → responde `Por enquanto só consigo ler mensagens de texto.` `pushName` vira nome sugerido (usado como `nome` só se o lead não tiver nome **e** depois de confirmar na qualificação — a pergunta do nome passa a ser `Posso te chamar de <pushName>?`; `sim` aceita, outra resposta vira o nome).
+- **Saída:** `POST {EVOLUTION_URL}/message/sendText/{EVOLUTION_INSTANCIA}`, header `apikey`, corpo `{"number": "<dígitos>", "text": "..."}`, na ordem por telefone. O envio é **assíncrono**: a mensagem entra na caixa de saída como `pendente` e o despachante entrega fora do lock (a requisição que a gerou espera até ~2 s pelo despacho, fora do lock).
+- `GET /api/saida` [G] → caixa de saída `[{id, telefone, texto, tipo: agente|humano|aviso, status: enviado|pendente|simulado|falhou|cancelado|web, em}]`. `pendente` (erro HTTP/conexão) é reenviado com **backoff exponencial** por mensagem (5, 10, 20… s, teto 300 s; ~10 min no total), no máximo **8 tentativas** → `falhou`; até 20 mensagens por rodada. A tarefa de tempo acorda o despachante (`POST /api/tarefas/rodar` também adianta o backoff). Lead com `nao_contatar` não recebe reenvio (`cancelado`). `web` = mensagem a lead do chat web (seção 4).
 
 ## 16. Telegram
 
 Variáveis: `TELEGRAM_API_URL` (ex.: `https://api.telegram.org`), `TELEGRAM_TOKEN`, `TELEGRAM_GRUPO_ID`, `TELEGRAM_SEGREDO`. Sem elas, nada vai ao Telegram e o resto funciona (painéis web).
 
+- Envios **assíncronos** pela caixa de saída do Telegram (mesmas regras de ordem por destino e backoff da seção 15; erro 4xx não é repetido). O `message_id` devolvido pelo Telegram é gravado depois, numa transação curta, e usado nas edições e nos replies. Depois de enviado (ou `falhou`), o texto não fica guardado na fila. Edições do painel fixo são **coalescidas** (só o último texto sai).
 - Chamadas: `POST {TELEGRAM_API_URL}/bot{TOKEN}/<método>` com JSON: `sendMessage` (`chat_id`, `text`, opcional `reply_markup.inline_keyboard`, `reply_to_message_id`), `editMessageText` (`chat_id`, `message_id`, `text`, `reply_markup`), `answerCallbackQuery` (`callback_query_id`, `text`), `pinChatMessage`, `getFile` (áudio).
 - `POST /webhook/telegram` exige header `X-Telegram-Bot-Api-Secret-Token: {TELEGRAM_SEGREDO}` (senão 401). Sempre 200 com segredo certo.
-- **Vínculo:** no privado, `/entrar <codigo>` liga o `from.id` do Telegram ao colaborador (responde `Olá, <nome>!` e mostra os botões de status `🟢 Livre` / `🔴 Ocupado` / `⚫ Fora`). Código errado → `Código inválido.` Mensagens e botões de quem não está vinculado → `Envie /entrar <seu código>.` O vínculo persiste. Mensagens privadas vão ao `chat_id` = `from.id` vinculado; colaborador sem vínculo não recebe ofertas (é pulado na ordem de vez, sem contar como recusa) — exceto se o Telegram não estiver configurado, quando a oferta fica só no painel web.
+- **Vínculo:** no privado, `/entrar <codigo>` liga o `from.id` do Telegram ao colaborador (responde `Olá, <nome>!` e mostra os botões de status `🟢 Livre` / `🔴 Ocupado` / `⚫ Fora`). Código errado → `Código inválido.`; 5 códigos errados do mesmo `from.id` em 1 minuto → `Muitas tentativas, aguarde.` (mesmo com o código certo) até a janela passar. Se o colaborador já estava vinculado a outro `from.id`, o vínculo passa ao novo e o anterior recebe no privado um aviso (contém `outra conta`). Mensagens e botões de quem não está vinculado → `Envie /entrar <seu código>.` O vínculo persiste. Mensagens privadas vão ao `chat_id` = `from.id` vinculado; colaborador sem vínculo não recebe ofertas (é pulado na ordem de vez, sem contar como recusa) — exceto se o Telegram não estiver configurado, quando a oferta fica só no painel web.
 - **Botões** (`callback_data`, até 64 bytes): `as:<id>` assumir, `pa:<id>` passar, `st:livre|ocupado|fora`, `fe:<id>:<resultado>` fechamento, `fm:<id>:<motivo>` motivo, `fr:<id>:<1|3|7>` retorno em N dias às 09:00, `fp:<id>` pular nota, `dv:<id>` devolver, `lc:<id>` continuo, `lt:<id>` terminei, `ra:<id>` assumir retorno. Toda `callback_query` recebe `answerCallbackQuery`.
-- **Comandos** (privado do vinculado): `/livre`, `/ocupado`, `/fora`, `/status`, `/meus` (chamados dele), `/retornos` (retornos de hoje), `/lead <nome ou telefone>` (ficha curta, só de leads que ele pode ver), `/fechar <id> vendeu <valor>` | `/fechar <id> retornar <AAAA-MM-DDTHH:MM>` | `/fechar <id> negociando` | `/fechar <id> sem <motivo>` | `/fechar <id> invalido <motivo>`. No grupo: só `/status`.
+- **Comandos** (privado do vinculado): `/livre`, `/ocupado`, `/fora`, `/status`, `/meus` (chamados dele), `/retornos` (retornos de hoje), `/lead <nome ou telefone>` (ficha curta, só de leads que ele pode ver), `/fechar <id> vendeu <valor>` | `/fechar <id> retornar <AAAA-MM-DDTHH:MM>` | `/fechar <id> negociando` | `/fechar <id> sem <motivo>` | `/fechar <id> invalido <motivo>`. No grupo: só `/status`, e só no grupo da equipe (`chat.id == TELEGRAM_GRUPO_ID`); em qualquer outro grupo o bot não responde nada.
 - **Privacidade:** no grupo, nunca telefone nem texto das mensagens do lead; só primeiro nome, motivo, nota, interesse e tempos.
 
 ## 17. Docker / VPS
@@ -194,7 +204,7 @@ Variáveis: `TELEGRAM_API_URL` (ex.: `https://api.telegram.org`), `TELEGRAM_TOKE
 - `Dockerfile` (`python:3-slim` ou similar, sem `pip install`) rodando `./atende serve --host 0.0.0.0 --porta 8080 --dados /dados`, com `HEALTHCHECK` em `/api/saude`.
 - `docker-compose.yml`: serviço `atende` (`build: .`, `restart: unless-stopped`, `env_file: .env`, volume `./dados:/dados`, porta `127.0.0.1:8080:8080`). Perfil `evolution` (`docker compose --profile evolution up -d`) com a Evolution API v2 e o que ela exige na versão atual (banco e cache), na mesma rede, porta só em `127.0.0.1`.
 - `.env.exemplo` com todas as variáveis das seções 14–16 (exemplos, nenhum segredo real).
-- `instalar-vps.sh`: confere Docker, pergunta nome do negócio, domínio, token do Telegram e grupo, gera segredos aleatórios, escreve `.env` e `dados/negocio.json`, sobe o compose (com ou sem Evolution) e imprime os próximos passos (proxy HTTPS, webhook da Evolution, `setWebhook` do Telegram, cron do backup). `--sem-perguntas` usa variáveis de ambiente (para teste).
+- `instalar-vps.sh`: confere Docker, pergunta nome do negócio, domínio, token do Telegram e grupo, gera segredos aleatórios (token do gestor e **códigos da equipe** com `secrets.token_urlsafe(9)` ou mais, trocando os do exemplo e os curtos), escreve `.env` e `dados/negocio.json`, sobe o compose (com ou sem Evolution), instala **um único** cron de backup (`docker compose exec -T atende ./atende backup ...` copiado para fora do volume de dados, `/opt/atende-leads-backups`) e imprime o token, os códigos e os próximos passos (proxy HTTPS, túnel SSH para o manager da Evolution e o QR, `setWebhook` do Telegram, backup e restauração). `--sem-perguntas` usa variáveis de ambiente (para teste).
 - README com **Deploy na VPS** e **O processo, do início ao fim**.
 
 ## 18. Saúde

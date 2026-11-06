@@ -113,7 +113,10 @@ def enviar_cartao(c, ch):
 
 
 def guardar_msg(c, ref, chamado_id, tipo):
-    if ref:
+    """Liga a mensagem do Telegram ao chamado (para o reply). Ref provisória: o despachante grava ao enviar."""
+    if ref and ref.startswith('q:'):
+        c.db.execute('UPDATE tg_saida SET chamado_id=?, tipo=? WHERE id=?', (chamado_id, tipo, ref[2:]))
+    elif ref:
         chat, mid = ref.rsplit(':', 1)
         c.db.execute('INSERT OR REPLACE INTO tg_msgs VALUES (?,?,?,?)', (chat, mid, chamado_id, tipo))
 
@@ -153,7 +156,7 @@ def ativar(c, ident):
     alvo = proximo_alvo(c, ch)
     gid = tg.grupo()
     if gid:
-        ref = tg.enviar(gid, texto_linha(c, ch, alvo))
+        ref = tg.enviar(c, gid, texto_linha(c, ch, alvo))
         if ref:
             c.db.execute('UPDATE chamados SET tg_linha=? WHERE id=?', (ref, ident))
     if alvo:
@@ -208,7 +211,7 @@ def rotear(c, ident, alertar_se_vazio=True):
     if alvo:
         oferecer(c, ch, alvo)
         if ch['tg_linha'] and ch['status'] == 'aguardando':
-            tg.editar(ch['tg_linha'], texto_linha(c, ch, alvo))
+            tg.editar(c, ch['tg_linha'], texto_linha(c, ch, alvo))
         return True
     c.db.execute('UPDATE chamados SET ofertado_a=NULL, ofertado_em=NULL WHERE id=?', (ident,))
     if alertar_se_vazio:
@@ -224,7 +227,7 @@ def recusar(c, ch, texto_antigo):
     c.db.execute('UPDATE chamados SET recusaram=?, ofertado_a=NULL, ofertado_em=NULL WHERE id=?',
                  (json.dumps(rec), ch['id']))
     if ch['tg_oferta']:
-        tg.editar(ch['tg_oferta'], texto_antigo)
+        tg.editar(c, ch['tg_oferta'], texto_antigo)
         c.db.execute('UPDATE chamados SET tg_oferta=NULL WHERE id=?', (ch['id'],))
     c.sujo = True
     rotear(c, ch['id'])
@@ -259,7 +262,7 @@ def alertar(c, ch):
              f"interesse {_interesse_nome(c, lead)} · esperando há {espera} min")
     gid = tg.grupo()
     if gid:
-        ref = tg.enviar(gid, texto, [[tg.bt('✅ Assumir', f"as:{ch['id']}")]])
+        ref = tg.enviar(c, gid, texto, [[tg.bt('✅ Assumir', f"as:{ch['id']}")]])
         if ref:
             c.db.execute('UPDATE chamados SET tg_alerta=? WHERE id=?', (ref, ch['id']))
             guardar_msg(c, ref, ch['id'], 'alerta')
@@ -302,7 +305,7 @@ def _pos_assumir(c, ch_antes, colab, avisar_lead=True):
     feito = f'✅ {nome} assumiu #{ident}'
     for campo in ('tg_linha', 'tg_alerta', 'tg_oferta'):
         if ch_antes[campo]:
-            tg.editar(ch_antes[campo], feito)
+            tg.editar(c, ch_antes[campo], feito)
     c.db.execute('UPDATE chamados SET tg_oferta=NULL WHERE id=?', (ident,))
     enviar_cartao(c, c.chamado(ident))
     if avisar_lead:
@@ -333,7 +336,7 @@ def transferir(c, ident, colab):
     agora = iso(c.agora())
     c.db.execute('UPDATE chamados SET dono=?, ultimo_mov=?, lembrado=0 WHERE id=?', (colab, agora, ident))
     if ch['tg_cartao']:
-        tg.editar(ch['tg_cartao'], f'↪️ #{ident} transferido para {c.nome_colab(colab)}')
+        tg.editar(c, ch['tg_cartao'], f'↪️ #{ident} transferido para {c.nome_colab(colab)}')
     nome = c.nome_colab(colab)
     equipe.ficou_atendendo(c, colab)
     enviar_cartao(c, c.chamado(ident))
@@ -447,10 +450,10 @@ def limpar_fluxos(c, ident):
 
 def _encerrar_mensagens(c, ch, texto):
     if ch['tg_cartao']:
-        tg.editar(ch['tg_cartao'], texto)
+        tg.editar(c, ch['tg_cartao'], texto)
     for campo in ('tg_linha', 'tg_alerta', 'tg_oferta'):
         if ch[campo] and ch['status'] in ('aguardando', 'alerta'):
-            tg.editar(ch[campo], texto)
+            tg.editar(c, ch[campo], texto)
 
 
 def devolver(c, ident, colab):

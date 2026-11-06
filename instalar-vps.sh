@@ -104,9 +104,13 @@ cfg = json.load(open(os.environ['BASE'], encoding='utf-8'))
 cfg['nome'] = os.environ['NEGOCIO_NOME']
 cfg['url_publica'] = os.environ['URL_PUBLICA']
 cfg['token_gestor'] = os.environ['TOKEN_GESTOR']
+exemplo = json.load(open('exemplos/negocio.json', encoding='utf-8'))
+fracos = {'', None} | {m.get('codigo') for m in exemplo.get('equipe', [])}
 for m in cfg.get('equipe', []):
-    if m.get('codigo') in (None, '', 'ana-1234'):
-        m['codigo'] = f"{m['id']}-{secrets.randbelow(9000) + 1000}"
+    cod = m.get('codigo')
+    # código curto ou do exemplo é adivinhável: troca por um aleatório (>= 12 caracteres)
+    if cod in fracos or len(str(cod)) < 12:
+        m['codigo'] = f"{m['id']}-{secrets.token_urlsafe(9)}"
 tmp = 'dados/negocio.json.tmp'
 with open(tmp, 'w', encoding='utf-8') as f:
     json.dump(cfg, f, ensure_ascii=False, indent=2)
@@ -115,6 +119,12 @@ PY
 
 echo "Gerado: .env e dados/negocio.json"
 echo "Token do gestor: $TOKEN_GESTOR   (guarde; também está em dados/negocio.json)"
+echo "Códigos da equipe (cada um usa o seu no /equipe e no /entrar do bot):"
+python3 -c "import json; [print(f\"  {m['nome']} ({m['id']}): {m['codigo']}\") for m in json.load(open('dados/negocio.json', encoding='utf-8')).get('equipe', [])]"
+
+# Backup: um único cron, rodando DENTRO do container e copiando para fora do volume de dados.
+BACKUPS=/opt/atende-leads-backups
+CRON_LINHA="0 3 * * * cd $DIR && docker compose exec -T atende ./atende backup --dados /dados --saida /dados/.backup-cron.tar.gz && mkdir -p $BACKUPS && mv $DIR/dados/.backup-cron.tar.gz $BACKUPS/leads-\$(date +\\%F).tar.gz && find $BACKUPS -name 'leads-*.tar.gz' -mtime +30 -delete # atende-leads-backup"
 
 if [ "$SO_GERAR" = "1" ]; then
   echo "INSTALAR_SO_GERAR=1: nada foi subido."
@@ -127,6 +137,14 @@ else
   docker compose up -d --build
 fi
 
+if [ "$(id -u)" = "0" ] && command -v crontab >/dev/null; then
+  # troca qualquer linha antiga do atende-leads pela única linha de backup
+  ( crontab -l 2>/dev/null | grep -v 'atende-leads-backup' | grep -v 'atende backup' ; echo "$CRON_LINHA" ) | crontab -
+  CRON_MSG="instalado no crontab do root (crontab -l para ver)"
+else
+  CRON_MSG="rode como root ou ponha à mão no crontab do root"
+fi
+
 cat <<EOF
 
 Pronto. Próximos passos:
@@ -134,7 +152,11 @@ Pronto. Próximos passos:
      $DOMINIO {
        reverse_proxy 127.0.0.1:8080
      }
-2. WhatsApp (Evolution, se subiu): crie a instância e leia o QR Code:
+2. WhatsApp (Evolution, se subiu): a porta 8081 só escuta em 127.0.0.1. Do SEU computador, abra um túnel:
+     ssh -L 8081:127.0.0.1:8081 usuario@sua-vps
+   e acesse http://localhost:8081/manager (API Key global = EVOLUTION_API_KEY do .env).
+   Crie a instância "$EVOLUTION_INSTANCIA" (Baileys) e leia o QR Code com o celular do número do atendimento.
+   Ou pela API, na VPS:
      curl -X POST http://127.0.0.1:8081/instance/create -H "apikey: <EVOLUTION_API_KEY do .env>" \\
        -H 'Content-Type: application/json' -d '{"instanceName":"$EVOLUTION_INSTANCIA","integration":"WHATSAPP-BAILEYS","qrcode":true}'
    O webhook global já aponta para http://atende:8080/webhook/evolution/<WEBHOOK_SEGREDO> (rede interna).
@@ -142,7 +164,11 @@ Pronto. Próximos passos:
      curl "https://api.telegram.org/bot<TELEGRAM_TOKEN>/setWebhook" \\
        -d "url=$URL_PUBLICA/webhook/telegram" -d "secret_token=<TELEGRAM_SEGREDO do .env>"
    Ponha o bot no grupo da equipe; cada colaborador manda /entrar <código> no privado do bot.
-4. Backup diário (cron do root):
-     0 3 * * * cd $DIR && docker compose exec -T atende ./atende backup --dados /dados --saida /dados/backup-\$(date +\\%u).tar.gz
+4. Backup diário às 03:00, $CRON_MSG:
+     $CRON_LINHA
+   Os arquivos ficam em $BACKUPS (fora de dados/), 30 dias.
+   Restaurar: docker compose stop atende && docker compose run --rm -v $BACKUPS:/backups atende \\
+     ./atende restaurar --dados /dados --arquivo /backups/leads-AAAA-MM-DD.tar.gz && docker compose start atende
 5. Painéis: $URL_PUBLICA/gestor (token acima) · $URL_PUBLICA/equipe (código de cada um) · chat em $URL_PUBLICA/
+   Os códigos da equipe foram impressos acima (também em dados/negocio.json).
 EOF

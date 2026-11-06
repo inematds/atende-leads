@@ -1,17 +1,24 @@
-"""CLI e HTTP. Cada requisição roda numa transação sob o mesmo lock (assumir é atômico)."""
+"""CLI e HTTP. Cada requisição roda numa transação curta sob o mesmo lock (assumir é atômico).
+
+Dentro do lock só há banco: envios ao Telegram/WhatsApp vão para a caixa de saída (src/saida.py) e
+cérebro/áudio rodam fora do lock (App.executar + App.pronto).
+"""
 import argparse
 import hmac
 import json
+import os
 import re
 import signal
 import sys
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlsplit
 
 from .core import App, Erro, ROOT, log, versao
-from . import backup, bot, cerebro, chamados, conversa, equipe, evolution, gestao, paginas, tarefas
+from . import (backup, bot, cerebro, chamados, conversa, equipe, evolution, gestao, limite, paginas, saida,
+               tarefas)
 from . import telegram as tg
 
 
@@ -31,19 +38,38 @@ ESTATICOS = {
 
 
 # ---------- autenticação ----------
+def _ip(c):
+    return getattr(c._local, 'ip', None) or '?'
+
+
+def _checar_limite(c):
+    if limite.bloqueado(('ip', _ip(c))):
+        raise Erro(429, limite.MENSAGEM)
+
+
 def eh_gestor(c, h):
     tok = h.get('X-Token') or ''
-    return bool(tok) and hmac.compare_digest(tok.encode(), str(c.cfg.get('token_gestor', '')).encode())
+    if not tok:
+        return False
+    _checar_limite(c)
+    if hmac.compare_digest(tok.encode(), str(c.cfg.get('token_gestor', '')).encode()):
+        return True
+    limite.falhou(('ip', _ip(c)))
+    return False
 
 
 def colab_do_codigo(c, h):
     cod = h.get('X-Codigo') or ''
     if not cod:
         return None
+    _checar_limite(c)
+    achado = None
     for m in c.cfg.get('equipe', []):
         if hmac.compare_digest(cod.encode(), str(m.get('codigo', '')).encode()):
-            return m['id']
-    return None
+            achado = m['id']
+    if achado is None:
+        limite.falhou(('ip', _ip(c)))
+    return achado
 
 
 def exigir_gestor(c, h):
@@ -77,9 +103,18 @@ def rotear(c, metodo, rota, q, b, h):
         return 200, {'ok': True, 'versao': versao(), 'evolution': evolution.configurado(),
                      'telegram': tg.configurado(), 'cerebro': cerebro.tipo(c)}
     if metodo == 'POST' and rota == '/api/mensagens':
-        lead, respostas = conversa.receber(c, b.get('telefone'), b.get('texto'), b.get('canal') or 'web',
-                                           b.get('nome'))
-        return 200, {'lead': lead, 'respostas': respostas}
+        if (b.get('canal') or 'web') == 'whatsapp':
+            # Simulação do WhatsApp (testes/demonstração): só o gestor. O WhatsApp real chega pelo webhook.
+            exigir_gestor(c, h)
+            lead, respostas = conversa.receber(c, b.get('telefone'), b.get('texto'), 'whatsapp', b.get('nome'))
+            return 200, {'lead': lead, 'respostas': respostas}
+        # Chat web: identidade = sessão. Sem `sessao` → lead web novo (o telefone é só contato).
+        lead, respostas = conversa.receber(c, b.get('telefone'), b.get('texto'), 'web', b.get('nome'),
+                                           sessao=b.get('sessao'))
+        return 200, {'lead': lead, 'sessao': c.lead(lead['id'])['sessao'], 'respostas': respostas}
+    m = re.fullmatch(r'/api/web/([\w-]+)', rota)
+    if metodo == 'GET' and m:
+        return 200, conversa.mensagens_web(c, m[1])
     if metodo == 'GET' and rota == '/widget.js':
         return 200, Bruto(paginas.widget_js(c), 'text/javascript')
     m = re.fullmatch(r'/ligar/([\w-]+)', rota)
@@ -98,7 +133,7 @@ def rotear(c, metodo, rota, q, b, h):
         if metodo == 'POST' and m[2] == 'falar':
             return 200, conversa.falar(c, m[1])
         if metodo == 'POST' and m[2] == 'apagar':
-            return 200, conversa.apagar(c, m[1])
+            return 200, conversa.apagar(c, m[1], b)
 
     # ---- gestor ----
     if rota == '/api/relogio' and metodo == 'POST':
@@ -106,7 +141,7 @@ def rotear(c, metodo, rota, q, b, h):
         return 200, {'ok': True, 'agora': c.mudar_relogio(b.get('agora'))}
     if rota == '/api/tarefas/rodar' and metodo == 'POST':
         exigir_gestor(c, h)
-        return 200, tarefas.rodar(c)
+        return 200, tarefas.rodar(c, forcar=True)
     if rota == '/api/saida' and metodo == 'GET':
         exigir_gestor(c, h)
         return 200, evolution.listar(c)
@@ -198,12 +233,33 @@ def rotear_gestor(c, metodo, rota, q, b):
     raise Erro(404, 'Rota inexistente')
 
 
+# ---------- segredos de exemplo (seção 1) ----------
+LOCAIS = ('127.0.0.1', 'localhost', '::1')
+
+
+def segredos_de_exemplo(app):
+    """Texto do problema se o negocio.json ainda usa o token ou algum código do exemplo; senão None."""
+    try:
+        ex = json.loads((ROOT / 'exemplos' / 'negocio.json').read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        ex = {}
+    tokens = {'TROQUE-ESTE-TOKEN', str(ex.get('token_gestor') or 'TROQUE-ESTE-TOKEN')}
+    if str(app.cfg.get('token_gestor', '')) in tokens:
+        return 'token_gestor é o do exemplo'
+    codigos = {str(m.get('codigo')) for m in ex.get('equipe', []) if m.get('codigo')}
+    for m in app.cfg.get('equipe', []):
+        if str(m.get('codigo')) in codigos:
+            return f"o código de {m.get('id')} é o do exemplo"
+    return None
+
+
 # ---------- servidor ----------
 def criar_handler(app):
     class Handler(BaseHTTPRequestHandler):
         protocol_version = 'HTTP/1.1'
         server_version = 'atende-leads'
         sys_version = ''
+        timeout = 30  # cliente lento não segura a thread para sempre
 
         def _enviar(self, status, corpo, tipo, extra=None):
             self.send_response(status)
@@ -231,6 +287,12 @@ def criar_handler(app):
                     extra['X-Frame-Options'] = 'DENY'
                 return self._enviar(200, conteudo, tipo, extra)
             webhook = rota.startswith('/webhook/')
+            peer = self.client_address[0] if self.client_address else '?'
+            fwd = (self.headers.get('X-Forwarded-For') or '').split(',')[-1].strip()
+            app._local.ip = fwd if fwd and peer in ('127.0.0.1', '::1') else peer
+            if self.command == 'GET' and rota == '/api/saude':  # nunca espera o lock
+                return self._json(200, {'ok': True, 'versao': versao(), 'evolution': evolution.configurado(),
+                                        'telegram': tg.configurado(), 'cerebro': cerebro.tipo(app)})
             try:
                 tamanho = int(self.headers.get('Content-Length') or 0)
                 if tamanho < 0 or tamanho > 2 * 1024 * 1024:
@@ -246,10 +308,9 @@ def criar_handler(app):
                     if not isinstance(b, dict):
                         raise Erro(400, 'Objeto JSON esperado')
                     q = {k: v[-1] for k, v in parse_qs(url.query).items()}
-                    with app.transacao():
-                        status, resposta = rotear(app, self.command, rota, q, b, self.headers)
-                        if app.sujo:
-                            equipe.atualizar_painel(app)
+                    status, resposta = app.executar(
+                        lambda: rotear(app, self.command, rota, q, b, self.headers), depois=self._painel)
+                    saida.aguardar(app, app.enfileirados())
             except Erro as e:
                 status, resposta = e.status, {'erro': e.mensagem}
             except (ValueError, KeyError, TypeError) as e:
@@ -260,8 +321,16 @@ def criar_handler(app):
                 status, resposta = 500, {'erro': 'Erro interno'}
             if isinstance(resposta, Bruto):
                 return self._enviar(status, resposta.conteudo, resposta.tipo, resposta.extra)
+            self._json(status, resposta)
+
+        def _json(self, status, resposta):
             corpo = json.dumps(resposta, ensure_ascii=False).encode('utf-8')
             self._enviar(status, corpo, 'application/json')
+
+        @staticmethod
+        def _painel():
+            if app.sujo:
+                equipe.atualizar_painel(app)
 
         def webhook(self, rota, bruto):
             m = re.fullmatch(r'/webhook/evolution/([^/]+)', rota)
@@ -277,11 +346,12 @@ def criar_handler(app):
                 b = json.loads(bruto.decode('utf-8')) if bruto.strip() else {}
             except (ValueError, UnicodeDecodeError):
                 return 200, {'ok': True}
+            if destino is bot.receber and isinstance(b, dict) and \
+                    isinstance((b.get('message') or {}).get('reply_to_message'), dict):
+                saida.ocioso_tg(app)  # o reply precisa achar o message_id da mensagem que acabou de sair
             try:
-                with app.transacao():
-                    destino(app, b)
-                    if app.sujo:
-                        equipe.atualizar_painel(app)
+                app.executar(lambda: destino(app, b), depois=self._painel)
+                saida.aguardar(app, app.enfileirados())
             except Exception as e:
                 log(f'webhook {rota.split("/")[2]}: ignorado: {type(e).__name__}: {e}')
             return 200, {'ok': True}
@@ -295,12 +365,12 @@ def criar_handler(app):
 
 
 def relogio_automatico(app, parar):
+    def painel():
+        if app.sujo:
+            equipe.atualizar_painel(app)
     while not parar.wait(30):
         try:
-            with app.transacao():
-                tarefas.rodar(app)
-                if app.sujo:
-                    equipe.atualizar_painel(app)
+            app.executar(lambda: tarefas.rodar(app), depois=painel)
         except Exception as e:
             log(f'tarefas: {type(e).__name__}: {e}')
 
@@ -333,10 +403,22 @@ def main(argv=None):
             p.exit(1, f'Falha na restauração: {e}\n')
         print(f'Restaurado em {a.dados}', file=sys.stderr)
         return
+    Path(a.dados).mkdir(parents=True, exist_ok=True)
+    trava = backup.travar_servidor(a.dados)  # o `restaurar` recusa enquanto ela estiver presa
+    if trava is None:
+        p.exit(1, f'Já há um servidor rodando com {a.dados}.\n')
     app = App(a.dados)
+    problema = segredos_de_exemplo(app)
+    if problema and a.host not in LOCAIS and os.environ.get('ATENDE_PERMITIR_EXEMPLO') != '1':
+        p.exit(2, f'Recusado: {problema} e o servidor escutaria em {a.host}. Rode ./instalar-vps.sh ou troque '
+                  'os segredos (token_gestor e códigos da equipe em negocio.json). Só para teste/demonstração: '
+                  'ATENDE_PERMITIR_EXEMPLO=1.\n')
+    if problema:
+        log(f'aviso: {problema} (aceito só em {a.host})')
     servidor = ThreadingHTTPServer((a.host, a.porta), criar_handler(app))
     servidor.daemon_threads = True
     parar = threading.Event()
+    despachantes = saida.iniciar(app)
     if not app.modo_teste:
         threading.Thread(target=relogio_automatico, args=(app, parar), daemon=True).start()
     def _sair(*_):
@@ -350,5 +432,8 @@ def main(argv=None):
     finally:
         parar.set()
         servidor.server_close()
+        for d in despachantes:
+            d.encerrar()
         time.sleep(0.05)
         app.fechar()
+        trava.close()

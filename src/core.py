@@ -94,10 +94,10 @@ def ddmm_hhmm(dt):
 SCHEMA = '''
 CREATE TABLE IF NOT EXISTS meta (chave TEXT PRIMARY KEY, valor TEXT);
 CREATE TABLE IF NOT EXISTS leads (
-    id INTEGER PRIMARY KEY, token TEXT UNIQUE NOT NULL, nome TEXT, telefone TEXT UNIQUE NOT NULL,
+    id INTEGER PRIMARY KEY, token TEXT UNIQUE NOT NULL, nome TEXT, telefone TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'novo', status_antes TEXT, nota TEXT NOT NULL DEFAULT 'frio',
     interesse TEXT, urgencia INTEGER, nao_contatar INTEGER NOT NULL DEFAULT 0, canal TEXT,
-    push_name TEXT, estado TEXT NOT NULL DEFAULT '{}', criado_em TEXT, ultimo_contato TEXT);
+    push_name TEXT, estado TEXT NOT NULL DEFAULT '{}', criado_em TEXT, ultimo_contato TEXT, sessao TEXT UNIQUE);
 CREATE TABLE IF NOT EXISTS mensagens (
     id INTEGER PRIMARY KEY, lead_id INTEGER NOT NULL, chamado_id INTEGER, de TEXT NOT NULL,
     autor TEXT, texto TEXT, em TEXT);
@@ -116,7 +116,8 @@ CREATE TABLE IF NOT EXISTS chamados (
 CREATE INDEX IF NOT EXISTS chamados_status ON chamados(status, aberto_em);
 CREATE TABLE IF NOT EXISTS historico (id INTEGER PRIMARY KEY, lead_id INTEGER NOT NULL, dados TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS saida (
-    id INTEGER PRIMARY KEY, lead_id INTEGER, telefone TEXT, texto TEXT, tipo TEXT, status TEXT, em TEXT);
+    id INTEGER PRIMARY KEY, lead_id INTEGER, telefone TEXT, texto TEXT, tipo TEXT, status TEXT, em TEXT,
+    destino TEXT, tentativas INTEGER NOT NULL DEFAULT 0, proxima REAL NOT NULL DEFAULT 0);
 CREATE TABLE IF NOT EXISTS retornos (
     chamado_id INTEGER PRIMARY KEY, lead_id INTEGER, colaborador TEXT, em TEXT,
     enviado INTEGER NOT NULL DEFAULT 0, assumido INTEGER NOT NULL DEFAULT 0);
@@ -124,7 +125,51 @@ CREATE TABLE IF NOT EXISTS evolution_ids (id TEXT PRIMARY KEY);
 CREATE TABLE IF NOT EXISTS tg_msgs (chat_id TEXT, message_id TEXT, chamado_id INTEGER, tipo TEXT,
     PRIMARY KEY (chat_id, message_id));
 CREATE TABLE IF NOT EXISTS tg_fluxo (colaborador TEXT PRIMARY KEY, dados TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS tg_saida (
+    id INTEGER PRIMARY KEY, chat_id TEXT, metodo TEXT NOT NULL, corpo TEXT NOT NULL, alvo TEXT,
+    status TEXT NOT NULL DEFAULT 'pendente', tentativas INTEGER NOT NULL DEFAULT 0, proxima REAL NOT NULL DEFAULT 0,
+    chave TEXT, chamado_id INTEGER, tipo TEXT, message_id TEXT);
+CREATE INDEX IF NOT EXISTS tg_saida_pend ON tg_saida(status, id);
+CREATE TABLE IF NOT EXISTS descartes (id INTEGER PRIMARY KEY, em TEXT, origem TEXT, motivo TEXT, detalhe TEXT);
 '''
+
+COLUNAS_LEADS = ('id, token, nome, telefone, status, status_antes, nota, interesse, urgencia, nao_contatar, canal, '
+                 'push_name, estado, criado_em, ultimo_contato')
+
+
+def migrar(db):
+    """Bancos da 1.0.0: telefone era UNIQUE e não havia sessão web nem controle de reenvio."""
+    cols = {r[1] for r in db.execute('PRAGMA table_info(leads)')}
+    if 'sessao' not in cols:
+        db.executescript(f'''
+BEGIN;
+CREATE TABLE leads_nova (
+    id INTEGER PRIMARY KEY, token TEXT UNIQUE NOT NULL, nome TEXT, telefone TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'novo', status_antes TEXT, nota TEXT NOT NULL DEFAULT 'frio',
+    interesse TEXT, urgencia INTEGER, nao_contatar INTEGER NOT NULL DEFAULT 0, canal TEXT,
+    push_name TEXT, estado TEXT NOT NULL DEFAULT '{{}}', criado_em TEXT, ultimo_contato TEXT, sessao TEXT UNIQUE);
+INSERT INTO leads_nova ({COLUNAS_LEADS}) SELECT {COLUNAS_LEADS} FROM leads;
+DROP TABLE leads;
+ALTER TABLE leads_nova RENAME TO leads;
+COMMIT;''')
+    cols = {r[1] for r in db.execute('PRAGMA table_info(saida)')}
+    for nome, tipo in (('destino', 'TEXT'), ('tentativas', 'INTEGER NOT NULL DEFAULT 0'),
+                       ('proxima', 'REAL NOT NULL DEFAULT 0')):
+        if nome not in cols:
+            db.execute(f'ALTER TABLE saida ADD COLUMN {nome} {tipo}')
+    # WhatsApp: um lead por telefone. Web: um lead por sessão (o telefone é só contato).
+    db.execute('CREATE UNIQUE INDEX IF NOT EXISTS leads_telefone_whats ON leads(telefone) WHERE sessao IS NULL')
+
+
+class ForaDoLock(BaseException):
+    """Pede para rodar `fazer()` (rede/subprocesso) fora do lock e repetir a transação com o resultado.
+
+    BaseException para não ser engolida pelos `except Exception` do caminho.
+    """
+
+    def __init__(self, chave, fazer):
+        super().__init__(str(chave)[:80])
+        self.chave, self.fazer = chave, fazer
 
 
 class App:
@@ -140,7 +185,10 @@ class App:
         self.db.row_factory = sqlite3.Row
         self.db.execute('PRAGMA journal_mode=WAL')
         self.db.executescript(SCHEMA)
+        migrar(self.db)
         self.sujo = False
+        self._local = threading.local()
+        self.acordar = {'tg': threading.Event(), 'evo': threading.Event()}
         fixo = os.environ.get('ATENDE_AGORA')
         self.modo_teste = bool(fixo)
         self._agora = datetime.strptime(fixo[:16], FMT) if fixo else None
@@ -149,6 +197,49 @@ class App:
     # ---- transação ----
     def transacao(self):
         return _Transacao(self)
+
+    def executar(self, fn, depois=None):
+        """Roda fn() numa transação curta. Rede/subprocesso pedidos por `pronto()` rodam fora do lock
+        entre tentativas (a transação é desfeita e repetida com o resultado já pronto)."""
+        self._local.prontos = {}
+        self._local.ultimos = []
+        try:
+            for _ in range(6):
+                try:
+                    with self.transacao():
+                        r = fn()
+                        if depois:
+                            depois()
+                        return r
+                except ForaDoLock as p:
+                    try:
+                        self._local.prontos[p.chave] = p.fazer()
+                    except Exception as e:
+                        log(f'fora do lock: {type(e).__name__}: {e}')
+                        self._local.prontos[p.chave] = None
+            raise Erro(503, 'Tente de novo')
+        finally:
+            self._local.prontos = None
+
+    def pronto(self, chave, fazer):
+        """Resultado de uma chamada lenta (cérebro, áudio) feita fora do lock."""
+        prontos = getattr(self._local, 'prontos', None)
+        if prontos is None:
+            return fazer()  # fora de executar(): não há lock a proteger
+        if chave in prontos:
+            return prontos[chave]
+        raise ForaDoLock(chave, fazer)
+
+    # ---- caixa de saída (outbox) ----
+    def enfileirar(self, fila, ident):
+        lst = getattr(self._local, 'fila', None)
+        if lst is None:
+            lst = self._local.fila = []
+        lst.append((fila, ident))
+
+    def enfileirados(self):
+        """Itens que a última transação desta thread pôs na caixa de saída."""
+        return list(getattr(self._local, 'ultimos', None) or [])
 
     # ---- relógio ----
     def agora(self):
@@ -247,18 +338,29 @@ class _Transacao:
 
     def __enter__(self):
         self.app.lock.acquire()
-        self.app.db.execute('BEGIN IMMEDIATE')
+        try:
+            self.app.db.execute('BEGIN IMMEDIATE')
+        except BaseException:
+            self.app.lock.release()
+            raise
+        self.app._local.fila = []
         return self.app
 
     def __exit__(self, tipo, valor, tb):
+        fila = getattr(self.app._local, 'fila', None) or []
+        self.app._local.fila = []
         try:
             if tipo is None:
                 self.app.db.execute('COMMIT')
+                self.app._local.ultimos = fila
             else:
                 self.app.sujo = False
                 self.app.db.execute('ROLLBACK')
+                fila = []
         finally:
             self.app.lock.release()
+        for nome in {f for f, _ in fila}:
+            self.app.acordar[nome].set()
         return False
 
 

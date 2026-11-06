@@ -25,12 +25,10 @@ def status_lead(c, lead):
 
 
 def api_meu(c, token):
+    """Só a situação: o texto das mensagens nunca sai por aqui (o link pode ser repassado)."""
     lead = c.lead_token(token)
-    texto, colab, ret = status_lead(c, lead)
-    msgs = [{'de': r['de'], 'texto': r['texto'], 'em': r['em']} for r in
-            c.db.execute("SELECT de, texto, em FROM mensagens WHERE lead_id=? ORDER BY id DESC LIMIT 50", (lead['id'],))]
-    return {'nome': lead['nome'], 'status': lead['status'], 'colaborador': colab, 'retornar_em': ret,
-            'texto': texto, 'negocio': c.cfg.get('nome'), 'mensagens': list(reversed(msgs))}
+    _texto, colab, ret = status_lead(c, lead)
+    return {'nome': lead['nome'], 'status': lead['status'], 'colaborador': colab, 'retornar_em': ret}
 
 
 def _pagina(titulo, corpo, scripts=''):

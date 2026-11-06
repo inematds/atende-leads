@@ -1,7 +1,7 @@
 """Fluxos ponta a ponta com Telegram e Evolution falsos (testes do implementador)."""
 import concurrent.futures as cf
 
-from apoio_dev import Falso, Servidor, cfg_exemplo, env_tg, upd_cb, upd_msg
+from apoio_dev import RAIZ, Falso, Servidor, cfg_exemplo, env_tg, upd_cb, upd_msg
 
 ANA, BRUNO, CARLA = 1001, 1002, 1003
 
@@ -25,7 +25,7 @@ def test_saude_e_porta():
     s = Servidor()
     try:
         st, r = s.req('GET', '/api/saude')
-        assert st == 200 and r['ok'] is True and r['versao'] == '1.0.0'
+        assert st == 200 and r['ok'] is True and r['versao'] == (RAIZ / 'VERSION').read_text().strip()
         assert r['telegram'] is False and r['evolution'] is False and r['cerebro'] == 'regras'
     finally:
         s.parar()

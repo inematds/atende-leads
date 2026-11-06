@@ -29,7 +29,7 @@ def colab_por_telegram(c, from_id):
 
 def privado(c, colab, texto, botoes=None, reply=None):
     chat = vinculado(c, colab)
-    return tg.enviar(chat, texto, botoes, reply) if chat else None
+    return tg.enviar(c, chat, texto, botoes, reply) if chat else None
 
 
 def _definir(c, colab, status):
@@ -153,24 +153,18 @@ def atualizar_painel(c):
 
 
 def _atualizar_painel(c):
-    """Cria na primeira mudança; depois edita. Erro na edição → envia novo e guarda o id."""
+    """Agenda o painel (coalescido: só o último texto vale). O despachante cria na primeira vez,
+    depois edita; erro na edição → envia novo, guarda o id e tenta fixar."""
     c.sujo = False
     gid = tg.grupo()
     if not tg.configurado() or not gid:
         return
     texto = texto_painel(c)
+    pendente = c.db.execute("SELECT 1 FROM tg_saida WHERE chave='painel' AND status='pendente' LIMIT 1").fetchone()
     ref = c.meta('painel_ref')
-    if ref and ref.split(':', 1)[0] == str(gid):
-        if c.meta('painel_texto') == texto:
-            return
-        if tg.editar(ref, texto):
-            c.meta('painel_texto', texto, gravar=True)
-            return
-    novo = tg.enviar(gid, texto)
-    if novo:
-        c.meta('painel_ref', novo, gravar=True)
-        c.meta('painel_texto', texto, gravar=True)
-        tg.fixar(novo)
+    if not pendente and ref and ref.split(':', 1)[0] == str(gid) and c.meta('painel_texto') == texto:
+        return
+    tg.painel(c, gid, texto)
 
 
 def livre_desde_dt(r):

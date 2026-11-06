@@ -14,6 +14,12 @@ from .core import log
 
 def postar(url, corpo, headers=None, timeout=5):
     """Devolve (ok_http, json|{}). ok_http=False em erro HTTP (>= 400) ou de conexão."""
+    st, r = postar_status(url, corpo, headers, timeout)
+    return 200 <= st < 300, r
+
+
+def postar_status(url, corpo, headers=None, timeout=5):
+    """Devolve (status_http, json|{}). status 0 = erro de conexão/timeout (vale tentar de novo)."""
     dados = json.dumps(corpo, ensure_ascii=False).encode('utf-8')
     try:
         u = urlsplit(url)
@@ -23,7 +29,7 @@ def postar(url, corpo, headers=None, timeout=5):
         elif u.scheme == 'http':
             conn = http.client.HTTPConnection(u.hostname, u.port or 80, timeout=timeout)
         else:
-            return False, {}
+            return 0, {}
         caminho = (u.path or '/') + (f'?{u.query}' if u.query else '')
         cab = {'Content-Type': 'application/json', 'Content-Length': str(len(dados))}
         cab.update(headers or {})
@@ -39,10 +45,10 @@ def postar(url, corpo, headers=None, timeout=5):
             r = {}
         if not isinstance(r, dict):
             r = {'result': r}
-        return 200 <= resp.status < 300, r
+        return resp.status, r
     except Exception as e:  # conexão recusada, timeout, DNS, TLS
         log(f'rede: falha em POST: {type(e).__name__}')
-        return False, {}
+        return 0, {}
 
 
 def baixar(url, destino, timeout=30):
