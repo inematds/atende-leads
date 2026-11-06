@@ -172,7 +172,7 @@ legend{padding:0}
 .sug .cab .i{width:16px;height:16px}
 .sug p{margin:0 0 8px;font-size:14.5px;white-space:pre-wrap;overflow-wrap:anywhere}
 .sug .acoes{display:flex;flex-wrap:wrap;gap:8px}
-.escrever{display:flex;gap:8px;align-items:flex-end}
+.escrever{display:flex;gap:8px;align-items:flex-end;position:sticky;bottom:0;background:var(--bg);padding-top:6px;z-index:2}
 .escrever textarea{flex:1;min-height:44px;max-height:160px;resize:none}
 .escrever .btn{min-height:44px}
 
@@ -204,11 +204,11 @@ body.pagina-chat{height:100vh;height:100dvh;overflow:hidden;background:var(--bg)
 
 /* ======================================================= PAINEL DA EQUIPE */
 .eq-app{min-height:100vh;display:flex;flex-direction:column}
-@media (min-width:1024px){
+@media (min-width:1024px) and (min-height:700px){
   .eq-app{height:100vh;height:100dvh;overflow:hidden}
   .eq-corpo{overflow:hidden}
   .area{overflow:hidden}
-  .faixa-espera{max-height:42vh;overflow:auto;flex:none}
+  .faixa-espera{max-height:30vh;overflow:auto;flex:none}
 }
 .faixa-espera{display:flex;align-items:center;gap:12px;padding:10px 20px;background:var(--dica);border-bottom:1px solid var(--dica-filete);flex-wrap:wrap}
 .faixa-espera>h2{font-size:14px;display:flex;align-items:center;gap:8px;white-space:nowrap;color:var(--tinta)}

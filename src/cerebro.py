@@ -114,7 +114,7 @@ def resumo(c, lead, motivo):
     regra = resumo_regras(c, lead, motivo)
     if not ligado(c):
         return regra
-    texto = perguntar(c, 'Resuma em até 3 linhas curtas, em português do Brasil, o que o cliente quer e a urgência. '
+    texto = perguntar(c, 'Resuma em até 3 linhas curtas, em português do Brasil, texto simples sem markdown, o que o cliente quer e a urgência. '
                          'Não invente nada que não esteja na conversa.', conversa_texto(c, lead['id']))
     if not texto:
         return regra
@@ -135,6 +135,17 @@ def responder_duvida(c, texto):
     return r.strip()
 
 
+
+def limpar_md(texto):
+    """O modelo às vezes responde em markdown (**negrito**, # título, - lista); o lead e o Telegram veem texto puro."""
+    if not texto:
+        return texto
+    t = re.sub(r'\*\*(.+?)\*\*', r'\1', texto)
+    t = re.sub(r'__(.+?)__', r'\1', t)
+    t = re.sub(r'(?m)^\s{0,3}#{1,6}\s*', '', t)
+    t = re.sub(r'(?m)^\s*[-*]\s+', '• ', t)
+    return t.replace('**', '').strip()
+
 def perguntar(c, instrucoes, usuario, base_txt=None):
     """A chamada ao modelo roda FORA do lock: c.pronto desfaz a transação, chama e repete com o resultado.
     Fora de uma transação (trabalhador em segundo plano), chama direto."""
@@ -146,7 +157,7 @@ def perguntar(c, instrucoes, usuario, base_txt=None):
     k['_referer'] = c.url_publica() or 'https://github.com/inematds/atende-leads'
     chave = ('cerebro', t, str(k.get('url') or ''), str(k.get('modelo') or ''), str(k.get('esforco') or ''),
              instrucoes, base_txt or '', usuario)
-    return c.pronto(chave, lambda: _perguntar(t, k, instrucoes, base_txt, usuario))
+    return limpar_md(c.pronto(chave, lambda: _perguntar(t, k, instrucoes, base_txt, usuario)))
 
 
 def hosts_permitidos():

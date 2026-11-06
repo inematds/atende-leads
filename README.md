@@ -14,7 +14,7 @@ Guia completo (landing + passo a passo): **https://inematds.github.io/atende-lea
 
 🎬 Vídeo explicativo (2 min 37 s): **https://inematds.github.io/atende-leads/videos/** · [YouTube](https://www.youtube.com/watch?v=-6VKlGAYwKY)
 
-Atendimento de **leads pelo WhatsApp** com um agente que responde, qualifica e passa o lead para o **colaborador livre** pelo Telegram, com todos os dados e um botão para ligar. Python 3 só com biblioteca padrão, estado em SQLite, Docker para VPS. Código aberto, versão `1.5.4`.
+Atendimento de **leads pelo WhatsApp** com um agente que responde, qualifica e passa o lead para o **colaborador livre** pelo Telegram, com todos os dados e um botão para ligar. Python 3 só com biblioteca padrão, estado em SQLite, Docker para VPS. Código aberto, versão `1.5.5`.
 
 ## O que faz
 
