@@ -169,7 +169,16 @@
       (lembrar ? localStorage : sessionStorage).setItem(CHAVE, valor);
       $('login').hidden = true; ['corpo', 'status-seg', 'quem', 'sair'].forEach(id => { $(id).hidden = false; });
       $('f-produto').innerHTML = '<option value="">—</option>' + produtos.map(p => '<option value="' + esc(p.id) + '">' + esc(p.nome) + '</option>').join('');
-      camposFechar(); await carregar(); relogio = setInterval(carregar, 10000);
+      camposFechar(); await carregar();
+      // Atualização: 2 s com atendimento/ficha aberta, 5 s no resto, 15 s com a aba escondida.
+      const ciclo = async () => {
+        if (!codigo) return;
+        try { await carregar(); } catch (_) {}
+        const ativo = !!(eu && eu.chamados && eu.chamados.length) || !!document.querySelector('.area.aberta, .ficha:not([hidden])');
+        relogio = setTimeout(ciclo, document.hidden ? 15000 : (ativo ? 2000 : 5000));
+      };
+      relogio = setTimeout(ciclo, 2000);
+      document.addEventListener('visibilitychange', () => { if (!document.hidden && codigo) { clearTimeout(relogio); ciclo(); } });
     } catch (e) {
       codigo = null; localStorage.removeItem(CHAVE); sessionStorage.removeItem(CHAVE);
       $('erro-login').textContent = e.status === 401 ? 'Código inválido. Confira com o gestor.' : e.message;

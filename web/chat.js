@@ -111,7 +111,7 @@
     $('entrada').hidden = true; $('chat').hidden = false; $('texto').focus();
     $('texto').addEventListener('focus', () => setTimeout(aoFim, 300));
     vistos = -1; puxar(voltando);
-    if (!relogio) relogio = setInterval(() => puxar(false), 5000);
+    if (!relogio) relogio = setInterval(() => { if (!document.hidden) puxar(false); }, 2000);
   }
 
   $('form-entrada').addEventListener('submit', ev => {
