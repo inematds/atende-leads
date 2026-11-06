@@ -1,82 +1,151 @@
 <!doctype html>
-<html lang="pt-BR">
+<html lang="pt-BR" data-tema="claro">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,interactive-widget=resizes-content">
 <title>Equipe · atendimento</title>
+<script>try{document.documentElement.dataset.tema=localStorage.getItem('al_tema')||localStorage.getItem('al_tema_negocio')||'claro';}catch(e){}</script>
 <link rel="stylesheet" href="/web/style.css">
 </head>
 <body>
-<header class="topo"><span class="marca">atende<b>·</b>leads</span><span class="chip" id="quem">Equipe</span><button id="sair" type="button" hidden>Sair</button></header>
-<main>
-  <section id="login" class="estreito">
-    <h1>Painel da equipe</h1>
-    <form id="form-login" class="cartao">
-      <label>Seu código <input id="codigo" type="password" autocomplete="off" required></label>
-      <label class="mut"><input id="lembrar" type="checkbox"> Lembrar neste aparelho</label>
-      <div class="acoes"><button class="primario" type="submit">Entrar</button></div>
-      <p class="mut">Sem "lembrar", o código vale até fechar a aba (o refresh mantém). Use "Sair" em aparelho compartilhado.</p>
+<div class="eq-app">
+  <header class="topo">
+    <div class="marca"><span class="logo" id="logo" aria-hidden="true">·</span><div><h1 id="negocio">Atendimento</h1><span class="sub">Painel da equipe</span></div></div>
+    <div class="dir">
+      <div class="seg status" role="group" aria-label="Meu status" id="status-seg" hidden>
+        <button type="button" data-status="livre" aria-pressed="false"><span class="dot d-livre" aria-hidden="true"></span>Livre</button>
+        <button type="button" data-status="ocupado" aria-pressed="false"><span class="dot d-ocupado" aria-hidden="true"></span>Ocupado</button>
+        <button type="button" data-status="fora" aria-pressed="false"><span class="dot d-fora" aria-hidden="true"></span>Fora</button>
+      </div>
+      <div class="seg tema" role="group" aria-label="Tema" id="tema"></div>
+      <span class="quem" id="quem" hidden><span id="quem-nome"></span><span class="av" id="quem-av" aria-hidden="true"></span></span>
+      <button id="sair" type="button" class="btn sutil" hidden><svg class="i" aria-hidden="true"><use href="#i-logout"/></svg>Sair</button>
+    </div>
+  </header>
+
+  <section id="login" class="login">
+    <form id="form-login" class="painel">
+      <h1>Painel da equipe</h1>
+      <p class="mut">Entre com o seu código de acesso.</p>
+      <label class="campo">Seu código <input id="codigo" type="password" autocomplete="off" required></label>
+      <label class="check"><input id="lembrar" type="checkbox"> Lembrar neste aparelho</label>
+      <button class="btn pri" type="submit">Entrar</button>
+      <p class="mut peq">Sem "lembrar", o código vale até fechar a aba (o refresh mantém). Use "Sair" em aparelho compartilhado.</p>
       <p id="erro-login" class="erro" role="alert"></p>
     </form>
   </section>
+
   <section id="painel" hidden>
-    <div class="cartao">
-      <p class="rotulo">Meu status</p>
-      <p class="status-grande" id="meu-status">—</p>
-      <div class="acoes">
-        <button data-status="livre">🟢 Livre</button>
-        <button data-status="ocupado">🔴 Ocupado</button>
-        <button data-status="fora">⚫ Fora</button>
+    <p id="aviso-status" class="aviso" role="status" hidden></p>
+  </section>
+  <section class="faixa-espera" id="espera" aria-labelledby="espera-t" hidden>
+    <h2 id="espera-t">Esperando por você <span class="cont" id="espera-n">0</span></h2>
+    <div class="ofertas" id="ofertas"></div>
+  </section>
+
+  <div class="eq-corpo" id="corpo" hidden>
+    <section class="col-contatos" aria-labelledby="ct-t">
+      <div class="cab">
+        <h2 id="ct-t" class="sr">Meus contatos</h2>
+        <label class="busca"><svg class="i" aria-hidden="true"><use href="#i-search"/></svg><input id="busca" placeholder="Buscar nome ou telefone" aria-label="Buscar contato"></label>
       </div>
-      <p id="aviso" class="aviso" role="status"></p>
-    </div>
-    <h2>Ofertas e alertas</h2>
-    <div id="ofertas" class="grade"></div>
-    <h2>Meus atendimentos</h2>
-    <div id="chamados" class="grade"></div>
-    <h2>Retornos de hoje</h2>
-    <div id="retornos"></div>
-    <div class="linha"><h2 style="flex:1">Meus contatos</h2>
-      <label style="flex:0 0 auto;margin:0">Status <select id="ct-status"><option value="">todos</option>
-        <option value="em_atendimento">em atendimento</option><option value="retornar">retornar</option>
-        <option value="negociando">negociando</option><option value="novo">novo</option><option value="ganho">ganho</option>
-        <option value="perdido">perdido</option><option value="invalido">inválido</option></select></label></div>
-    <div id="contatos"></div>
-    <section id="ficha" class="cartao" hidden>
-      <div class="linha"><h2 id="ficha-titulo" style="margin:0">Ficha</h2><button id="fechar-ficha" class="secundario">Fechar</button></div>
-      <div id="ficha-dados"></div>
-      <h3 style="margin-top:16px">Mensagens</h3>
-      <div id="ficha-msgs" class="chat-log" style="max-height:340px"></div>
-      <div id="ficha-acoes" hidden>
-        <div id="ficha-sugestao" class="sugestao" hidden></div>
-        <form id="form-responder">
-          <label>Responder ao lead <textarea id="resposta" class="texto" rows="3" placeholder="Escreva a resposta" required></textarea></label>
-          <div class="acoes"><button class="primario" type="submit">Enviar</button><button type="button" id="limpar-resposta" class="secundario">Limpar</button></div>
-        </form>
-        <h3 style="margin-top:16px">Fechar atendimento</h3>
-        <form id="form-fechar">
-          <div class="linha">
-            <label>Resultado
+      <div class="pilulas" role="group" aria-label="Filtrar por status" id="filtros">
+        <button type="button" data-f="" aria-pressed="true">Todos <span id="ct-n"></span></button>
+        <button type="button" data-f="em_atendimento" aria-pressed="false">Em atendimento</button>
+        <button type="button" data-f="retornar" aria-pressed="false">Retornar</button>
+        <button type="button" data-f="negociando" aria-pressed="false">Negociando</button>
+        <button type="button" data-f="novo" aria-pressed="false">Novo</button>
+        <button type="button" data-f="ganho" aria-pressed="false">Ganho</button>
+        <button type="button" data-f="perdido" aria-pressed="false">Perdido</button>
+        <button type="button" data-f="invalido" aria-pressed="false">Inválido</button>
+      </div>
+      <div class="lista" id="contatos" aria-label="Meus contatos"></div>
+    </section>
+
+    <section class="area" id="area" aria-label="Atendimento">
+      <div class="inicio" id="inicio">
+        <div>
+          <h2><svg class="i" aria-hidden="true"><use href="#i-msg"/></svg>Meus atendimentos <span class="cont leve" id="ch-n">0</span></h2>
+          <div class="painel" id="chamados"></div>
+        </div>
+        <div class="retornos">
+          <h2><svg class="i" aria-hidden="true"><use href="#i-cal"/></svg>Retornos de hoje</h2>
+          <div class="painel tab" id="retornos"></div>
+        </div>
+      </div>
+
+      <div class="atend" id="atend" hidden>
+        <header class="at-cab">
+          <button type="button" class="btn sutil voltar" id="voltar" aria-label="Voltar para a lista"><svg class="i" aria-hidden="true"><use href="#i-back"/></svg></button>
+          <h2><span id="at-nome">Lead</span> <span class="num" id="at-num"></span></h2>
+          <span class="mut peq" id="at-sobre"></span>
+          <div class="det" id="at-det"></div>
+          <div class="ligar" id="at-ligar-cel"></div>
+        </header>
+        <div class="at-msgs conv" id="at-msgs" aria-live="polite"></div>
+        <footer class="at-rod">
+          <div class="assumir-barra" id="at-assumir" hidden>
+            <p id="at-assumir-txt">Este lead está esperando. Assuma para responder.</p>
+            <button type="button" class="btn pri" id="at-assumir-btn"><svg class="i" aria-hidden="true"><use href="#i-check"/></svg>Assumir</button>
+            <button type="button" class="btn" id="at-passar-btn"><svg class="i" aria-hidden="true"><use href="#i-pass"/></svg>Passar</button>
+          </div>
+          <div id="at-responder" hidden>
+            <div class="dica sug" id="at-sug" hidden>
+              <div class="cab"><svg class="i" aria-hidden="true"><use href="#i-spark"/></svg>Sugestão da IA</div>
+              <p id="at-sug-txt"></p>
+              <div class="acoes">
+                <button type="button" class="btn pri" id="sug-enviar"><svg class="i" aria-hidden="true"><use href="#i-send"/></svg>Enviar</button>
+                <button type="button" class="btn" id="sug-editar"><svg class="i" aria-hidden="true"><use href="#i-edit"/></svg>Editar</button>
+                <button type="button" class="btn sutil" id="sug-limpar"><svg class="i" aria-hidden="true"><use href="#i-x"/></svg>Limpar</button>
+              </div>
+            </div>
+            <form class="escrever" id="form-responder" style="margin-top:8px">
+              <label for="resposta" class="sr">Responder ao lead</label>
+              <textarea id="resposta" rows="1" placeholder="Responder ao lead" required></textarea>
+              <button class="btn pri" type="submit" aria-label="Enviar resposta"><svg class="i" aria-hidden="true"><use href="#i-send"/></svg><span class="txt-env">Enviar</span></button>
+            </form>
+            <div class="mais" style="margin-top:8px">
+              <button type="button" class="btn sutil" data-devolver><svg class="i" aria-hidden="true"><use href="#i-undo"/></svg>Devolver ao assistente</button>
+              <button type="button" class="btn" id="abrir-encerrar"><svg class="i" aria-hidden="true"><use href="#i-check"/></svg>Encerrar atendimento</button>
+            </div>
+          </div>
+          <p class="mut peq" id="at-so-ler" hidden></p>
+        </footer>
+        <aside class="at-ficha" aria-label="Ficha do lead">
+          <div class="info-desk">
+            <h2 id="fi-nome">Lead</h2>
+            <div class="sel" id="fi-sel" style="margin-top:8px"></div>
+            <dl id="fi-dl" style="margin-top:12px"></dl>
+          </div>
+          <div class="ligar info-desk" id="at-ligar"></div>
+          <form class="form-fechar" id="form-fechar" hidden>
+            <div class="cab-folha"><h3>Encerrar atendimento</h3><button type="button" class="btn sutil ic" id="fechar-folha" aria-label="Voltar à conversa"><svg class="i" aria-hidden="true"><use href="#i-x"/></svg></button></div>
+            <h3 class="info-desk">Encerrar atendimento</h3>
+            <label class="campo">Resultado
               <select id="f-resultado">
-                <option value="vendeu">✅ Vendeu</option><option value="retornar">📅 Retornar</option>
-                <option value="negociando">🤔 Negociando</option><option value="sem_interesse">❌ Sem interesse</option>
-                <option value="invalido">🚫 Inválido</option>
+                <option value="vendeu">Vendeu</option><option value="retornar">Retornar</option>
+                <option value="negociando">Negociando</option><option value="sem_interesse">Sem interesse</option>
+                <option value="invalido">Inválido</option>
               </select></label>
-            <label data-campo="valor">Valor (R$) <input id="f-valor" type="number" min="0" step="0.01"></label>
-            <label data-campo="produto">Produto <select id="f-produto"></select></label>
-            <label data-campo="retornar_em" hidden>Retornar em <input id="f-retornar" type="datetime-local"></label>
-            <label data-campo="motivo" hidden>Motivo <select id="f-motivo"></select></label>
-          </div>
-          <label>Nota (opcional) <input id="f-nota" maxlength="500"></label>
-          <div class="acoes">
-            <button class="primario" type="submit">Fechar atendimento</button>
-            <button type="button" id="devolver" class="secundario">↩️ Devolver ao bot</button>
-          </div>
-        </form>
+            <div class="duas">
+              <label class="campo" data-campo="produto">Produto <select id="f-produto"></select></label>
+              <label class="campo" data-campo="valor">Valor (R$) <input id="f-valor" type="number" min="0" step="0.01" inputmode="decimal"></label>
+            </div>
+            <label class="campo" data-campo="retornar_em" hidden>Retornar em <input id="f-retornar" type="datetime-local"></label>
+            <label class="campo" data-campo="motivo" hidden>Motivo <select id="f-motivo"></select></label>
+            <label class="campo">Nota (opcional) <input id="f-nota" maxlength="500" placeholder="Ex.: começa segunda, 7h"></label>
+            <div class="acoes">
+              <button class="btn pri" type="submit">Encerrar atendimento</button>
+              <button type="button" class="btn sutil info-desk" data-devolver><svg class="i" aria-hidden="true"><use href="#i-undo"/></svg>Devolver ao assistente</button>
+            </div>
+          </form>
+          <div id="fi-hist" class="peq mut"></div>
+        </aside>
       </div>
     </section>
-  </section>
-</main>
+  </div>
+  <p id="aviso" class="toast" role="status" aria-live="polite"></p>
+</div>
 <script src="/web/comum.js"></script>
 <script src="/web/equipe.js"></script>
 </body>

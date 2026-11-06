@@ -1,134 +1,189 @@
 <!doctype html>
-<html lang="pt-BR">
+<html lang="pt-BR" data-tema="claro">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Gestor · atendimento</title>
+<script>try{document.documentElement.dataset.tema=localStorage.getItem('al_tema')||localStorage.getItem('al_tema_negocio')||'claro';}catch(e){}</script>
 <link rel="stylesheet" href="/web/style.css">
 </head>
 <body>
-<header class="topo"><span class="marca">atende<b>·</b>leads</span><span class="chip">Gestor</span><button id="sair" type="button" hidden>Sair</button></header>
-<main>
-  <section id="login" class="estreito">
+<section id="login" class="login">
+  <form id="form-login" class="painel">
     <h1>Painel do gestor</h1>
-    <form id="form-login" class="cartao">
-      <label>Token do gestor <input id="token" type="password" autocomplete="off" required></label>
-      <label class="mut"><input id="lembrar" type="checkbox"> Lembrar neste aparelho</label>
-      <div class="acoes"><button class="primario" type="submit">Entrar</button></div>
-      <p id="erro-login" class="erro" role="alert"></p>
-    </form>
-  </section>
-  <section id="painel" hidden>
-    <nav class="abas" role="tablist">
-      <button class="aba ativa" data-aba="aovivo">Ao vivo</button>
-      <button class="aba" data-aba="hoje">Hoje</button>
-      <button class="aba" data-aba="leads">Leads</button>
-      <button class="aba" data-aba="base">Base de conhecimento</button>
-      <button class="aba" data-aba="aprendizado">Aprendizado</button>
-      <button class="aba" data-aba="cadastros">Cadastros</button>
-      <button class="aba" data-aba="exportar">Exportar</button>
-    </nav>
-    <p id="aviso" class="aviso" role="status"></p>
-    <section data-painel="aovivo">
-      <h2>Equipe agora</h2><div id="av-equipe" class="grade"></div>
-      <h2>Fila</h2><div id="av-fila"></div>
-      <h2>Em atendimento</h2><div id="av-atendendo"></div>
-    </section>
-    <section data-painel="hoje" hidden><div id="hoje"></div></section>
-    <section data-painel="leads" hidden>
-      <form id="form-filtro" class="linha">
-        <label>Status <select id="fl-status"><option value="">todos</option><option>novo</option><option>em_atendimento</option>
-          <option>negociando</option><option>retornar</option><option>ganho</option><option>perdido</option><option>invalido</option></select></label>
-        <label>Colaborador <select id="fl-colab"><option value="">todos</option></select></label>
-        <label>De <input id="fl-de" type="date"></label>
-        <label>Até <input id="fl-ate" type="date"></label>
-        <button class="primario" type="submit">Filtrar</button>
-      </form>
-      <div id="leads" class="tabela"></div>
-      <div id="ficha" class="cartao" hidden></div>
-    </section>
-    <section data-painel="base" hidden>
-      <p class="mut">Tudo o que o agente sabe: as respostas automáticas usam estes campos (vazio = o agente não fala do assunto e segue o fluxo normal) e o cérebro LLM recebe a base inteira (informações + FAQ + produtos).</p>
-      <fieldset class="cartao"><legend>Informações do negócio</legend>
-        <label>Horário de atendimento humano <textarea id="i-horario_atendimento" class="texto" rows="2"></textarea></label>
-        <p class="mut" id="i-horario-gerado"></p>
-        <label>Endereço <textarea id="i-endereco" class="texto" rows="2"></textarea></label>
-        <label>Formas de pagamento <textarea id="i-pagamento" class="texto" rows="2"></textarea></label>
-        <label>Entrega <textarea id="i-entrega" class="texto" rows="2"></textarea></label>
-        <label>Garantia e trocas <textarea id="i-garantia" class="texto" rows="2"></textarea></label>
-        <label>Site <input id="i-site" placeholder="https://..."></label>
-        <label>Observações (só para o cérebro, não viram resposta automática) <textarea id="i-observacoes" class="texto" rows="3"></textarea></label>
-      </fieldset>
-      <fieldset class="cartao"><legend>Perguntas frequentes (FAQ)</legend>
-        <p class="mut">Uma forma da pergunta por linha. O agente responde exatamente a resposta quando 60 % das palavras de uma forma aparecem na mensagem.</p>
-        <div id="faq-lista"></div>
-        <div class="acoes"><button id="faq-add" type="button">+ Adicionar pergunta</button></div>
-      </fieldset>
-      <fieldset class="cartao"><legend>Cérebro do agente</legend>
-        <div class="linha">
-          <label>Tipo <select id="b-tipo">
-            <option value="regras">regras (sem IA, padrão)</option><option value="anthropic">anthropic (API Claude)</option>
-            <option value="openrouter">openrouter (API)</option><option value="openai">openai (endpoint compatível)</option>
-            <option value="ollama">ollama (local)</option><option value="claude_cli">claude_cli (assinatura, só fora do Docker)</option>
-            <option value="codex_cli">codex_cli (assinatura, só fora do Docker)</option></select></label>
-          <label data-cer="modelo">Modelo <input id="b-modelo" placeholder="claude-sonnet-5-5"></label>
-          <label data-cer="esforco">Esforço <select id="b-esforco"><option>low</option><option>medium</option><option>high</option><option>xhigh</option><option>max</option></select></label>
-          <label data-cer="url">URL <input id="b-url" placeholder="http://localhost:11434"></label>
-        </div>
-        <p class="mut">A chave (<code>CEREBRO_API_KEY</code>) fica só no <code>.env</code> do servidor; nunca aparece nem é editada aqui. Sem chave ou com erro, tudo funciona por regras.</p>
-        <p id="b-saude" class="mut"></p>
-      </fieldset>
-      <div class="acoes"><button id="salvar-base" class="primario">Salvar base de conhecimento</button></div>
-      <fieldset class="cartao"><legend>Testar</legend>
-        <p class="mut">Escreva como o cliente escreveria. Mostra o que o agente responderia agora (nada é gravado; salve a base antes de testar mudanças).</p>
-        <form id="form-testar" class="linha"><input id="t-texto" placeholder="que hora tem atendimento humano?" required><button class="primario" type="submit">Testar</button></form>
-        <div id="t-resultado"></div>
-      </fieldset>
-    </section>
-    <section data-painel="aprendizado" hidden>
-      <p class="mut">Cada resposta da equipe a uma mensagem do cliente: o que o cliente disse, o que a IA sugeriu e o que o vendedor mandou.</p>
-      <form id="form-apr" class="linha">
-        <label>De <input id="a-de" type="date"></label>
-        <label>Até <input id="a-ate" type="date"></label>
-        <label>Colaborador <select id="a-colab"><option value="">todos</option></select></label>
-        <label>Origem <select id="a-origem"><option value="">todas</option><option value="sugestao_ok">sugestão sem editar</option>
-          <option value="sugestao_editada">sugestão editada</option><option value="livre">livre</option></select></label>
-        <button class="primario" type="submit">Filtrar</button>
-      </form>
-      <div id="a-contadores" class="grade"></div>
-      <h2>Propostas para a base</h2>
-      <div class="linha">
-        <label>Geração automática <select id="a-periodo"><option value="diario">diária</option><option value="semanal">semanal</option><option value="desligado">desligada</option></select></label>
-        <button id="a-periodo-salvar" type="button">Salvar período</button>
-        <button id="a-gerar" class="primario" type="button">Gerar propostas agora</button>
+    <p class="mut">Entre com o token do gestor.</p>
+    <label class="campo">Token do gestor <input id="token" type="password" autocomplete="off" required></label>
+    <label class="check"><input id="lembrar" type="checkbox"> Lembrar neste aparelho</label>
+    <button class="btn pri" type="submit">Entrar</button>
+    <p id="erro-login" class="erro" role="alert"></p>
+  </form>
+  <div style="display:flex;justify-content:center;margin-top:12px"><div class="seg tema" role="group" aria-label="Tema" id="tema-login"></div></div>
+</section>
+
+<div class="ge-app" id="painel" hidden>
+  <nav class="nav" role="tablist" aria-label="Painel do gestor" aria-orientation="vertical">
+    <div class="marca"><span class="logo" id="logo" aria-hidden="true">·</span><div><b id="negocio-nav">Negócio</b><span>Painel do gestor</span></div></div>
+    <button role="tab" id="t-aovivo" aria-controls="p-aovivo" data-aba="aovivo" aria-selected="true"><svg class="i" aria-hidden="true"><use href="#i-live"/></svg>Ao vivo<em id="nav-fila" hidden></em></button>
+    <button role="tab" id="t-hoje" aria-controls="p-hoje" data-aba="hoje" aria-selected="false" tabindex="-1"><svg class="i" aria-hidden="true"><use href="#i-chart"/></svg>Hoje</button>
+    <button role="tab" id="t-leads" aria-controls="p-leads" data-aba="leads" aria-selected="false" tabindex="-1"><svg class="i" aria-hidden="true"><use href="#i-list"/></svg>Leads</button>
+    <button role="tab" id="t-base" aria-controls="p-base" data-aba="base" aria-selected="false" tabindex="-1"><svg class="i" aria-hidden="true"><use href="#i-book"/></svg>Base de conhecimento</button>
+    <button role="tab" id="t-aprendizado" aria-controls="p-aprendizado" data-aba="aprendizado" aria-selected="false" tabindex="-1"><svg class="i" aria-hidden="true"><use href="#i-bulb"/></svg>Aprendizado</button>
+    <button role="tab" id="t-cadastros" aria-controls="p-cadastros" data-aba="cadastros" aria-selected="false" tabindex="-1"><svg class="i" aria-hidden="true"><use href="#i-sliders"/></svg>Cadastros</button>
+    <button role="tab" id="t-exportar" aria-controls="p-exportar" data-aba="exportar" aria-selected="false" tabindex="-1" class="fim"><svg class="i" aria-hidden="true"><use href="#i-download"/></svg>Exportar</button>
+  </nav>
+  <div class="princ">
+    <header class="topo">
+      <div class="marca"><h1 id="titulo">Ao vivo</h1><span class="sub" id="data"></span></div>
+      <div class="dir">
+        <div class="seg tema" role="group" aria-label="Tema" id="tema"></div>
+        <button id="sair" type="button" class="btn sutil"><svg class="i" aria-hidden="true"><use href="#i-logout"/></svg>Sair</button>
       </div>
-      <div id="a-propostas"></div>
-      <h2>Registros</h2>
-      <div id="a-itens" class="tabela"></div>
-    </section>
-    <section data-painel="cadastros" hidden>
-      <p class="mut">FAQ, informações do negócio e cérebro ficam na aba Base de conhecimento. Edite e salve. Inválido não grava nada (ids e códigos únicos, horários HH:MM, prazos inteiros ≥ 1, imediato menor que extremo).</p>
-      <label>Nome do negócio <input id="c-nome"></label>
-      <label>URL pública <input id="c-url"></label>
-      <label>Equipe (JSON) <textarea id="c-equipe" rows="8"></textarea></label>
-      <label>Produtos (JSON) <textarea id="c-produtos" rows="8"></textarea></label>
-      <label>Horários (JSON) <textarea id="c-horarios" rows="5"></textarea></label>
-      <fieldset class="cartao"><legend>Prazos — faixas do tempo para assumir (aba Hoje)</legend>
-        <div class="linha">
-          <label>Imediato até (min) <input id="c-imediato" type="number" min="1" step="1"></label>
-          <label>Extremo acima de (min) <input id="c-extremo" type="number" min="2" step="1"></label>
+    </header>
+    <main class="corpo">
+      <!-- AO VIVO -->
+      <section id="p-aovivo" role="tabpanel" aria-labelledby="t-aovivo" data-painel="aovivo">
+        <div id="av-alerta"></div>
+        <div class="colunas">
+          <div class="painel"><h2><svg class="i" aria-hidden="true"><use href="#i-users"/></svg>Equipe agora <span class="cont leve" id="av-livres"></span></h2><div id="av-equipe"></div></div>
+          <div class="painel"><h2><svg class="i" aria-hidden="true"><use href="#i-msg"/></svg>Em atendimento <span class="cont leve" id="av-at-n">0</span></h2><div id="av-atendendo"></div></div>
+          <div class="painel"><h2><svg class="i" aria-hidden="true"><use href="#i-inbox"/></svg>Fila <span class="cont" id="av-fila-n">0</span></h2><div id="av-fila"></div></div>
         </div>
-        <p class="mut">Imediato ≤ o 1º limite · médio entre os dois · extremo acima do 2º. Inteiros ≥ 1 e o 1º menor que o 2º.</p>
-      </fieldset>
-      <label>Prazos (JSON) <textarea id="c-prazos" rows="3"></textarea></label>
-      <div class="acoes"><button id="salvar" class="primario">Salvar cadastros</button></div>
-    </section>
-    <section data-painel="exportar" hidden>
-      <p>Baixe todos os leads em CSV (UTF-8).</p>
-      <button id="exportar" class="primario">Baixar leads.csv</button>
-    </section>
-  </section>
-</main>
+      </section>
+
+      <!-- HOJE -->
+      <section id="p-hoje" role="tabpanel" aria-labelledby="t-hoje" data-painel="hoje" hidden><div id="hoje"></div></section>
+
+      <!-- LEADS -->
+      <section id="p-leads" role="tabpanel" aria-labelledby="t-leads" data-painel="leads" hidden>
+        <form id="form-filtro" class="filtros">
+          <label class="campo">Status <select id="fl-status"><option value="">Todos</option><option value="novo">Novo</option><option value="em_atendimento">Em atendimento</option>
+            <option value="negociando">Negociando</option><option value="retornar">Retornar</option><option value="ganho">Ganho</option><option value="perdido">Perdido</option><option value="invalido">Inválido</option></select></label>
+          <label class="campo">Colaborador <select id="fl-colab"><option value="">Todos</option></select></label>
+          <label class="campo">De <input id="fl-de" type="date"></label>
+          <label class="campo">Até <input id="fl-ate" type="date"></label>
+          <span class="total" id="fl-total">filtra ao mudar</span>
+        </form>
+        <div id="leads" class="painel tab"></div>
+        <div id="ficha" class="painel ficha-g" hidden tabindex="-1"></div>
+      </section>
+
+      <!-- BASE -->
+      <section id="p-base" role="tabpanel" aria-labelledby="t-base" data-painel="base" hidden>
+        <p class="mut" style="margin-bottom:14px;max-width:72ch">Tudo o que o agente sabe. As respostas automáticas usam estes campos (vazio = o agente não fala do assunto e segue o fluxo normal) e o cérebro LLM recebe a base inteira (informações + FAQ + produtos).</p>
+        <fieldset class="painel form-sec"><legend>Informações do negócio</legend>
+          <label class="campo">Horário de atendimento humano <textarea id="i-horario_atendimento" rows="2"></textarea></label>
+          <p class="previa" id="i-horario-gerado"></p>
+          <div class="grade2">
+            <label class="campo">Endereço <textarea id="i-endereco" rows="2"></textarea></label>
+            <label class="campo">Formas de pagamento <textarea id="i-pagamento" rows="2"></textarea></label>
+            <label class="campo">Entrega <textarea id="i-entrega" rows="2"></textarea></label>
+            <label class="campo">Garantia e trocas <textarea id="i-garantia" rows="2"></textarea></label>
+          </div>
+          <label class="campo">Site <input id="i-site" placeholder="https://..."></label>
+          <label class="campo">Observações (só para o cérebro, não viram resposta automática) <textarea id="i-observacoes" rows="3"></textarea></label>
+        </fieldset>
+        <fieldset class="painel form-sec"><legend>Perguntas frequentes (FAQ) <button id="faq-add" type="button" class="btn pri"><svg class="i" aria-hidden="true"><use href="#i-plus"/></svg>Nova pergunta</button></legend>
+          <p class="mut">Uma forma da pergunta por linha. O agente responde exatamente a resposta quando 60 % das palavras de uma forma aparecem na mensagem.</p>
+          <div id="faq-lista" class="painel" style="border-radius:10px"></div>
+        </fieldset>
+        <fieldset class="painel form-sec"><legend>Cérebro do agente</legend>
+          <div class="linha-campos">
+            <label class="campo">Tipo <select id="b-tipo">
+              <option value="regras">regras (sem IA, padrão)</option><option value="anthropic">anthropic (API Claude)</option>
+              <option value="openrouter">openrouter (API)</option><option value="openai">openai (endpoint compatível)</option>
+              <option value="ollama">ollama (local)</option><option value="claude_cli">claude_cli (assinatura, só fora do Docker)</option>
+              <option value="codex_cli">codex_cli (assinatura, só fora do Docker)</option></select></label>
+            <label class="campo" data-cer="modelo">Modelo <input id="b-modelo" placeholder="claude-sonnet-5-5"></label>
+            <label class="campo" data-cer="esforco">Esforço <select id="b-esforco"><option>low</option><option>medium</option><option>high</option><option>xhigh</option><option>max</option></select></label>
+            <label class="campo" data-cer="url">URL <input id="b-url" placeholder="http://localhost:11434"></label>
+          </div>
+          <p class="mut peq">A chave (<code>CEREBRO_API_KEY</code>) fica só no <code>.env</code> do servidor; nunca aparece nem é editada aqui. Sem chave ou com erro, tudo funciona por regras.</p>
+          <p id="b-saude" class="mut peq"></p>
+        </fieldset>
+        <div class="salvar"><span class="mut">Salve antes de testar mudanças.</span><button id="salvar-base" class="btn pri" type="button"><svg class="i" aria-hidden="true"><use href="#i-check"/></svg>Salvar base de conhecimento</button></div>
+        <fieldset class="painel form-sec bloco"><legend>Testar</legend>
+          <p class="mut">Escreva como o cliente escreveria. Mostra o que o agente responderia agora (nada é gravado).</p>
+          <form id="form-testar" class="escrever"><label for="t-texto" class="sr">Mensagem de teste</label><input id="t-texto" placeholder="que hora tem atendimento humano?" required>
+            <button class="btn pri" type="submit"><svg class="i" aria-hidden="true"><use href="#i-play"/></svg>Testar</button></form>
+          <div id="t-resultado" class="teste-res conv"></div>
+        </fieldset>
+      </section>
+
+      <!-- APRENDIZADO -->
+      <section id="p-aprendizado" role="tabpanel" aria-labelledby="t-aprendizado" data-painel="aprendizado" hidden>
+        <p class="mut" style="margin-bottom:12px;max-width:72ch">Cada resposta da equipe a uma mensagem do cliente: o que o cliente disse, o que a IA sugeriu e o que o vendedor mandou.</p>
+        <form id="form-apr" class="filtros">
+          <label class="campo">De <input id="a-de" type="date"></label>
+          <label class="campo">Até <input id="a-ate" type="date"></label>
+          <label class="campo">Colaborador <select id="a-colab"><option value="">Todos</option></select></label>
+          <label class="campo">Origem <select id="a-origem"><option value="">Todas</option><option value="sugestao_ok">sugestão sem editar</option>
+            <option value="sugestao_editada">sugestão editada</option><option value="livre">livre</option></select></label>
+          <span class="total">filtra ao mudar</span>
+        </form>
+        <div id="a-contadores"></div>
+        <h2 class="bloco">Propostas para a base</h2>
+        <div class="filtros">
+          <label class="campo">Geração automática <select id="a-periodo"><option value="diario">diária</option><option value="semanal">semanal</option><option value="desligado">desligada</option></select></label>
+          <button id="a-periodo-salvar" type="button" class="btn">Salvar período</button>
+          <button id="a-gerar" class="btn pri" type="button"><svg class="i" aria-hidden="true"><use href="#i-spark"/></svg>Gerar propostas agora</button>
+        </div>
+        <div id="a-propostas" class="painel"></div>
+        <h2 class="bloco">Registros</h2>
+        <div id="a-itens" class="painel tab"></div>
+      </section>
+
+      <!-- CADASTROS -->
+      <section id="p-cadastros" role="tabpanel" aria-labelledby="t-cadastros" data-painel="cadastros" hidden>
+        <div class="grade2">
+          <fieldset class="painel form-sec"><legend>Negócio</legend>
+            <label class="campo">Nome do negócio <input id="c-nome" required></label>
+            <label class="campo">Endereço público (URL) <input id="c-url" placeholder="https://atendimento.seunegocio.com.br"></label>
+          </fieldset>
+          <fieldset class="painel form-sec"><legend>Aparência do chat do lead</legend>
+            <div class="linha-campos">
+              <label class="campo">Tema <select id="c-tema"><option value="claro">Claro</option><option value="escuro">Escuro (INEMA)</option><option value="marinho">Marinho</option></select></label>
+              <div class="campo"><span id="c-cor-rot">Cor de destaque (opcional)</span>
+                <div class="cor-campo"><input type="color" id="c-cor-pick" aria-labelledby="c-cor-rot"><input id="c-cor" placeholder="#FACC15" maxlength="7" aria-labelledby="c-cor-rot">
+                  <button type="button" class="btn sutil peq" id="c-cor-limpar">Sem cor</button></div></div>
+            </div>
+            <label class="campo">Nome exibido no chat (opcional) <input id="c-nome-exibido" maxlength="80" placeholder="igual ao nome do negócio"></label>
+            <p class="previa" id="c-cor-previa" aria-live="polite"></p>
+            <p class="mut peq">O tema também é o padrão da equipe e do gestor (cada aparelho pode trocar no topo).</p>
+          </fieldset>
+        </div>
+        <fieldset class="painel form-sec bloco"><legend>Equipe <button type="button" class="btn" id="eq-add"><svg class="i" aria-hidden="true"><use href="#i-plus"/></svg>Pessoa</button></legend>
+          <div class="linhas" id="c-equipe"></div>
+          <p class="mut peq">Código de acesso: 12+ caracteres, diferente para cada pessoa. Use "gerar novo" e passe o código à pessoa por um canal seguro.</p>
+        </fieldset>
+        <fieldset class="painel form-sec"><legend>Produtos <button type="button" class="btn" id="pr-add"><svg class="i" aria-hidden="true"><use href="#i-plus"/></svg>Produto</button></legend>
+          <div class="linhas" id="c-produtos"></div>
+          <p class="mut peq">Palavras separadas por vírgula: quando o cliente escreve uma delas, o agente entende o interesse. O agente só fala preço que estiver aqui.</p>
+        </fieldset>
+        <div class="grade2">
+          <fieldset class="painel form-sec"><legend>Horários de atendimento humano</legend>
+            <div class="linhas" id="c-horarios"></div>
+            <p class="mut peq">Janelas HH:MM (início antes do fim). Dia sem janela = fechado.</p>
+          </fieldset>
+          <fieldset class="painel form-sec"><legend>Prazos (minutos)</legend>
+            <div class="prazos" id="c-prazos"></div>
+            <p class="previa" id="c-prazos-previa"></p>
+          </fieldset>
+        </div>
+        <div class="salvar"><span class="mut" id="c-estado">Nenhuma alteração.</span><button id="salvar" class="btn pri" type="button"><svg class="i" aria-hidden="true"><use href="#i-check"/></svg>Salvar cadastros</button></div>
+      </section>
+
+      <!-- EXPORTAR -->
+      <section id="p-exportar" role="tabpanel" aria-labelledby="t-exportar" data-painel="exportar" hidden>
+        <div class="painel pad" style="max-width:560px;display:grid;gap:12px">
+          <h2>Exportar leads</h2>
+          <p class="mut">Baixe todos os leads numa planilha CSV (UTF-8), com status, nota, interesse, colaborador, resultado e valor.</p>
+          <div><button id="exportar" class="btn pri" type="button"><svg class="i" aria-hidden="true"><use href="#i-download"/></svg>Baixar leads.csv</button></div>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+<p id="aviso" class="toast" role="status" aria-live="polite"></p>
 <script src="/web/comum.js"></script>
 <script src="/web/gestor.js"></script>
 </body>

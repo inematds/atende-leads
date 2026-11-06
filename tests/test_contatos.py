@@ -206,6 +206,7 @@ def test_hoje_faixas_do_tempo_para_assumir(api):
     a = h["assumir"]
     assert (a["imediatos"], a["medios"], a["extremos"], a["maior_min"]) == (2, 2, 1, 15)
     assert a["media_min"] == h["tempo_medio_assumir_min"] == round((0 + 1 + 5 + 10 + 15) / 5, 1)
+    assert a["tempos"] == [0, 1, 5, 10, 15]  # régua de pontos da aba Hoje (1.5.4)
     ana = next(p for p in h["por_colaborador"] if p["id"] == "ana")
     assert (ana["assumir"]["imediatos"], ana["assumir"]["medios"], ana["assumir"]["extremos"]) == (2, 2, 1)
     bruno = next(p for p in h["por_colaborador"] if p["id"] == "bruno")

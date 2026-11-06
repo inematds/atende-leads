@@ -1,30 +1,40 @@
 <!doctype html>
-<html lang="pt-BR">
+<html lang="pt-BR" data-tema="claro">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,interactive-widget=resizes-content">
 <title>Fale com a gente</title>
+<script>try{var a=JSON.parse(localStorage.getItem('al_aparencia')||'{}');if(a.tema)document.documentElement.dataset.tema=a.tema;}catch(e){}</script>
 <link rel="stylesheet" href="/web/style.css">
 </head>
 <body class="pagina-chat">
-<header class="topo"><span class="marca" id="negocio">Atendimento</span><span class="chip">Chat</span></header>
-<section id="entrada" class="estreito entrada">
-  <h1>Fale com a gente</h1>
-  <p class="mut">Deixe seu WhatsApp para a equipe poder te responder.</p>
-  <form id="form-entrada" class="cartao">
-    <label>Seu nome <input id="nome" autocomplete="name" maxlength="80"></label>
-    <label>WhatsApp com DDD <input id="telefone" inputmode="tel" autocomplete="tel" placeholder="(41) 99999-0000" required></label>
-    <div class="acoes"><button class="primario" type="submit">Começar conversa</button></div>
-    <p id="erro-entrada" class="erro" role="alert"></p>
-  </form>
-</section>
-<section id="chat" class="chat" hidden>
-  <div id="log" class="chat-log" aria-live="polite"></div>
-  <form id="form-msg" class="chat-form">
-    <input id="texto" autocomplete="off" enterkeyhint="send" placeholder="Escreva sua mensagem" aria-label="Sua mensagem" required>
-    <button class="primario" type="submit">Enviar</button>
-  </form>
-</section>
+<div class="chat-app">
+  <header class="chat-cab">
+    <span class="logo" id="logo" aria-hidden="true">·</span>
+    <div>
+      <h1 id="negocio">Atendimento</h1>
+      <p class="estado" id="estado"><span class="dot" aria-hidden="true"></span><span id="estado-txt">Assistente virtual · responde na hora</span></p>
+    </div>
+  </header>
+  <section id="entrada" class="entrada">
+    <form id="form-entrada" class="painel">
+      <h2>Fale com a gente</h2>
+      <p class="mut">Um assistente responde na hora e, se precisar, chama alguém da equipe. O WhatsApp é para a equipe poder te responder se você sair desta página.</p>
+      <label class="campo">Seu nome <input id="nome" autocomplete="name" maxlength="80"></label>
+      <label class="campo">WhatsApp com DDD <input id="telefone" inputmode="tel" autocomplete="tel" placeholder="(41) 99999-0000" required aria-describedby="erro-entrada"></label>
+      <button class="btn pri" type="submit">Começar conversa</button>
+      <p id="erro-entrada" class="erro" role="alert"></p>
+    </form>
+  </section>
+  <section id="chat" class="chat" hidden>
+    <div id="log" class="chat-log conv" aria-live="polite"></div>
+    <form id="form-msg" class="chat-form">
+      <label for="texto" class="sr">Sua mensagem</label>
+      <textarea id="texto" rows="1" autocomplete="off" enterkeyhint="send" placeholder="Escreva sua mensagem" required></textarea>
+      <button class="enviar" type="submit" aria-label="Enviar"><svg class="i" aria-hidden="true"><use href="#i-send"/></svg></button>
+    </form>
+  </section>
+</div>
 <script src="/web/comum.js"></script>
 <script src="/web/chat.js"></script>
 </body>

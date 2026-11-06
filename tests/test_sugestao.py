@@ -193,7 +193,7 @@ def test_anthropic_recusa_cai_nas_regras(dados, llm):
     api = subir(dados, env=env_anthropic(llm))
     cfg_cerebro(api, ANTHROPIC)
     api.msg(TEL, "qual o horario de atendimento", nome="Ivo")
-    assert "não entendi" in api.msg(TEL, "vocês entregam em Curitiba?").lower()
+    assert "não sei responder" in api.msg(TEL, "vocês entregam em Curitiba?").lower()
     assert llm.lista()
 
 
@@ -203,7 +203,7 @@ def test_anthropic_timeout_cai_nas_regras(dados, llm):
     cfg_cerebro(api, ANTHROPIC)
     api.msg(TEL, "qual o horario de atendimento", nome="Ivo")
     t0 = time.time()
-    assert "não entendi" in api.msg(TEL, "vocês entregam em Curitiba?").lower()
+    assert "não sei responder" in api.msg(TEL, "vocês entregam em Curitiba?").lower()
     assert time.time() - t0 < 2.8
 
 
@@ -213,7 +213,7 @@ def test_anthropic_sem_chave_saude_e_regras(dados, llm):
     s = api.get("/api/saude")[1]
     assert s["cerebro_ok"] is False and "CEREBRO_API_KEY" in s["cerebro_motivo"]
     api.msg(TEL, "qual o horario de atendimento", nome="Ivo")
-    assert "não entendi" in api.msg(TEL, "vocês entregam em Curitiba?").lower()
+    assert "não sei responder" in api.msg(TEL, "vocês entregam em Curitiba?").lower()
     assert llm.lista() == []
 
 
@@ -282,4 +282,4 @@ def test_cli_ausente_saude_e_regras(dados, tmp_path):
     s = api.get("/api/saude")[1]
     assert s["cerebro_ok"] is False and "não encontrado" in s["cerebro_motivo"]
     api.msg(TEL, "qual o horario de atendimento", nome="Ivo")
-    assert "não entendi" in api.msg(TEL, "vocês entregam em Curitiba?").lower()
+    assert "não sei responder" in api.msg(TEL, "vocês entregam em Curitiba?").lower()

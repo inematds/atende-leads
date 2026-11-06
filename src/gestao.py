@@ -29,7 +29,7 @@ def faixas_assumir(c, tempos):
             'extremos': sum(1 for t in tempos if t > extr),
             'maior_min': max(tempos) if tempos else 0,
             'media_min': round(sum(tempos) / len(tempos), 1) if tempos else 0,
-            'imediato_min': imed, 'extremo_min': extr}
+            'imediato_min': imed, 'extremo_min': extr, 'tempos': sorted(tempos)}
 
 
 def hoje(c):
@@ -247,10 +247,66 @@ def validar_config(c, novo):
             _erro(f'info: campo desconhecido {k}')
         if not isinstance(v, str) or len(v) > 2000:
             _erro(f'info.{k} deve ser texto (até 2000 caracteres)')
+    validar_aparencia(cfg.get('aparencia', {}))
     apr = cfg.get('aprendizado', {})
     if not isinstance(apr, dict) or apr.get('periodo', 'semanal') not in sugestao.PERIODOS:
         _erro('aprendizado.periodo deve ser diario, semanal ou desligado')
     return cfg
+
+
+# ---------- aparência do chat do lead (seção 2 `aparencia`, seção 11) ----------
+TEMAS = ('claro', 'escuro', 'marinho')
+HEX = re.compile(r'^#[0-9a-fA-F]{6}$')
+TINTAS = ('#1a1206', '#ffffff')  # letra sobre a cor de destaque: a de maior contraste
+
+
+def _luminancia(hexa):
+    def canal(v):
+        v = int(v, 16) / 255
+        return v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4
+    r, g, b = (canal(hexa[i:i + 2]) for i in (1, 3, 5))
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+def contraste(a, b):
+    """Razão de contraste WCAG 2.x entre duas cores #RRGGBB."""
+    la, lb = sorted((_luminancia(a), _luminancia(b)), reverse=True)
+    return (la + 0.05) / (lb + 0.05)
+
+
+def tinta_sobre(cor):
+    """(letra, razão): a tinta de TINTAS com maior contraste sobre `cor`."""
+    return max(((t, contraste(cor, t)) for t in TINTAS), key=lambda x: x[1])
+
+
+def validar_aparencia(ap):
+    if not isinstance(ap, dict):
+        _erro('aparencia deve ser objeto')
+    for k in ap:
+        if k not in ('tema', 'cor_destaque', 'nome_exibido'):
+            _erro(f'aparencia: campo desconhecido {k}')
+    if ap.get('tema', 'claro') not in TEMAS:
+        _erro('aparencia.tema deve ser claro, escuro ou marinho')
+    cor = ap.get('cor_destaque')
+    if cor not in (None, ''):
+        if not isinstance(cor, str) or not HEX.match(cor):
+            _erro('aparencia.cor_destaque deve ser uma cor #RRGGBB')
+        _tinta, razao = tinta_sobre(cor)
+        if razao < 4.5:
+            _erro(f'aparencia.cor_destaque: contraste {razao:.2f}:1 com o texto'.replace(f'{razao:.2f}', f'{razao:.2f}'.replace('.', ',')) + ', abaixo do mínimo 4,5:1 (AA). '
+                  'Escolha uma cor mais clara ou mais escura.')
+    nome = ap.get('nome_exibido')
+    if nome not in (None, '') and (not isinstance(nome, str) or len(nome) > 80):
+        _erro('aparencia.nome_exibido deve ser texto (até 80 caracteres)')
+
+
+def aparencia(c):
+    """GET /api/aparencia (pública): só tema, cor de destaque (e a letra sobre ela) e nome exibido."""
+    ap = c.cfg.get('aparencia') or {}
+    cor = ap.get('cor_destaque') or None
+    return {'tema': ap.get('tema') or 'claro', 'cor_destaque': cor,
+            'cor_destaque_texto': tinta_sobre(cor)[0] if cor else None,
+            'nome_exibido': (ap.get('nome_exibido') or '').strip() or c.cfg.get('nome', '')}
 
 
 def testar(c, texto):

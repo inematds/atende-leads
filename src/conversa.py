@@ -16,6 +16,7 @@ PRECISA = ('reclamacao', 'reclamar', 'problema', 'nao funciona', 'defeito', 'can
            'pessimo', 'procon')
 SIM = {'sim', 'quero', 'pode', 's', 'claro', 'ok', 'isso', 'bora', 'beleza', 'yes'}
 NAO = {'nao', 'n', 'agora nao', 'depois'}
+NAO_SEI = 'Essa eu não sei responder com certeza.'
 SAUDACOES = {'oi', 'ola', 'oie', 'oii', 'opa', 'e ai', 'eai', 'bom dia', 'boa tarde', 'boa noite', 'hey', 'hello',
              'alo', 'tudo bem', 'oi tudo bem'}
 COMUNS = set('''a o as os um uma uns umas de da do das dos em na no nas nos ao aos e ou que qual quais como onde
@@ -361,9 +362,10 @@ def decidir(c, lead, texto, t, primeiro, aberto):
     falhas = int(e.get('falhas', 0)) + 1
     if falhas >= 2:
         gravar_estado(c, lid, {})
-        return _abrir(c, lid, 'precisa', 'Desculpe, não entendi. ')
-    gravar_estado(c, lid, {**e, 'falhas': falhas})
-    return ['Desculpe, não entendi. Pode escrever de outro jeito ou pedir um atendente.']
+        return _abrir(c, lid, 'precisa', NAO_SEI + ' ')
+    # Oferece chamar a equipe; um "sim/quero/pode" na próxima mensagem abre o chamado (etapa nao_sei).
+    gravar_estado(c, lid, {**e, 'etapa': 'nao_sei', 'falhas': falhas})
+    return [NAO_SEI + ' Quer que eu chame alguém da equipe?']
 
 
 def _zerar_falhas(c, lid):
@@ -456,6 +458,16 @@ def qualificar(c, lead, e, texto, t):
             gravar_estado(c, lid, {'falhas': 0})
             return ['Sem problema. Se tiver qualquer dúvida, é só mandar mensagem por aqui.']
         return [f'Responda com o número:\n{URG_OPCOES}']
+    if etapa == 'nao_sei':
+        # Depois do "Essa eu não sei responder...": sim → chamado `precisa`; não → encerra; outra coisa segue as
+        # regras (mantém as falhas: a segunda seguida sem resposta abre o chamado sozinha).
+        if 'nao' in palavras or t in NAO:
+            gravar_estado(c, lid, {'falhas': 0})
+            return ['Tudo bem! Se tiver qualquer dúvida, é só mandar mensagem por aqui.']
+        if palavras & SIM:
+            return _abrir(c, lid, 'precisa')
+        gravar_estado(c, lid, {'falhas': e.get('falhas', 0)})
+        return None
     if etapa == 'quer_falar':
         if 'nao' in palavras or t in NAO:
             gravar_estado(c, lid, {'falhas': 0})

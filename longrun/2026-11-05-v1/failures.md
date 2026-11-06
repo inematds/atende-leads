@@ -133,3 +133,21 @@ Fora de escopo, mantido de propósito: `/entrar` do Telegram continua barrando a
 | 2026-11-06 | tests/test_sugestao.py (17) | §7a; §14 anthropic/openrouter/CLI; §16 `sg:`; §18 `cerebro_ok` | sugestão regras/LLM assíncrona, botões ok/ed, 3 origens, corpo anthropic, recusa/timeout → regras, CLI falso |
 | 2026-11-06 | tests/test_aprendizado.py (11) | §13a | lista/filtros/contadores, propostas regras/cérebro, incorporar/descartar, período diário/semanal/desligado, trabalhador |
 | 2026-11-06 | tests/falsos.py (helper) | §14 "servidores/binários falsos locais" | FalsoLLM (formato Anthropic/OpenAI) e CLI falso que grava args/stdin |
+
+### 1.5.4 — 3 temas, estrutura "Balcão", "não sei" (2026-11-06)
+
+| data | o que quebrou / risco | tentativa | resultado | prompt \| infra |
+|---|---|---|---|---|
+| 2026-11-06 | regra 12 trocada ("Desculpe, não entendi" → "Essa eu não sei responder com certeza. Quer que eu chame alguém da equipe?"): 8 asserts dependiam do texto antigo (`tests/test_conversa.py:300`, `test_sugestao.py` ×4, `test_base.py:69`, `tests_dev/test_cerebro.py:80`, `tests_dev/test_fluxo.py:201` — este também pedia `atendente`) | contrato §4 regra 12 editado primeiro; asserts passam a `não sei responder` / `alguém da equipe`; "sim" depois do "não sei" vira etapa `nao_sei` (como o `quer_falar`), mantendo a 2ª falha seguida abrindo `precisa` | resolvido | prompt |
+| 2026-11-06 | régua de pontos da aba Hoje precisava do tempo de cada chamado e o `/api/gestor/hoje` só dava contagens | `assumir.tempos` (lista ordenada, aditivo) + assert em `test_contatos.py` | resolvido | prompt |
+| 2026-11-06 | `/meu` e `/ligar` (HTML do servidor) usavam classes do CSS antigo | `paginas._pagina` com `data-tema` do negócio e classes novas (`pagina-simples`, `btn pri`) | resolvido | prompt |
+| 2026-11-06 | captura no celular travou: `#sair` coberto pela ficha em tela cheia | o roteiro toca Voltar antes de Sair; timeout 12 s por passo | resolvido (erro do roteiro, não do sistema) | prompt |
+| 2026-11-06 | seed: palavra `mes` do "Plano mensal" casa dentro de "trimestral" (casamento por trecho, seção 5) | trocada a palavra no seed; comportamento do produto mantido (fora do escopo) | anotado | prompt |
+
+### Testes novos (1.5.4)
+
+| data | teste | trecho do contrato | motivo |
+|---|---|---|---|
+| 2026-11-06 | tests/test_aparencia.py (21) | §2 `aparencia`; §11 `/api/aparencia`, widget; §13 Cadastros em formulário | padrão público só com os 4 campos, tema/cor/nome, 8 inválidos → 422 sem gravar, contraste < 4,5 → 422 com mensagem, widget com a aparência, PUT no formato do formulário (novo código "gerar novo" entra e vale), 6 formas de formulário inválido → 422 |
+| 2026-11-06 | tests/test_conversa.py (+4) | §4 regra 12 | texto novo, `sim`/`quero`/`pode` abrem `precisa`, `não` não abre |
+| 2026-11-06 | tests/test_contatos.py (+1 assert) | §13 `assumir.tempos` | régua de pontos |

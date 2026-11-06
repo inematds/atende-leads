@@ -66,7 +66,7 @@ def test_forma_de_pagamento_continua_venda_com_prefixo(api):
 def test_campo_vazio_nao_inventa(api):
     com_info(api)  # entrega e garantia vazios
     api.msg(TEL, "qual o horario de atendimento")
-    assert "não entendi" in api.msg(TEL, "vocês entregam em Curitiba?").lower()
+    assert "não sei responder" in api.msg(TEL, "vocês entregam em Curitiba?").lower()
     assert "Entrega:" not in api.msg(TEL, "tem frete?")
 
 

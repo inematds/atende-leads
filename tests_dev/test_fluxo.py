@@ -198,7 +198,7 @@ def test_regras_conversa():
         st, r = s.msg('41999990005', 'qual o horário de atendimento?')
         assert r['respostas'] == ['Atendemos de segunda a sexta, das 8h às 18h.']
         st, r = s.msg('41999990005', 'blablabla')
-        assert 'não entendi' in r['respostas'][0] and 'atendente' in r['respostas'][0]
+        assert 'não sei responder' in r['respostas'][0] and 'alguém da equipe' in r['respostas'][0]
         st, r = s.msg('41999990005', 'xyzzy')
         assert 'vou chamar' in r['respostas'][0]
         st, r = s.msg('41999990006', 'parar')

@@ -36,6 +36,9 @@ ESTATICOS = {
     '/web/style.css': ('style.css', 'text/css'), '/web/chat.js': ('chat.js', 'text/javascript'),
     '/web/meu.js': ('meu.js', 'text/javascript'), '/web/equipe.js': ('equipe.js', 'text/javascript'),
     '/web/gestor.js': ('gestor.js', 'text/javascript'), '/web/comum.js': ('comum.js', 'text/javascript'),
+    '/web/fontes/Sora.woff2': ('fontes/Sora.woff2', 'font/woff2'),
+    '/web/fontes/Inter.woff2': ('fontes/Inter.woff2', 'font/woff2'),
+    '/web/fontes/OFL.txt': ('fontes/OFL.txt', 'text/plain'),
 }
 
 
@@ -184,6 +187,8 @@ def rotear(c, metodo, rota, q, b, h):
     m = re.fullmatch(r'/api/web/([\w-]+)', rota)
     if metodo == 'GET' and m:
         return 200, conversa.mensagens_web(c, m[1])
+    if metodo == 'GET' and rota == '/api/aparencia':
+        return 200, gestao.aparencia(c)
     if metodo == 'GET' and rota == '/widget.js':
         return 200, Bruto(paginas.widget_js(c), 'text/javascript')
     m = re.fullmatch(r'/ligar/([\w-]+)', rota)

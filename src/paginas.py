@@ -31,11 +31,16 @@ def api_meu(c, token):
     return {'nome': lead['nome'], 'status': lead['status'], 'colaborador': colab, 'retornar_em': ret}
 
 
-def _pagina(titulo, corpo, scripts=''):
+def _tema(c):
+    tema = (c.cfg.get('aparencia') or {}).get('tema') or 'claro'
+    return tema if tema in ('claro', 'escuro', 'marinho') else 'claro'
+
+
+def _pagina(c, titulo, corpo, scripts=''):
     return f'''<!doctype html>
-<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<html lang="pt-BR" data-tema="{_tema(c)}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{html.escape(titulo)}</title><link rel="stylesheet" href="/web/style.css"></head>
-<body>{corpo}{scripts}</body></html>'''
+<body class="pagina-simples">{corpo}{scripts}</body></html>'''
 
 
 def pagina_meu(c, token):
@@ -43,21 +48,21 @@ def pagina_meu(c, token):
     texto, colab, _ = status_lead(c, lead)
     negocio = html.escape(c.cfg.get('nome', ''))
     corpo = f'''
-<header class="topo"><span class="marca">{negocio}</span><span class="chip">Meu atendimento</span></header>
-<main class="estreito">
-  <h1>Olá{', ' + html.escape(lead['nome'].split()[0]) if lead['nome'] and lead['nome'] != 'apagado' else ''}</h1>
+<header class="topo"><div class="marca"><h1>{negocio}</h1><span class="sub">Meu atendimento</span></div></header>
+<main>
+  <h2>Olá{', ' + html.escape(lead['nome'].split()[0]) if lead['nome'] and lead['nome'] != 'apagado' else ''}</h2>
   <section class="cartao">
     <p class="rotulo">Situação</p>
     <p class="status-grande" id="status">{html.escape(texto)}</p>
     {f'<p class="mut">Quem te atende: <strong>{html.escape(colab)}</strong></p>' if colab else ''}
   </section>
   <div class="acoes">
-    <button id="falar" class="primario" data-token="{html.escape(token)}">Quero falar agora</button>
-    <button id="apagar" class="secundario">Apagar meus dados</button>
+    <button id="falar" class="btn pri" data-token="{html.escape(token)}">Quero falar agora</button>
+    <button id="apagar" class="btn">Apagar meus dados</button>
   </div>
   <p id="aviso" class="aviso" role="status"></p>
 </main>'''
-    return _pagina(f'Meu atendimento · {c.cfg.get("nome", "")}', corpo, '<script src="/web/meu.js"></script>')
+    return _pagina(c, f'Meu atendimento · {c.cfg.get("nome", "")}', corpo, '<script src="/web/meu.js"></script>')
 
 
 def pagina_ligar(c, token):
@@ -68,12 +73,14 @@ def pagina_ligar(c, token):
     tel = '+' + lead['telefone'] if lead['telefone'].isdigit() else lead['telefone']
     alvo = html.escape(f'tel:{tel}')
     return f'''<!doctype html>
-<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<html lang="pt-BR" data-tema="{_tema(c)}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta http-equiv="refresh" content="0;url={alvo}"><title>Ligar</title><link rel="stylesheet" href="/web/style.css"></head>
-<body><main class="estreito"><h1>Ligando…</h1>
-<p><a class="botao primario" href="{alvo}">Ligar para {html.escape(tel)}</a></p></main></body></html>'''
+<body class="pagina-simples"><main><h1>Ligando…</h1>
+<p><a class="btn pri" href="{alvo}">Ligar para {html.escape(tel)}</a></p></main></body></html>'''
 
 
 def widget_js(c):
     modelo = (ROOT / 'web' / 'widget.js').read_text(encoding='utf-8')
-    return modelo.replace('__URL_PUBLICA__', json.dumps(c.url_publica()))
+    from .gestao import aparencia
+    return (modelo.replace('__URL_PUBLICA__', json.dumps(c.url_publica()))
+            .replace('__APARENCIA__', json.dumps(aparencia(c), ensure_ascii=False).replace('</', '<\\/')))

@@ -77,7 +77,7 @@ def test_cerebro_fora_do_ar_cai_na_regra():
     try:
         s.msg('41999990072', 'qual o horario de atendimento', nome='Gil')
         st, r = s.msg('41999990072', 'zzzz qqqq')
-        assert 'não entendi' in r['respostas'][0]
+        assert 'não sei responder' in r['respostas'][0]
         st, r = s.msg('41999990073', 'falar com atendente', nome='Ana')
         st, f = s.g('GET', f"/api/gestor/leads/{r['lead']['id']}")
         assert 'Disse: "falar com atendente"' in f['chamados'][-1]['resumo']

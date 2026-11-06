@@ -297,7 +297,24 @@ def _lead_sem_qualificacao(api):
 def test_nao_entendi_oferece_atendente(api):
     _lead_sem_qualificacao(api)
     txt = api.msg(TEL, "xpto blablabla")
-    assert "não entendi" in txt.lower() and "atendente" in txt.lower()
+    assert "não sei responder com certeza" in txt.lower() and "alguém da equipe" in txt.lower()
+    assert "desculpe, não entendi" not in txt.lower()
+
+
+@pytest.mark.parametrize("resposta", ["sim", "quero", "pode"])
+def test_nao_sei_e_sim_abre_chamado_precisa(api, resposta):
+    lead = _lead_sem_qualificacao(api)
+    api.msg(TEL, "xpto blablabla")
+    assert api.chamados_do_lead(lead["id"]) == []
+    assert "vou chamar" in api.msg(TEL, resposta)
+    assert motivos(api, lead["id"]) == ["precisa"]
+
+
+def test_nao_sei_e_nao_nao_abre(api):
+    lead = _lead_sem_qualificacao(api)
+    api.msg(TEL, "xpto blablabla")
+    assert "qualquer dúvida" in api.msg(TEL, "não")
+    assert api.chamados_do_lead(lead["id"]) == []
 
 
 def test_nao_entendi_duas_seguidas_abre_chamado(api):
