@@ -7,12 +7,13 @@
 <link rel="stylesheet" href="/web/style.css">
 </head>
 <body>
-<header class="topo"><span class="marca">atende<b>·</b>leads</span><span class="chip">Gestor</span></header>
+<header class="topo"><span class="marca">atende<b>·</b>leads</span><span class="chip">Gestor</span><button id="sair" type="button" hidden>Sair</button></header>
 <main>
   <section id="login" class="estreito">
     <h1>Painel do gestor</h1>
     <form id="form-login" class="cartao">
       <label>Token do gestor <input id="token" type="password" autocomplete="off" required></label>
+      <label class="mut"><input id="lembrar" type="checkbox"> Lembrar neste aparelho</label>
       <div class="acoes"><button class="primario" type="submit">Entrar</button></div>
       <p id="erro-login" class="erro" role="alert"></p>
     </form>

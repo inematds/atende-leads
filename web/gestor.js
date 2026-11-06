@@ -1,4 +1,4 @@
-// Painel do gestor: token só na memória da aba.
+// Painel do gestor: token na aba (sessionStorage) ou no aparelho (localStorage, se "lembrar").
 (function () {
   const $ = id => document.getElementById(id);
   let token = null, cfg = null, aba = 'aovivo', timer = null;
@@ -75,16 +75,30 @@
     } catch (e) { aviso(e.message, true); }
   }
 
-  $('form-login').addEventListener('submit', async ev => {
-    ev.preventDefault();
-    token = $('token').value; $('token').value = '';
+  const CHAVE = 'al_token_gestor';
+  async function entrar(valor, lembrar) {
+    token = valor;
     try {
       cfg = await api('GET', '/api/gestor/config');
+      (lembrar ? localStorage : sessionStorage).setItem(CHAVE, valor);
       $('fl-colab').innerHTML = '<option value="">todos</option>' + cfg.equipe.map(m => '<option value="' + AL.esc(m.id) + '">' + AL.esc(m.nome) + '</option>').join('');
-      $('login').hidden = true; $('painel').hidden = false;
+      $('login').hidden = true; $('painel').hidden = false; $('sair').hidden = false;
       mostrar('aovivo'); timer = setInterval(() => { if (aba === 'aovivo' || aba === 'hoje') mostrar(); }, 10000);
-    } catch (e) { token = null; $('erro-login').textContent = e.status === 401 ? 'Token inválido.' : e.message; }
+    } catch (e) {
+      token = null; localStorage.removeItem(CHAVE); sessionStorage.removeItem(CHAVE);
+      $('erro-login').textContent = e.status === 401 ? 'Token inválido.' : e.message;
+    }
+  }
+  $('form-login').addEventListener('submit', ev => {
+    ev.preventDefault();
+    const v = $('token').value; $('token').value = '';
+    entrar(v, $('lembrar').checked);
   });
+  $('sair').addEventListener('click', () => {
+    localStorage.removeItem(CHAVE); sessionStorage.removeItem(CHAVE); location.reload();
+  });
+  { const salvo = sessionStorage.getItem(CHAVE) || localStorage.getItem(CHAVE);
+    if (salvo) entrar(salvo, !!localStorage.getItem(CHAVE)); }
   document.querySelectorAll('.aba').forEach(b => b.addEventListener('click', () => mostrar(b.dataset.aba)));
   $('form-filtro').addEventListener('submit', ev => { ev.preventDefault(); leads().catch(e => aviso(e.message, true)); });
   document.body.addEventListener('click', async ev => {

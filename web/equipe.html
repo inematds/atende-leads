@@ -7,14 +7,15 @@
 <link rel="stylesheet" href="/web/style.css">
 </head>
 <body>
-<header class="topo"><span class="marca">atende<b>·</b>leads</span><span class="chip" id="quem">Equipe</span></header>
+<header class="topo"><span class="marca">atende<b>·</b>leads</span><span class="chip" id="quem">Equipe</span><button id="sair" type="button" hidden>Sair</button></header>
 <main>
   <section id="login" class="estreito">
     <h1>Painel da equipe</h1>
     <form id="form-login" class="cartao">
       <label>Seu código <input id="codigo" type="password" autocomplete="off" required></label>
+      <label class="mut"><input id="lembrar" type="checkbox"> Lembrar neste aparelho</label>
       <div class="acoes"><button class="primario" type="submit">Entrar</button></div>
-      <p class="mut">O código fica só nesta aba. Fechou a aba, entra de novo.</p>
+      <p class="mut">Sem "lembrar", o código vale até fechar a aba (o refresh mantém). Use "Sair" em aparelho compartilhado.</p>
       <p id="erro-login" class="erro" role="alert"></p>
     </form>
   </section>

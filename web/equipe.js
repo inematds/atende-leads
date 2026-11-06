@@ -56,19 +56,30 @@
     $('f-motivo').innerHTML = (MOTIVOS[r] || []).map(m => '<option value="' + m[0] + '">' + m[1] + '</option>').join('');
   }
 
-  function sair() { codigo = null; $('painel').hidden = true; $('login').hidden = false; }
+  const CHAVE = 'al_codigo_equipe';
+  function sair() { codigo = null; localStorage.removeItem(CHAVE); sessionStorage.removeItem(CHAVE); $('painel').hidden = true; $('login').hidden = false; $('sair').hidden = true; }
 
-  $('form-login').addEventListener('submit', async ev => {
-    ev.preventDefault();
-    codigo = $('codigo').value.trim(); $('codigo').value = '';
+  async function entrar(valor, lembrar) {
+    codigo = valor;
     try {
-      await api('GET', '/api/equipe/eu');
-      $('login').hidden = true; $('painel').hidden = false;
       const e0 = await api('GET', '/api/equipe/eu'); produtos = e0.produtos || [];
+      (lembrar ? localStorage : sessionStorage).setItem(CHAVE, valor);
+      $('login').hidden = true; $('painel').hidden = false; $('sair').hidden = false;
       $('f-produto').innerHTML = '<option value="">—</option>' + produtos.map(p => '<option value="' + AL.esc(p.id) + '">' + AL.esc(p.nome) + '</option>').join('');
       camposFechar(); carregar(); setInterval(carregar, 10000);
-    } catch (e) { codigo = null; $('erro-login').textContent = e.status === 401 ? 'Código inválido.' : e.message; }
+    } catch (e) {
+      codigo = null; localStorage.removeItem(CHAVE); sessionStorage.removeItem(CHAVE);
+      $('erro-login').textContent = e.status === 401 ? 'Código inválido.' : e.message;
+    }
+  }
+  $('form-login').addEventListener('submit', ev => {
+    ev.preventDefault();
+    const v = $('codigo').value.trim(); $('codigo').value = '';
+    entrar(v, $('lembrar').checked);
   });
+  $('sair').addEventListener('click', () => { sair(); location.reload(); });
+  { const salvo = sessionStorage.getItem(CHAVE) || localStorage.getItem(CHAVE);
+    if (salvo) entrar(salvo, !!localStorage.getItem(CHAVE)); }
   document.querySelectorAll('[data-status]').forEach(b => b.addEventListener('click', async () => {
     try { await api('POST', '/api/equipe/status', {status: b.dataset.status}); aviso(''); carregar(); } catch (e) { aviso(e.message, true); }
   }));
