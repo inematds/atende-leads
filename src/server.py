@@ -19,8 +19,8 @@ from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlsplit
 
 from .core import App, Erro, ROOT, log, versao
-from . import (backup, bot, cerebro, chamados, conversa, equipe, evolution, gestao, limite, paginas, saida,
-               tarefas)
+from . import (backup, bot, cerebro, chamados, conversa, equipe, evolution, gestao, limite, paginas, polling,
+               saida, tarefas)
 from . import telegram as tg
 
 
@@ -163,7 +163,7 @@ def rota_publica_de_chamado(metodo, rota, b):
 
 def saude(c):
     return {'ok': True, 'versao': versao(), 'evolution': evolution.configurado(),
-            'telegram': tg.configurado(), 'cerebro': cerebro.tipo(c)}
+            'telegram': tg.configurado(), 'telegram_modo': tg.modo(), 'cerebro': cerebro.tipo(c)}
 
 
 # ---------- rotas ----------
@@ -325,7 +325,8 @@ def segredos_de_exemplo(app):
         return 'WEBHOOK_SEGREDO está vazio, curto (< 16 caracteres) ou é o do exemplo'
     if evolution.configurado() and 'troque' in (os.environ.get('EVOLUTION_API_KEY') or '').lower():
         return 'EVOLUTION_API_KEY é a do exemplo'
-    if tg.configurado() and segredo_fraco(os.environ.get('TELEGRAM_SEGREDO')):
+    # No modo polling o Telegram não chama o servidor: o segredo do webhook não é usado.
+    if tg.configurado() and tg.modo() == 'webhook' and segredo_fraco(os.environ.get('TELEGRAM_SEGREDO')):
         return 'TELEGRAM_SEGREDO está vazio, curto (< 16 caracteres) ou é o do exemplo'
     return None
 
@@ -333,6 +334,45 @@ def segredos_de_exemplo(app):
 def segredo_fraco(valor):
     valor = (valor or '').strip()
     return len(valor) < 16 or 'troque' in valor.lower()
+
+
+# ---------- entrega de webhook (HTTP ou polling do Telegram) ----------
+def _painel(app):
+    if app.sujo:
+        equipe.atualizar_painel(app)
+
+
+def entregar(app, origem, destino, b, junto=None):
+    """Trata um update já lido (webhook ou getUpdates). `junto` roda na mesma transação (ex.: gravar o offset
+    do polling), também quando o tratamento desiste e o update vai para `descartes`."""
+    def tratar():
+        destino(app, b)
+        if junto:
+            junto()
+    if destino is bot.receber and isinstance(b, dict) and \
+            isinstance((b.get('message') or {}).get('reply_to_message'), dict):
+        saida.ocioso_tg(app)  # o reply precisa achar o message_id da mensagem que acabou de sair
+    try:
+        app.executar(tratar, depois=lambda: _painel(app))
+        saida.aguardar(app, app.enfileirados())
+    except Exception as e:
+        log(f'webhook {origem}: ignorado: {type(e).__name__}: {e}')
+        # Desistiu (ex.: 503 depois das tentativas, ou entrada que quebrou o tratamento): fica visível
+        # em `descartes` no /gestor em vez de sumir no log.
+        motivo = e.mensagem if isinstance(e, Erro) else f'erro ao tratar ({type(e).__name__})'
+        detalhe = {'status': e.status} if isinstance(e, Erro) else {}
+        if isinstance(b, dict):
+            detalhe['id'] = ((b.get('data') or {}).get('key') or {}).get('id') \
+                if isinstance(b.get('data'), dict) else b.get('update_id')
+
+        def descartar():
+            evolution.registrar_descarte(app, origem, motivo, detalhe)
+            if junto:
+                junto()
+        try:
+            app.executar(descartar)
+        except Exception as e2:
+            log(f'descartes: {type(e2).__name__}: {e2}')
 
 
 # ---------- servidor ----------
@@ -424,8 +464,7 @@ def criar_handler(app):
 
         @staticmethod
         def _painel():
-            if app.sujo:
-                equipe.atualizar_painel(app)
+            _painel(app)
 
         def webhook(self, rota, bruto):
             m = re.fullmatch(r'/webhook/evolution/([^/]+)', rota)
@@ -441,26 +480,7 @@ def criar_handler(app):
                 b = json.loads(bruto.decode('utf-8')) if bruto.strip() else {}
             except (ValueError, UnicodeDecodeError):
                 return 200, {'ok': True}
-            if destino is bot.receber and isinstance(b, dict) and \
-                    isinstance((b.get('message') or {}).get('reply_to_message'), dict):
-                saida.ocioso_tg(app)  # o reply precisa achar o message_id da mensagem que acabou de sair
-            try:
-                app.executar(lambda: destino(app, b), depois=self._painel)
-                saida.aguardar(app, app.enfileirados())
-            except Exception as e:
-                origem = rota.split('/')[2]
-                log(f'webhook {origem}: ignorado: {type(e).__name__}: {e}')
-                # Desistiu (ex.: 503 depois das tentativas, ou entrada que quebrou o tratamento): fica visível
-                # em `descartes` no /gestor em vez de sumir no log.
-                motivo = e.mensagem if isinstance(e, Erro) else f'erro ao tratar ({type(e).__name__})'
-                detalhe = {'status': e.status} if isinstance(e, Erro) else {}
-                if isinstance(b, dict):
-                    detalhe['id'] = ((b.get('data') or {}).get('key') or {}).get('id') \
-                        if isinstance(b.get('data'), dict) else b.get('update_id')
-                try:
-                    app.executar(lambda: evolution.registrar_descarte(app, origem, motivo, detalhe))
-                except Exception as e2:
-                    log(f'descartes: {type(e2).__name__}: {e2}')
+            entregar(app, rota.split('/')[2], destino, b)
             return 200, {'ok': True}
 
         do_GET = do_POST = do_PUT = do_DELETE = do_HEAD = processar
@@ -586,6 +606,9 @@ def main(argv=None):
     despachantes = saida.iniciar(app)
     if not app.modo_teste:
         threading.Thread(target=relogio_automatico, args=(app, parar), daemon=True).start()
+    leitor = None
+    if tg.configurado() and tg.modo() == 'polling':  # também no modo ATENDE_AGORA
+        leitor = polling.Leitor(app, lambda u, junto: entregar(app, 'telegram', bot.receber, u, junto)).iniciar()
     def _sair(*_):
         raise KeyboardInterrupt
     signal.signal(signal.SIGTERM, _sair)
@@ -596,6 +619,8 @@ def main(argv=None):
         pass
     finally:
         parar.set()
+        if leitor:
+            leitor.encerrar()
         servidor.server_close()
         for d in despachantes:
             d.encerrar()

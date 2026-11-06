@@ -2,8 +2,8 @@
 # Instala o atende-leads numa VPS com Docker.
 #   ./instalar-vps.sh                 → pergunta tudo
 #   ./instalar-vps.sh --sem-perguntas → lê do ambiente:
-#       NEGOCIO_NOME, DOMINIO, TELEGRAM_TOKEN, TELEGRAM_GRUPO_ID, COM_EVOLUTION (0|1),
-#       EVOLUTION_INSTANCIA (padrão "loja"), INSTALAR_SO_GERAR=1 (só gera .env e dados/negocio.json, não sobe nada)
+#       NEGOCIO_NOME, DOMINIO, TELEGRAM_TOKEN, TELEGRAM_GRUPO_ID, TELEGRAM_MODO (webhook|polling, padrão webhook),
+#       COM_EVOLUTION (0|1), EVOLUTION_INSTANCIA (padrão "loja"), INSTALAR_SO_GERAR=1 (só gera .env e dados/negocio.json, não sobe nada)
 set -euo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -13,7 +13,7 @@ SEM_PERGUNTAS=0
 for arg in "$@"; do
   case "$arg" in
     --sem-perguntas) SEM_PERGUNTAS=1 ;;
-    -h|--help) sed -n '2,7p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,8p' "$0"; exit 0 ;;
     *) echo "Opção desconhecida: $arg" >&2; exit 2 ;;
   esac
 done
@@ -46,6 +46,11 @@ perguntar NEGOCIO_NOME "Nome do negócio" "Loja Exemplo"
 perguntar DOMINIO "Domínio público (ex.: atende.sualoja.com.br)" "localhost:8080"
 perguntar TELEGRAM_TOKEN "Token do bot do Telegram (BotFather; vazio = sem Telegram)" ""
 perguntar TELEGRAM_GRUPO_ID "ID do grupo da equipe no Telegram (ex.: -100123...)" ""
+perguntar TELEGRAM_MODO "Modo do Telegram: webhook (domínio com HTTPS) ou polling (sem domínio, teste local)" "webhook"
+case "$TELEGRAM_MODO" in
+  polling|webhook) ;;
+  *) echo "TELEGRAM_MODO inválido: $TELEGRAM_MODO (use webhook ou polling)" >&2; exit 2 ;;
+esac
 perguntar COM_EVOLUTION "Subir a Evolution API (WhatsApp) junto? 1=sim 0=não" "1"
 perguntar EVOLUTION_INSTANCIA "Nome da instância do WhatsApp na Evolution" "loja"
 
@@ -105,6 +110,7 @@ TELEGRAM_API_URL=$TG_URL
 TELEGRAM_TOKEN=$TELEGRAM_TOKEN
 TELEGRAM_GRUPO_ID=$TELEGRAM_GRUPO_ID
 TELEGRAM_SEGREDO=$TELEGRAM_SEGREDO
+TELEGRAM_MODO=$TELEGRAM_MODO
 CEREBRO_API_KEY=$CEREBRO_API_KEY
 CEREBRO_HOSTS_PERMITIDOS=$CEREBRO_HOSTS_PERMITIDOS
 WHISPER_CMD=$WHISPER_CMD
@@ -191,6 +197,15 @@ else
   CRON_MSG="rode como root ou ponha à mão no crontab do root"
 fi
 
+if [ "$TELEGRAM_MODO" = "polling" ]; then
+  TG_PASSO="3. Telegram (modo polling): nada a configurar no BotFather. O servidor busca as mensagens sozinho
+   (getUpdates) e desliga qualquer webhook antigo do bot ao subir."
+else
+  TG_PASSO="3. Telegram: aponte o webhook do bot para o seu domínio:
+     curl \"https://api.telegram.org/bot<TELEGRAM_TOKEN>/setWebhook\" \\
+       -d \"url=$URL_PUBLICA/webhook/telegram\" -d \"secret_token=<TELEGRAM_SEGREDO do .env>\""
+fi
+
 cat <<EOF
 
 Pronto. Próximos passos:
@@ -206,9 +221,7 @@ Pronto. Próximos passos:
      curl -X POST http://127.0.0.1:8081/instance/create -H "apikey: <EVOLUTION_API_KEY do .env>" \\
        -H 'Content-Type: application/json' -d '{"instanceName":"$EVOLUTION_INSTANCIA","integration":"WHATSAPP-BAILEYS","qrcode":true}'
    O webhook global já aponta para http://atende:8080/webhook/evolution/<WEBHOOK_SEGREDO> (rede interna).
-3. Telegram: aponte o webhook do bot para o seu domínio:
-     curl "https://api.telegram.org/bot<TELEGRAM_TOKEN>/setWebhook" \\
-       -d "url=$URL_PUBLICA/webhook/telegram" -d "secret_token=<TELEGRAM_SEGREDO do .env>"
+$TG_PASSO
    Ponha o bot no grupo da equipe; cada colaborador manda /entrar <código> no privado do bot.
 4. Backup diário às 03:00, $CRON_MSG:
      $CRON_LINHA

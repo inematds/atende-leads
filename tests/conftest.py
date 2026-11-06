@@ -373,7 +373,9 @@ class Externo:
         self.prox_msg = 1000
         self.pendurar = False      # True: aceita a conexão e não responde (API pendurada)
         self.solta = threading.Event()
-        self.trava = threading.Lock()
+        self.trava = threading.Condition()  # `with externo.trava` continua valendo; getUpdates espera nela
+        self.updates = []          # fila do getUpdates (modo polling): fica até o offset confirmar
+        self.fechado = False
         externo = self
 
         class H(http.server.BaseHTTPRequestHandler):
@@ -419,6 +421,37 @@ class Externo:
                         b = json.dumps({"ok": False, "error_code": 400,
                                         "description": "Bad Request: message to edit not found"}).encode()
                         self.send_response(400)
+                        self.send_header("Content-Type", "application/json")
+                        self.send_header("Content-Length", str(len(b)))
+                        self.end_headers()
+                        self.wfile.write(b)
+                        return
+                    if metodo == "getUpdates":
+                        # Como o Telegram: devolve os updates com update_id >= offset (sem esquecer os
+                        # anteriores: quem não manda o offset recebe tudo de novo); sem nada, espera o
+                        # `timeout` do pedido (no máximo 2 s) e devolve [].
+                        offset = dados.get("offset") or 0
+                        fim = time.time() + min(float(dados.get("timeout") or 0), 2)
+                        while True:
+                            achados = [u for u in externo.updates if u["update_id"] >= offset]
+                            resta = fim - time.time()
+                            if achados or resta <= 0 or externo.fechado:
+                                break
+                            externo.trava.wait(resta)
+                        pedido["status"], pedido["entregues"] = 200, [u["update_id"] for u in achados]
+                        externo.pedidos.append(pedido)
+                        b = json.dumps({"ok": True, "result": achados}).encode()
+                        self.send_response(200)
+                        self.send_header("Content-Type", "application/json")
+                        self.send_header("Content-Length", str(len(b)))
+                        self.end_headers()
+                        self.wfile.write(b)
+                        return
+                    if metodo == "deleteWebhook":
+                        pedido["status"] = 200
+                        externo.pedidos.append(pedido)
+                        b = json.dumps({"ok": True, "result": True}).encode()
+                        self.send_response(200)
                         self.send_header("Content-Type", "application/json")
                         self.send_header("Content-Length", str(len(b)))
                         self.end_headers()
@@ -498,7 +531,17 @@ class Externo:
             n = atual
             time.sleep(janela)
 
+    # ---- Telegram em modo polling
+    def injetar(self, update):
+        """Põe um update na fila do getUpdates (como se o Telegram o tivesse recebido)."""
+        with self.trava:
+            self.updates.append(update)
+            self.trava.notify_all()
+
     def fechar(self):
+        with self.trava:
+            self.fechado = True
+            self.trava.notify_all()
         self.solta.set()
         self.srv.shutdown()
         self.srv.server_close()

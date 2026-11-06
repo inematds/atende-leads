@@ -85,3 +85,16 @@ Fora de escopo, mantido de propósito: `/entrar` do Telegram continua barrando a
 | 2026-11-05 | tests/test_revisao3.py::test_webhook_que_quebra_vai_para_descartes (novo) | §13 descartes de webhook que desistiu | falha só ia ao log |
 | 2026-11-05 | tests/test_seguranca.py::test_csv_sem_injecao_de_formula (alterado) | §4 nome validado; §13 CSV prefixa `'` | a fórmula no `nome` agora é recusada; o escape do CSV passa a ser provado pelo id do colaborador |
 | 2026-11-05 | tests_dev/test_cerebro.py::test_openai_resumo_e_chave (alterado) + test_chave_so_vai_a_host_permitido (novo) | §14 CEREBRO_HOSTS_PERMITIDOS | chave só vai a host permitido |
+
+## Testes novos do modo polling do Telegram (1.1.3)
+
+| data | teste | trecho do contrato | motivo |
+|---|---|---|---|
+| 2026-11-05 | tests/test_polling.py::test_saude_modo_padrao_webhook (novo) | §18 `telegram_modo` | sem TELEGRAM_MODO o padrão é webhook |
+| 2026-11-05 | tests/test_polling.py::test_polling_entrar_vincula (novo) | §16 modo polling: deleteWebhook sem apagar pendentes, getUpdates (timeout, allowed_updates), /entrar | /entrar por getUpdates vincula sem TELEGRAM_SEGREDO; webhook HTTP segue 401 |
+| 2026-11-05 | tests/test_polling.py::test_polling_callback_assume (novo) | §16 polling + botão `as:`; §1 ATENDE_AGORA | callback por polling assume e recebe answerCallbackQuery |
+| 2026-11-05 | tests/test_polling.py::test_polling_offset_nao_reprocessa_ao_reiniciar (novo) | §16 offset no SQLite | reiniciar não reprocessa (Telegram falso devolve tudo sem offset; mutação sem offset falha) |
+| 2026-11-05 | tests/test_polling.py::test_polling_erro_500_nao_derruba (novo) | §16 backoff 1, 2, 4… 30 s | 500 no getUpdates não derruba (saúde ok) e retoma |
+| 2026-11-05 | tests/test_polling.py::test_polling_409_chama_deletewebhook_de_novo (novo) | §16 409 Conflict | 409 → deleteWebhook de novo e retoma |
+| 2026-11-05 | tests/test_polling.py::test_polling_nao_exige_segredo_em_0000 (novo) | §1 trava de 0.0.0.0; §16 polling sem TELEGRAM_SEGREDO | webhook sem segredo recusa em 0.0.0.0; polling sobe |
+| 2026-11-05 | tests/conftest.py Externo (alterado) | §16 | Telegram falso responde getUpdates (fila `injetar`, offset, [] após o timeout ≤ 2 s) e deleteWebhook; `trava` virou Condition |

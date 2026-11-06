@@ -21,6 +21,27 @@ def grupo():
     return os.environ.get('TELEGRAM_GRUPO_ID') or None
 
 
+def modo():
+    """'polling' (getUpdates, sem domínio/HTTPS) ou 'webhook' (padrão)."""
+    return 'polling' if (os.environ.get('TELEGRAM_MODO') or '').strip().lower() == 'polling' else 'webhook'
+
+
+def poll_timeout():
+    try:
+        return max(0, min(50, int(os.environ.get('TELEGRAM_POLL_TIMEOUT') or 25)))
+    except ValueError:
+        return 25
+
+
+def chamar_http(metodo, corpo, timeout=10):
+    """Devolve (status_http, resposta) — o polling precisa do status (409 = webhook ativo)."""
+    if not configurado():
+        return 0, {}
+    url = f"{os.environ['TELEGRAM_API_URL'].rstrip('/')}/bot{os.environ['TELEGRAM_TOKEN']}/{metodo}"
+    st, r = rede.postar_status(url, corpo, timeout=timeout)
+    return st, (r if isinstance(r, dict) else {})
+
+
 # ---------- chamada direta (só fora do lock: despachante e download de áudio) ----------
 def chamar_status(metodo, corpo, timeout=10):
     """Devolve (ok, transitório, resposta)."""
