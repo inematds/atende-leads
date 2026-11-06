@@ -10,8 +10,8 @@ PARAR = ('parar', 'sair', 'pare')
 APAGAR = 'apagar meus dados'
 HUMANO = ('atendente', 'humano', 'falar com alguem', 'falar com uma pessoa', 'vendedor', 'me liga', 'me ligue',
           'ligacao')
-VENDA = ('quero comprar', 'quero contratar', 'como faco para comprar', 'como faco para contratar', 'fechar',
-         'quanto custa', 'qual o valor', 'qual o preco', 'forma de pagamento', 'parcela', 'orcamento')
+VENDA = ('quero comprar', 'quero contratar', 'como faco para comprar', 'como faco para contratar', 'quero fechar',
+         'fechar negocio', 'fechar o pedido', 'fechar a compra', 'quanto custa', 'qual o valor', 'qual o preco', 'forma de pagamento', 'parcela', 'orcamento')
 PRECISA = ('reclamacao', 'reclamar', 'problema', 'nao funciona', 'defeito', 'cancelar', 'reembolso', 'absurdo',
            'pessimo', 'procon')
 SIM = {'sim', 'quero', 'pode', 's', 'claro', 'ok', 'isso', 'bora', 'beleza', 'yes'}
@@ -126,6 +126,7 @@ def registrar(c, lead_id, de, texto, chamado_id=None, autor=None):
 
 def anonimizar(c, lead_id):
     lead = c.lead(lead_id)
+    chamados.encerrar_por_apagar(c, lead_id)
     c.db.execute("UPDATE leads SET nome='apagado', telefone=?, push_name=NULL, estado='{}', interesse=NULL, "
                  'urgencia=NULL WHERE id=?', (f'apagado-{lead_id}', lead_id))
     c.db.execute('DELETE FROM mensagens WHERE lead_id=?', (lead_id,))
@@ -186,6 +187,28 @@ def extrair_nome(texto):
     if nome and nome == nome.lower():
         nome = ' '.join(p.capitalize() for p in nome.split())
     return nome
+
+
+# Primeira palavra que mostra que a frase não é um nome ("não sei", "quero ver", "tenho dúvida", "oi"...).
+NAO_E_NOME = set('''nao sim quero tenho oi ola bom boa ok okay obrigado obrigada valeu tudo talvez depois agora
+ainda so preciso gostaria queria quer pode posso vou vai estou to tava sei acho qual quanto quando como onde
+porque por que pra para eu voce me meu minha tem ter e eh ai opa oie oii hey hello alo bem nada nenhum
+nenhuma isso esse essa aqui la sou chamo'''.split())
+_PALAVRA_NOME = re.compile(r"[^\W\d_]+(?:['’-][^\W\d_]+)*")
+
+
+def parece_nome(nome):
+    """1 a 4 palavras, só letras/espaço/apóstrofo/hífen, 2–40 caracteres, sem dígitos, e a primeira palavra
+    não é negação, verbo ou saudação comum."""
+    if not isinstance(nome, str):
+        return False
+    nome = ' '.join(nome.split())
+    palavras = nome.split()
+    if not 2 <= len(nome) <= 40 or not 1 <= len(palavras) <= 4:
+        return False
+    if not all(_PALAVRA_NOME.fullmatch(p) for p in palavras):
+        return False
+    return normalizar(palavras[0]) not in NAO_E_NOME
 
 
 # ---------- entrada ----------
@@ -337,7 +360,7 @@ def _abrir(c, lid, motivo, prefixo=''):
 
 
 def _pergunta_nome(c, lead, e):
-    if lead['push_name']:
+    if lead['push_name'] and parece_nome(lead['push_name']):
         gravar_estado(c, lead['id'], {**e, 'etapa': 'confirma_nome'})
         return f"Posso te chamar de {lead['push_name']}?"
     gravar_estado(c, lead['id'], {**e, 'etapa': 'nome'})
@@ -376,9 +399,9 @@ def qualificar(c, lead, e, texto, t):
         etapa = 'nome'
     if etapa == 'nome':
         nome = extrair_nome(texto)
-        if not nome or t in SAUDACOES:
+        if not nome or t in SAUDACOES or not parece_nome(nome):
             gravar_estado(c, lid, {**e, 'etapa': 'nome'})
-            return ['Qual é o seu nome?']
+            return ['Pode me dizer só o seu nome?']
         c.db.execute('UPDATE leads SET nome=? WHERE id=?', (nome, lid))
         return _apos_nome(c, lid, e)
     if etapa == 'procura':

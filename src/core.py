@@ -83,8 +83,12 @@ def minutos(desde, ate):
 
 
 def primeiro_nome(nome):
+    """Primeiro nome para o grupo/painel; 'lead' se não houver ou se não parecer nome (dígito, sem letra)."""
     nome = (nome or '').strip()
-    return nome.split()[0] if nome else 'lead'
+    p = nome.split()[0] if nome else ''
+    if not p or any(ch.isdigit() for ch in p) or not any(ch.isalpha() for ch in p):
+        return 'lead'
+    return p
 
 
 def ddmm_hhmm(dt):
@@ -205,6 +209,7 @@ class App:
         self._local.ultimos = []
         try:
             for _ in range(6):
+                self._local.abriu_publico = False  # marcado de novo se esta tentativa abrir chamado
                 try:
                     with self.transacao():
                         r = fn()

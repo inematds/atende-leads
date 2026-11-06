@@ -9,7 +9,7 @@ ANA, BRUNO, CARLA = 1001, 1002, 1003
 def preparar(**kw):
     tg, evo = Falso(), Falso()
     s = Servidor(env=env_tg(tg, evo), cfg=cfg_exemplo(**kw))
-    for fid, cod in ((ANA, 'ana-1234'), (BRUNO, 'bruno-1234'), (CARLA, 'carla-1234')):
+    for fid, cod in ((ANA, 'ana-1234-dev01'), (BRUNO, 'bruno-1234-dev01'), (CARLA, 'carla-1234-dev01')):
         st, _ = s.tg(upd_msg(fid, f'/entrar {cod}'))
         assert st == 200
     return s, tg, evo
@@ -71,7 +71,7 @@ def test_fluxo_completo():
         assert evo.de(f"loja") or evo.chamadas
         assert evo.chamadas[-1]['headers'].get('apikey') == 'k'
         # segundo a assumir → 409
-        st, r2 = s.e('bruno-1234', 'POST', f"/api/equipe/chamados/{ch['id']}/assumir")
+        st, r2 = s.e('bruno-1234-dev01', 'POST', f"/api/equipe/chamados/{ch['id']}/assumir")
         assert st == 409 and 'já foi assumido por Ana' in r2['erro']
         # lead manda mensagem → vai ao dono
         st, r = s.msg('41999990001', 'tenho pressa')
@@ -148,7 +148,7 @@ def test_oferta_vencida_e_alerta():
         # corrida pelo assumir
         with cf.ThreadPoolExecutor(3) as ex:
             res = list(ex.map(lambda cod: s.e(cod, 'POST', f"/api/equipe/chamados/{ch['id']}/assumir")[0],
-                              ['ana-1234', 'bruno-1234', 'carla-1234']))
+                              ['ana-1234-dev01', 'bruno-1234-dev01', 'carla-1234-dev01']))
         assert sorted(res) == [200, 409, 409], res
         # Telegram para quem perdeu
         s.tg(upd_cb(ANA, f"as:{ch['id']}"))
@@ -275,21 +275,21 @@ def test_config_e_fechamento_validacoes():
         cfg['prazos']['oferta_min'] = 3
         assert s.g('PUT', '/api/gestor/config', cfg)[0] == 200
         assert s.g('GET', '/api/gestor/config')[0] == 200  # token mantido
-        s.e('ana-1234', 'POST', '/api/equipe/status', {'status': 'livre'})
+        s.e('ana-1234-dev01', 'POST', '/api/equipe/status', {'status': 'livre'})
         st, r = s.msg('41999990030', 'falar com uma pessoa', nome='Téo')
         ch = chamado_de(s, r['lead']['id'])
-        s.e('ana-1234', 'POST', f"/api/equipe/chamados/{ch['id']}/assumir")
-        assert s.e('ana-1234', 'POST', '/api/equipe/status', {'status': 'fora'})[0] == 409
-        assert s.e('bruno-1234', 'POST', f"/api/equipe/chamados/{ch['id']}/fechar", {'resultado': 'negociando'})[0] == 403
-        assert s.e('ana-1234', 'POST', f"/api/equipe/chamados/{ch['id']}/fechar", {'resultado': 'vendeu'})[0] == 422
-        assert s.e('ana-1234', 'POST', f"/api/equipe/chamados/{ch['id']}/fechar",
+        s.e('ana-1234-dev01', 'POST', f"/api/equipe/chamados/{ch['id']}/assumir")
+        assert s.e('ana-1234-dev01', 'POST', '/api/equipe/status', {'status': 'fora'})[0] == 409
+        assert s.e('bruno-1234-dev01', 'POST', f"/api/equipe/chamados/{ch['id']}/fechar", {'resultado': 'negociando'})[0] == 403
+        assert s.e('ana-1234-dev01', 'POST', f"/api/equipe/chamados/{ch['id']}/fechar", {'resultado': 'vendeu'})[0] == 422
+        assert s.e('ana-1234-dev01', 'POST', f"/api/equipe/chamados/{ch['id']}/fechar",
                    {'resultado': 'sem_interesse', 'motivo': 'spam'})[0] == 422
-        assert s.e('ana-1234', 'POST', f"/api/equipe/chamados/{ch['id']}/fechar",
+        assert s.e('ana-1234-dev01', 'POST', f"/api/equipe/chamados/{ch['id']}/fechar",
                    {'resultado': 'retornar', 'retornar_em': '2026-11-01T10:00'})[0] == 422
-        st, r = s.e('ana-1234', 'POST', f"/api/equipe/chamados/{ch['id']}/fechar",
+        st, r = s.e('ana-1234-dev01', 'POST', f"/api/equipe/chamados/{ch['id']}/fechar",
                     {'resultado': 'retornar', 'retornar_em': '2026-11-10T09:00'})
         assert st == 200, r
-        assert s.e('ana-1234', 'POST', f"/api/equipe/chamados/{ch['id']}/fechar", {'resultado': 'negociando'})[0] == 409
+        assert s.e('ana-1234-dev01', 'POST', f"/api/equipe/chamados/{ch['id']}/fechar", {'resultado': 'negociando'})[0] == 409
         st, saida = s.g('GET', '/api/saida')
         assert any(m['texto'] == 'Combinado! Vamos te procurar em 10/11 às 09:00.' for m in saida)
         s.relogio('2026-11-10T09:00')

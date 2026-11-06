@@ -33,3 +33,37 @@
 | 2026-11-05 | tests/test_seguranca.py::test_recusa_segredos_de_exemplo_em_0000 (novo) | §1 segredos de exemplo | recusa em 0.0.0.0, sobe em 127.0.0.1 e com ATENDE_PERMITIR_EXEMPLO=1 |
 | 2026-11-05 | tests/test_seguranca.py::test_recusa_codigo_de_exemplo_e_aceita_segredos_proprios (novo) | §1 segredos de exemplo | só o código do exemplo já recusa; segredos próprios sobem em 0.0.0.0 |
 | 2026-11-05 | tests/test_seguranca.py::test_restaurar_recusa_com_servidor_rodando (novo) | §1 `restaurar` recusa | stderr com `docker compose stop atende` |
+
+## Testes alterados/novos na correção da segunda revisão independente (1.0.2)
+
+| data | teste | trecho do contrato | motivo |
+|---|---|---|---|
+| 2026-11-05 | tests/fixtures/negocio.json + tests/conftest.py `CODIGOS` (helper) | §13 códigos com 12+ caracteres | códigos de teste `ana-1234` etc. viraram `ana-1234-teste` etc. (o PUT da config passou a recusar < 12) |
+| 2026-11-05 | tests/test_interfaces.py `_invalidos` (helper) | §13 códigos únicos | código duplicado acompanha o novo código da Ana |
+| 2026-11-05 | tests/test_seguranca.py::test_recusa_codigo_de_exemplo_e_aceita_segredos_proprios | §1 segredos de exemplo | dependia de o fixture usar o código do exemplo; agora põe o código do `exemplos/negocio.json` explicitamente |
+| 2026-11-05 | tests_dev/*.py (códigos `ana-1234` → `ana-1234-dev01` etc.; `davi-1` → `davi-1-codigo-dev`) | §13 códigos com 12+ caracteres | mesmo motivo do fixture |
+| 2026-11-05 | tests/conftest.py `Externo.respostas` (helper) | §8 painel; §16 erros do Telegram | falso devolve (status, json) roteirizados por método (429 com retry_after, 500, 400 qualquer) |
+| 2026-11-05 | tests/test_seguranca.py::test_codigo_errado_5_vezes_429 (invertido) | §3 "credencial certa sempre passa" | 6º errado → 429; o código certo → 200 (antes: 429 mesmo com o certo) |
+| 2026-11-05 | tests/test_seguranca.py::test_token_gestor_errado_5_vezes_429 (invertido) | §3 idem | 6º token errado → 429; o certo → 200 |
+| 2026-11-05 | tests/test_seguranca.py::test_limite_por_ip_do_proxy_confiavel (novo) | §3 `ATENDE_PROXY_CONFIAVEL`, X-Forwarded-For | item 1: IPs diferentes atrás do proxy têm baldes próprios; valor forjado à esquerda não muda o balde; token certo passa do IP bloqueado |
+| 2026-11-05 | tests/test_seguranca.py::test_proxy_nao_confiavel_ignora_x_forwarded_for (novo) | §3 proxy fora da lista | item 1: com a lista sem 127.0.0.1, XFF é ignorado e tudo cai no balde da conexão |
+| 2026-11-05 | tests/test_seguranca.py::test_web_limita_leads_novos_por_ip (novo) | §4 limites do chat web | item 2: 6º lead web novo do mesmo IP em 10 min → 429; sessão existente e outro IP seguem |
+| 2026-11-05 | tests/test_seguranca.py::test_web_teto_global_de_leads_novos (novo) | §4 30 leads web novos/min | item 2: 31º lead web no minuto (IPs variados) → 429 |
+| 2026-11-05 | tests/test_seguranca.py::test_web_limita_chamados_por_ip (novo) | §4 3 chamados/h/IP | item 2: 4º chamado pelo web e pelo /meu/falar do mesmo IP → 429 e a fila não cresce |
+| 2026-11-05 | tests/test_seguranca.py::test_segredo_de_webhook_fraco_recusa_em_0000 (novo) | §1 segredo de webhook fraco | item 4: vazio, < 16 e `troque` recusam em 0.0.0.0 com a integração ligada; ATENDE_PERMITIR_EXEMPLO=1 libera; fortes ou integração desligada sobem |
+| 2026-11-05 | tests/test_painel.py::test_painel_erro_transitorio_nao_envia_painel_novo (novo) | §8 só 400 "não existe" reenvia | item 3: 500 e 429 (retry_after) → edita de novo, um painel só |
+| 2026-11-05 | tests/test_painel.py::test_painel_erro_400_qualquer_nao_envia_painel_novo (novo) | §8 outro 4xx desiste da edição | item 3: 400 `chat not found` não cria painel novo |
+| 2026-11-05 | tests/test_revisao2.py::test_nome_que_nao_parece_nome_pergunta_de_novo (novo) | §4 qualificação: parece nome | item 5: `não sei`, dígitos, verbos, 5+ palavras → `Pode me dizer só o seu nome?`; `meu nome é joana d'arc` aceito |
+| 2026-11-05 | tests/test_revisao2.py::test_nome_com_digitos_nunca_vai_ao_grupo (novo) | §7 primeiro nome ou `lead` | item 5: nome com dígitos vira `lead` na linha do grupo |
+| 2026-11-05 | tests/test_revisao2.py::test_apagar_com_chamado_em_atendimento (novo) | §4 regra 2 com chamado aberto | item 6: chamado `apagado`, colaborador livre, 🗑️ no grupo e no cartão, aviso ao dono, sem botões |
+| 2026-11-05 | tests/test_revisao2.py::test_apagar_com_oferta_pendente (novo) | §4 regra 2 | item 6: oferta editada para 🗑️, fila vazia |
+| 2026-11-05 | tests/test_revisao2.py::test_apagar_cancela_envios_pendentes_com_dados_do_lead (novo) | §4 regra 2 "envios pendentes cancelados" | item 6: oferta presa em backoff não sai depois do apagar (confirmado por mutação: sem o cancelamento o teste falha) |
+| 2026-11-05 | tests/test_revisao2.py::test_fechar_solto_nao_e_chance_de_venda (novo) | §4 regra 6 | item 8: `vou fechar a loja` não abre chamado |
+| 2026-11-05 | tests/test_revisao2.py::test_quero_fechar_abre_venda (novo) | §4 regra 6 | item 8: `quero fechar`, `fechar negócio` abrem venda |
+| 2026-11-05 | tests/test_revisao2.py::test_assumir_so_quem_recebeu_a_oferta (novo) | §7 assumir restrito | item 8: [E] não ofertado → 403; ofertado → 200 |
+| 2026-11-05 | tests/test_revisao2.py::test_assumir_em_alerta_qualquer_um (novo) | §7 assumir em alerta | item 8: em `alerta` qualquer colaborador (não fora) assume |
+| 2026-11-05 | tests/test_revisao2.py::test_gestor_transfere_chamado_ofertado_a_outro (novo) | §7/§13 transferir | item 8: gestor passa o chamado a quem não recebeu a oferta |
+| 2026-11-05 | tests/test_revisao2.py::test_assumir_pelo_telegram_sem_oferta_recusa (novo) | §7 botão `as:` restrito | item 8: botão de chamado alheio → `não foi oferecido a você` |
+| 2026-11-05 | tests/test_revisao2.py::test_minutos_ate_assumir_conta_da_abertura_do_expediente (novo) | §9 minutos_ate_assumir; §13 hoje | item 8: chamado das 07:00, expediente 08:00, assumido 08:03 → 3 (e tempo médio 3) |
+
+Fora de escopo, mantido de propósito: `/entrar` do Telegram continua barrando até o código certo depois de 5 erros (balde por `from.id`, não por IP — não sofre do problema do proxy). `assumir_retorno` (botão `ra:`) e `transferir` chamam `assumir` sem a restrição (o retorno já é do colaborador; o gestor transfere).

@@ -92,7 +92,7 @@ class Despachante:
             self._evo(item)
 
     # ---------- Telegram ----------
-    def _fim_tg(self, item, ok, transitorio, message_id=None):
+    def _fim_tg(self, item, ok, transitorio, message_id=None, espera=None):
         with self.app.transacao() as c:
             if ok:
                 # corpo='{}': o texto (nome, telefone, mensagens do lead) só vive no Telegram, não fica aqui
@@ -110,8 +110,9 @@ class Despachante:
                 return
             n = item['tentativas'] + 1
             if transitorio and n < MAX_TENTATIVAS:
+                atraso = backoff(n) if espera is None else min(max(float(espera), 1.0), TETO_BACKOFF)
                 c.db.execute("UPDATE tg_saida SET status='pendente', tentativas=?, proxima=? WHERE id=?",
-                             (n, time.time() + backoff(n), item['id']))
+                             (n, time.time() + atraso, item['id']))
                 self.app.acordar['tg'].set()
             else:
                 c.db.execute("UPDATE tg_saida SET status='falhou', corpo='{}', tentativas=? WHERE id=?", (n, item['id']))
@@ -147,7 +148,7 @@ class Despachante:
         if not ok and metodo == 'editMessageText' and 'not modified' in str(r.get('description', '')):
             ok = True
         mid = (r.get('result') or {}).get('message_id') if ok and isinstance(r.get('result'), dict) else None
-        self._fim_tg(item, ok, trans, mid)
+        self._fim_tg(item, ok, trans, mid, espera=retry_after(r))
 
     def _painel(self, item, texto):
         with self.app.transacao() as c:
@@ -164,6 +165,10 @@ class Despachante:
                 with self.app.transacao() as c:
                     c.meta('painel_texto', texto, gravar=True)
                 return self._fim_tg(item, True, False)
+            if not mensagem_sumiu(r):
+                # 429 (retry_after), 5xx, timeout → edita de novo mais tarde; outro erro → desiste desta edição.
+                # Painel novo só quando o Telegram diz que a mensagem não existe ou não pode ser editada.
+                return self._fim_tg(item, False, _t, espera=retry_after(r))
         ok, trans, r = tg.chamar_status('sendMessage', {'chat_id': gid, 'text': texto})
         mid = (r.get('result') or {}).get('message_id') if ok else None
         if mid is None:
@@ -201,13 +206,31 @@ class Despachante:
                 self.app.acordar['evo'].set()
 
 
+def retry_after(r):
+    """Segundos pedidos pelo Telegram num 429 (`parameters.retry_after`), ou None."""
+    p = r.get('parameters') if isinstance(r, dict) else None
+    v = p.get('retry_after') if isinstance(p, dict) else None
+    return v if isinstance(v, (int, float)) and not isinstance(v, bool) and v >= 0 else None
+
+
+SUMIU = ('message to edit not found', "message can't be edited")
+
+
+def mensagem_sumiu(r):
+    """400 do Telegram dizendo que a mensagem do painel não existe mais ou não pode ser editada."""
+    if not isinstance(r, dict) or r.get('error_code') not in (400, None):
+        return False
+    desc = str(r.get('description', '')).lower()
+    return any(s in desc for s in SUMIU)
+
+
 PODAR_ACIMA = 5000
 
 
 def podar(app):
     """Mantém só as últimas PODAR_ACIMA linhas já resolvidas da fila do Telegram."""
     with app.transacao() as c:
-        c.db.execute("DELETE FROM tg_saida WHERE status IN ('enviado','falhou') AND id < "
+        c.db.execute("DELETE FROM tg_saida WHERE status IN ('enviado','falhou','cancelado') AND id < "
                      '(SELECT COALESCE(MAX(id), 0) FROM tg_saida) - ?', (PODAR_ACIMA,))
 
 

@@ -13,9 +13,9 @@
   },
   "prazos": {"oferta_min": 2, "alerta_quente_min": 2, "alerta_normal_min": 5, "lembrete_min": 30},
   "equipe": [
-    {"id": "ana", "nome": "Ana", "telefone": "5541999990010", "codigo": "ana-1234"},
-    {"id": "bruno", "nome": "Bruno", "telefone": "5541999990020", "codigo": "bruno-5678"},
-    {"id": "carla", "nome": "Carla", "telefone": "5541999990030", "codigo": "carla-9012"}
+    {"id": "ana", "nome": "Ana", "telefone": "5541999990010", "codigo": "ana-1234-teste"},
+    {"id": "bruno", "nome": "Bruno", "telefone": "5541999990020", "codigo": "bruno-5678-teste"},
+    {"id": "carla", "nome": "Carla", "telefone": "5541999990030", "codigo": "carla-9012-teste"}
   ],
   "produtos": [
     {"id": "plano-anual", "nome": "Plano anual", "palavras": ["anual", "plano anual"], "preco": "R$ 1.200"},

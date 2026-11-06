@@ -1,7 +1,11 @@
 # atende-leads — produção na VPS.
 #   docker compose up -d                       → só o atendimento (porta 127.0.0.1:8080)
 #   docker compose --profile evolution up -d   → + Evolution API v2 (WhatsApp) com Postgres e Redis
-# Copie .env.exemplo para .env (ou rode ./instalar-vps.sh) antes de subir.
+# Rode ./instalar-vps.sh (gera .env e dados/negocio.json com segredos aleatórios) antes de subir.
+# Sem instalador: copie .env.exemplo para .env e TROQUE token_gestor, códigos da equipe, WEBHOOK_SEGREDO,
+# TELEGRAM_SEGREDO, EVOLUTION_API_KEY e EVOLUTION_DB_SENHA — com segredo de exemplo o atendimento recusa subir.
+# Sem valor padrão de propósito: segredo vazio faz o Postgres e a Evolution falharem em vez de usar "troque".
+# A pasta ./dados precisa ser do uid 1000 (o container não roda como root): sudo chown -R 1000:1000 dados
 services:
   atende:
     build: .
@@ -28,7 +32,7 @@ services:
       SERVER_PORT: "8080"
       AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY:-}
       DATABASE_PROVIDER: postgresql
-      DATABASE_CONNECTION_URI: postgresql://evolution:${EVOLUTION_DB_SENHA:-troque}@evolution-postgres:5432/evolution?schema=evolution_api
+      DATABASE_CONNECTION_URI: postgresql://evolution:${EVOLUTION_DB_SENHA:-}@evolution-postgres:5432/evolution?schema=evolution_api
       DATABASE_CONNECTION_CLIENT_NAME: evolution_exchange
       DATABASE_SAVE_DATA_INSTANCE: "true"
       DATABASE_SAVE_DATA_NEW_MESSAGE: "true"
@@ -39,7 +43,7 @@ services:
       CACHE_LOCAL_ENABLED: "false"
       # Webhook global: toda mensagem recebida vai direto ao atendimento, pela rede interna.
       WEBHOOK_GLOBAL_ENABLED: "true"
-      WEBHOOK_GLOBAL_URL: http://atende:8080/webhook/evolution/${WEBHOOK_SEGREDO:-troque}
+      WEBHOOK_GLOBAL_URL: http://atende:8080/webhook/evolution/${WEBHOOK_SEGREDO:-}
       WEBHOOK_GLOBAL_WEBHOOK_BY_EVENTS: "false"
       WEBHOOK_EVENTS_MESSAGES_UPSERT: "true"
       TZ: ${TZ:-America/Sao_Paulo}
@@ -57,7 +61,7 @@ services:
     environment:
       POSTGRES_DB: evolution
       POSTGRES_USER: evolution
-      POSTGRES_PASSWORD: ${EVOLUTION_DB_SENHA:-troque}
+      POSTGRES_PASSWORD: ${EVOLUTION_DB_SENHA:-}
     volumes:
       - evolution_postgres:/var/lib/postgresql/data
     networks: [interna]

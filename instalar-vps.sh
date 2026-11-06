@@ -86,8 +86,8 @@ CEREBRO_API_KEY=
 WHISPER_CMD=
 TZ=America/Sao_Paulo
 EOF
-umask 022
 
+# Continua com umask 077: dados/negocio.json (token do gestor e códigos da equipe) só para o dono.
 mkdir -p dados
 if [ -f dados/negocio.json ]; then
   cp dados/negocio.json "dados/negocio.json.bak-$(date +%Y%m%d%H%M%S)"
@@ -116,6 +116,15 @@ with open(tmp, 'w', encoding='utf-8') as f:
     json.dump(cfg, f, ensure_ascii=False, indent=2)
 os.replace(tmp, 'dados/negocio.json')
 PY
+chmod 600 .env dados/negocio.json
+umask 022
+
+# O container roda como uid 1000 (não root): a pasta de dados montada em /dados tem de ser dele.
+if [ "$(id -u)" = "0" ]; then
+  chown -R 1000:1000 dados
+elif [ "$(id -u)" != "1000" ]; then
+  echo "Aviso: rode 'sudo chown -R 1000:1000 $DIR/dados' (o container roda como uid 1000)." >&2
+fi
 
 echo "Gerado: .env e dados/negocio.json"
 echo "Token do gestor: $TOKEN_GESTOR   (guarde; também está em dados/negocio.json)"

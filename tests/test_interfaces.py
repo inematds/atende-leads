@@ -184,7 +184,7 @@ def _cfg(api):
 
 def _invalidos(base):
     a = copy.deepcopy(base); a["equipe"][1]["id"] = "ana"
-    b = copy.deepcopy(base); b["equipe"][1]["codigo"] = "ana-1234"
+    b = copy.deepcopy(base); b["equipe"][1]["codigo"] = "ana-1234-teste"
     c = copy.deepcopy(base); c["horarios"]["seg"] = [["8h", "18:00"]]
     d = copy.deepcopy(base); d["prazos"]["oferta_min"] = 0
     e = copy.deepcopy(base); e["prazos"]["lembrete_min"] = "trinta"

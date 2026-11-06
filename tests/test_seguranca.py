@@ -94,14 +94,114 @@ def test_injecao_web_nao_chega_ao_lead_do_whatsapp(api_int, externo, tg):
 def test_codigo_errado_5_vezes_429(api):
     for _ in range(5):
         assert api.get("/api/equipe/eu", token=None, codigo="chute-errado")[0] == 401
-    st, r = api.get("/api/equipe/eu", token=None, codigo=CODIGOS["ana"])
+    st, r = api.get("/api/equipe/eu", token=None, codigo="chute-errado")
     assert st == 429 and "Muitas tentativas" in r["erro"]
+    # credencial certa sempre passa (equipe atrás do mesmo proxy não fica trancada)
+    assert api.get("/api/equipe/eu", token=None, codigo=CODIGOS["ana"])[0] == 200
 
 
 def test_token_gestor_errado_5_vezes_429(api):
     for _ in range(5):
         assert api.get("/api/gestor/hoje", token="chute")[0] == 401
-    assert api.get("/api/gestor/hoje")[0] == 429
+    assert api.get("/api/gestor/hoje", token="chute")[0] == 429
+    assert api.get("/api/gestor/hoje")[0] == 200
+
+
+# ------------------------------------------------------------ revisão 2 (1.0.2): proxy, spam web, segredos
+
+def test_limite_por_ip_do_proxy_confiavel(api):
+    """Padrão: conexão de 127.0.0.1 é proxy confiável → o balde é o IP do X-Forwarded-For."""
+    a = {"X-Forwarded-For": "203.0.113.5"}
+    for _ in range(5):
+        assert api.get("/api/gestor/hoje", token="chute", headers=a)[0] == 401
+    assert api.get("/api/gestor/hoje", token="chute", headers=a)[0] == 429
+    # outro cliente atrás do mesmo proxy não é barrado
+    assert api.get("/api/gestor/hoje", token="chute", headers={"X-Forwarded-For": "203.0.113.6"})[0] == 401
+    # o proxy acrescenta o cliente no fim: valor forjado à esquerda não muda o balde
+    assert api.get("/api/gestor/hoje", token="chute",
+                   headers={"X-Forwarded-For": "198.51.100.9, 203.0.113.5"})[0] == 429
+    # e o token certo passa mesmo do IP bloqueado
+    assert api.get("/api/gestor/hoje", headers=a)[0] == 200
+
+
+def test_proxy_nao_confiavel_ignora_x_forwarded_for(dados):
+    api = Servidor(dados, env={"ATENDE_PROXY_CONFIAVEL": "192.0.2.0/24"}).subir()
+    for i in range(5):
+        assert api.get("/api/gestor/hoje", token="chute", headers={"X-Forwarded-For": f"203.0.113.{i}"})[0] == 401
+    # todos caíram no balde da conexão (127.0.0.1), não no IP forjado
+    assert api.get("/api/gestor/hoje", token="chute", headers={"X-Forwarded-For": "203.0.113.99"})[0] == 429
+
+
+def _web(api, ip, texto="oi", sessao=None):
+    corpo = {"telefone": TEL, "texto": texto, "canal": "web"}
+    if sessao:
+        corpo["sessao"] = sessao
+    return api.post("/api/mensagens", corpo, token=None, headers={"X-Forwarded-For": ip})
+
+
+def test_web_limita_leads_novos_por_ip(api):
+    sessoes = []
+    for _ in range(5):
+        st, r = _web(api, "203.0.113.20")
+        assert st == 200, r
+        sessoes.append(r["sessao"])
+    st, r = _web(api, "203.0.113.20")
+    assert st == 429 and "erro" in r
+    # a conversa já aberta continua; outro IP cria normalmente
+    assert _web(api, "203.0.113.20", "qual o horario de atendimento", sessoes[0])[0] == 200
+    assert _web(api, "203.0.113.21")[0] == 200
+
+
+def test_web_teto_global_de_leads_novos(api):
+    for i in range(30):
+        st, r = _web(api, f"198.51.100.{i // 4 + 1}")  # 4 por IP: abaixo do limite por IP
+        assert st == 200, (i, r)
+    assert _web(api, "198.51.100.200")[0] == 429
+
+
+def test_web_limita_chamados_por_ip(api):
+    api.status("ana", "livre")
+    ip = "203.0.113.30"
+    for i in range(3):
+        st, r = _web(api, ip, "quero falar com um atendente")
+        assert st == 200 and "vou chamar" in "\n".join(r["respostas"]).lower(), (i, r)
+    antes = len(api.fila())
+    # 4º chamado do mesmo IP na hora: recusado e nada abre (vale também para a página do lead)
+    st, r = _web(api, "203.0.113.30", "oi")
+    assert st == 200
+    st, r2 = _web(api, ip, "quero falar com um atendente", r["sessao"])
+    assert st == 429
+    assert api.post(f"/api/meu/{r['lead']['token']}/falar", {}, token=None,
+                    headers={"X-Forwarded-For": ip})[0] == 429
+    assert len(api.fila()) == antes
+    # outro IP ainda abre
+    assert _web(api, "203.0.113.31", "quero falar com um atendente")[0] == 200
+
+
+def test_segredo_de_webhook_fraco_recusa_em_0000(tmp_path):
+    d = tmp_path / "wh"
+    d.mkdir()
+    cfg = json.loads(FIXTURE.read_text())
+    for m in cfg["equipe"]:
+        m["codigo"] = m["id"] + "-Xk3vQ9pL2mZt"
+    (d / "negocio.json").write_text(json.dumps(cfg))
+    forte = "Qx7-segredo-bem-longo-123"
+    evo = {"EVOLUTION_URL": "http://127.0.0.1:9", "EVOLUTION_API_KEY": "k", "EVOLUTION_INSTANCIA": "loja"}
+    tgv = {"TELEGRAM_API_URL": "http://127.0.0.1:9", "TELEGRAM_TOKEN": "1:x"}
+    for env in ({**evo},                                           # integração ligada sem segredo
+                {**evo, "WEBHOOK_SEGREDO": "curto-demais"},        # < 16
+                {**evo, "WEBHOOK_SEGREDO": "troque-por-um-segredo-longo"},
+                {**tgv, "TELEGRAM_SEGREDO": ""},
+                {**tgv, "TELEGRAM_SEGREDO": "troque-por-outro-segredo"}):
+        p = _serve(d, "0.0.0.0", env)
+        assert p.wait(15) != 0, env
+        assert "SEGREDO" in p.stderr.read(), env
+    # ATENDE_PERMITIR_EXEMPLO=1 continua liberando
+    assert _primeira_linha(_serve(d, "0.0.0.0", {**evo, "ATENDE_PERMITIR_EXEMPLO": "1"})).startswith("PORTA=")
+    # segredos fortes sobem; integração desligada não exige segredo
+    assert _primeira_linha(_serve(d, "0.0.0.0", {**evo, **tgv, "WEBHOOK_SEGREDO": forte,
+                                                 "TELEGRAM_SEGREDO": forte})).startswith("PORTA=")
+    assert _primeira_linha(_serve(d, "0.0.0.0")).startswith("PORTA=")
 
 
 def test_entrar_limite_por_from_id(api_int, externo, tg):
@@ -246,6 +346,8 @@ def test_recusa_codigo_de_exemplo_e_aceita_segredos_proprios(tmp_path):
     d = tmp_path / "proprio"
     d.mkdir()
     cfg = json.loads(FIXTURE.read_text())  # token próprio, mas a Ana usa o código do exemplo
+    exemplo = json.loads((RAIZ / "exemplos" / "negocio.json").read_text())
+    cfg["equipe"][0]["codigo"] = exemplo["equipe"][0]["codigo"]
     (d / "negocio.json").write_text(json.dumps(cfg))
     p = _serve(d, "0.0.0.0")
     assert p.wait(15) != 0 and "código" in p.stderr.read()

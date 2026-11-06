@@ -138,3 +138,39 @@ def test_comando_status_manda_painel_novo(api_int, tg, externo):
     assert esperar(lambda: len(paineis_enviados(externo)) == antes + 1)
     tg.msg(TG_ID["ana"], "/status")
     assert esperar(lambda: externo.com_texto(externo.privado("ana"), "EQUIPE AGORA"))
+
+
+# ------------------------------------------------------------ revisão 2 (1.0.2): erro transitório não duplica
+
+def test_painel_erro_transitorio_nao_envia_painel_novo(api_int, tg, externo):
+    tg.entrar("ana")
+    api_int.status("ana", "livre")
+    assert esperar(lambda: paineis_enviados(externo))
+    mid = paineis_enviados(externo)[0]["message_id"]
+    externo.quieto()
+    # 500 e depois 429 com retry_after: o painel é editado de novo mais tarde, nunca reenviado
+    externo.respostas["editMessageText"] = [
+        (500, {"ok": False, "error_code": 500, "description": "Internal Server Error"}),
+        (429, {"ok": False, "error_code": 429, "description": "Too Many Requests: retry after 1",
+               "parameters": {"retry_after": 1}}),
+    ]
+    api_int.status("ana", "ocupado")
+    assert esperar(lambda: [e for e in externo.tg("editMessageText", GRUPO)
+                            if e["json"].get("message_id") == mid and "🔴" in e["json"].get("text", "")],
+                   timeout=12)
+    externo.quieto()
+    assert len(paineis_enviados(externo)) == 1
+    tentativas = [p for p in externo.tg("editMessageText", GRUPO, todos=True) if p["json"].get("message_id") == mid]
+    assert [p["status"] for p in tentativas][-3:] == [500, 429, 200]
+
+
+def test_painel_erro_400_qualquer_nao_envia_painel_novo(api_int, tg, externo):
+    tg.entrar("ana")
+    api_int.status("ana", "livre")
+    assert esperar(lambda: paineis_enviados(externo))
+    externo.quieto()
+    externo.respostas["editMessageText"] = [
+        (400, {"ok": False, "error_code": 400, "description": "Bad Request: chat not found"})]
+    api_int.status("ana", "ocupado")
+    externo.quieto()
+    assert len(paineis_enviados(externo)) == 1

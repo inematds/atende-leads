@@ -27,7 +27,7 @@ AGORA = "2026-11-09T10:00"  # segunda-feira, dentro do expediente 08–18
 NEGOCIO = "Loja Teste"
 URL_PUBLICA = "https://loja.exemplo.test"
 
-CODIGOS = {"ana": "ana-1234", "bruno": "bruno-5678", "carla": "carla-9012"}
+CODIGOS = {"ana": "ana-1234-teste", "bruno": "bruno-5678-teste", "carla": "carla-9012-teste"}
 NOMES = {"ana": "Ana", "bruno": "Bruno", "carla": "Carla"}
 TG_ID = {"ana": 7001, "bruno": 7002, "carla": 7003}
 GRUPO = -100555
@@ -369,6 +369,7 @@ class Externo:
         self.pedidos = []
         self.falhas = 0            # próximos N pedidos (qualquer rota) devolvem 500
         self.falhar_metodo = {}    # método Telegram -> N próximas respostas com erro 400
+        self.respostas = {}        # método Telegram -> lista de (status, corpo json) devolvidas antes das normais
         self.prox_msg = 1000
         self.pendurar = False      # True: aceita a conexão e não responde (API pendurada)
         self.solta = threading.Event()
@@ -399,6 +400,17 @@ class Externo:
                         self.send_response(500)
                         self.send_header("Content-Length", "0")
                         self.end_headers()
+                        return
+                    if externo.respostas.get(metodo):
+                        st, resp = externo.respostas[metodo].pop(0)
+                        pedido["status"] = st
+                        externo.pedidos.append(pedido)
+                        b = json.dumps(resp).encode()
+                        self.send_response(st)
+                        self.send_header("Content-Type", "application/json")
+                        self.send_header("Content-Length", str(len(b)))
+                        self.end_headers()
+                        self.wfile.write(b)
                         return
                     if externo.falhar_metodo.get(metodo, 0) > 0:
                         externo.falhar_metodo[metodo] -= 1

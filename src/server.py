@@ -5,6 +5,7 @@ cérebro/áudio rodam fora do lock (App.executar + App.pronto).
 """
 import argparse
 import hmac
+import ipaddress
 import json
 import os
 import re
@@ -37,24 +38,72 @@ ESTATICOS = {
 }
 
 
+# ---------- IP do cliente (proxy reverso confiável) ----------
+PROXY_PADRAO = '127.0.0.1/32,::1/128,172.16.0.0/12,10.0.0.0/8,192.168.0.0/16'
+
+
+def redes_confiaveis(texto=None):
+    """CIDRs de ATENDE_PROXY_CONFIAVEL (padrão: loopback + redes privadas, onde ficam o Caddy e a bridge do Docker).
+    Vazio = nunca confia no X-Forwarded-For."""
+    if texto is None:
+        texto = os.environ.get('ATENDE_PROXY_CONFIAVEL', PROXY_PADRAO)
+    redes = []
+    for parte in texto.split(','):
+        parte = parte.strip()
+        if not parte:
+            continue
+        try:
+            redes.append(ipaddress.ip_network(parte, strict=False))
+        except ValueError:
+            log(f'ATENDE_PROXY_CONFIAVEL: ignorado {parte!r}')
+    return redes
+
+
+def _endereco(ip):
+    try:
+        a = ipaddress.ip_address(str(ip).strip())
+    except ValueError:
+        return None
+    return a.ipv4_mapped if a.version == 6 and a.ipv4_mapped else a
+
+
+def ip_cliente(peer, xff, redes):
+    """IP da conexão; se ela vem de um proxy confiável, o primeiro IP não confiável do X-Forwarded-For,
+    lido da direita para a esquerda (o proxy acrescenta o cliente no fim)."""
+    def confia(ip):
+        a = _endereco(ip)
+        return a is not None and any(a in r for r in redes)
+    if not xff or not confia(peer):
+        return peer
+    partes = [p.strip() for p in xff.split(',') if p.strip()]
+    for p in reversed(partes):
+        if not confia(p):
+            return p
+    return partes[0] if partes else peer
+
+
 # ---------- autenticação ----------
 def _ip(c):
     return getattr(c._local, 'ip', None) or '?'
 
 
-def _checar_limite(c):
-    if limite.bloqueado(('ip', _ip(c))):
+def _errou(c):
+    """Credencial errada: conta a falha; depois de 5 no minuto (por IP), as erradas recebem 429.
+    A credencial certa nunca é barrada (equipe inteira atrás do mesmo proxy não fica trancada)."""
+    chave = ('ip', _ip(c))
+    if limite.bloqueado(chave):
+        limite.falhou(chave)
         raise Erro(429, limite.MENSAGEM)
+    limite.falhou(chave)
 
 
 def eh_gestor(c, h):
     tok = h.get('X-Token') or ''
     if not tok:
         return False
-    _checar_limite(c)
     if hmac.compare_digest(tok.encode(), str(c.cfg.get('token_gestor', '')).encode()):
         return True
-    limite.falhou(('ip', _ip(c)))
+    _errou(c)
     return False
 
 
@@ -62,13 +111,12 @@ def colab_do_codigo(c, h):
     cod = h.get('X-Codigo') or ''
     if not cod:
         return None
-    _checar_limite(c)
     achado = None
     for m in c.cfg.get('equipe', []):
         if hmac.compare_digest(cod.encode(), str(m.get('codigo', '')).encode()):
             achado = m['id']
     if achado is None:
-        limite.falhou(('ip', _ip(c)))
+        _errou(c)
     return achado
 
 
@@ -95,6 +143,21 @@ def colab_do_corpo(c, b, q, obrigatorio=True):
         return None
     c.colab(ident)
     return ident
+
+
+# ---------- limites do chat web (seção 4) ----------
+def cria_lead_web(metodo, rota, b):
+    return (metodo == 'POST' and rota == '/api/mensagens' and (b.get('canal') or 'web') != 'whatsapp'
+            and not b.get('sessao'))
+
+
+def rota_publica_de_chamado(metodo, rota, b):
+    """Rotas públicas que podem abrir chamado: chat web e 'Quero falar agora' da página do lead."""
+    if metodo != 'POST':
+        return False
+    if rota == '/api/mensagens':
+        return (b.get('canal') or 'web') != 'whatsapp'
+    return bool(re.fullmatch(r'/api/meu/[\w-]+/falar', rota))
 
 
 # ---------- rotas ----------
@@ -172,7 +235,9 @@ def rotear_equipe(c, metodo, rota, q, b, papel, colab):
         ident, acao = int(m[1]), m[2]
         c.chamado(ident)
         if acao == 'assumir':
-            return 200, chamados.assumir(c, ident, colab_do_corpo(c, b, q) if g else colab)
+            if g:  # gestor por esta rota age como o colaborador indicado, sem a restrição da oferta
+                return 200, chamados.assumir(c, ident, colab_do_corpo(c, b, q))
+            return 200, chamados.assumir(c, ident, colab, restrito=True)
         if acao == 'passar':
             alvo = colab_do_corpo(c, b, q, obrigatorio=False) if g else colab
             return 200, chamados.passar(c, ident, alvo or c.chamado(ident)['ofertado_a'])
@@ -250,11 +315,23 @@ def segredos_de_exemplo(app):
     for m in app.cfg.get('equipe', []):
         if str(m.get('codigo')) in codigos:
             return f"o código de {m.get('id')} é o do exemplo"
+    # Segredos dos webhooks: só valem se a integração está ligada.
+    if evolution.configurado() and segredo_fraco(os.environ.get('WEBHOOK_SEGREDO')):
+        return 'WEBHOOK_SEGREDO está vazio, curto (< 16 caracteres) ou é o do exemplo'
+    if tg.configurado() and segredo_fraco(os.environ.get('TELEGRAM_SEGREDO')):
+        return 'TELEGRAM_SEGREDO está vazio, curto (< 16 caracteres) ou é o do exemplo'
     return None
+
+
+def segredo_fraco(valor):
+    valor = (valor or '').strip()
+    return len(valor) < 16 or 'troque' in valor.lower()
 
 
 # ---------- servidor ----------
 def criar_handler(app):
+    redes = redes_confiaveis()
+
     class Handler(BaseHTTPRequestHandler):
         protocol_version = 'HTTP/1.1'
         server_version = 'atende-leads'
@@ -288,8 +365,10 @@ def criar_handler(app):
                 return self._enviar(200, conteudo, tipo, extra)
             webhook = rota.startswith('/webhook/')
             peer = self.client_address[0] if self.client_address else '?'
-            fwd = (self.headers.get('X-Forwarded-For') or '').split(',')[-1].strip()
-            app._local.ip = fwd if fwd and peer in ('127.0.0.1', '::1') else peer
+            ip = ip_cliente(peer, self.headers.get('X-Forwarded-For') or '', redes)
+            app._local.ip = ip
+            app._local.ip_publico = None
+            app._local.abriu_publico = False
             if self.command == 'GET' and rota == '/api/saude':  # nunca espera o lock
                 return self._json(200, {'ok': True, 'versao': versao(), 'evolution': evolution.configurado(),
                                         'telegram': tg.configurado(), 'cerebro': cerebro.tipo(app)})
@@ -308,8 +387,18 @@ def criar_handler(app):
                     if not isinstance(b, dict):
                         raise Erro(400, 'Objeto JSON esperado')
                     q = {k: v[-1] for k, v in parse_qs(url.query).items()}
+                    # Chat web (público): limite de leads novos por IP e no total, de chamados por IP.
+                    novo_web = cria_lead_web(self.command, rota, b)
+                    if novo_web and not limite.checar_lead_web(ip):
+                        raise Erro(429, limite.MSG_LEAD_WEB)
+                    if rota_publica_de_chamado(self.command, rota, b):
+                        app._local.ip_publico = ip
                     status, resposta = app.executar(
                         lambda: rotear(app, self.command, rota, q, b, self.headers), depois=self._painel)
+                    if novo_web:
+                        limite.contar_lead_web(ip)
+                    if app._local.abriu_publico:
+                        limite.contar_chamado_web(ip)
                     saida.aguardar(app, app.enfileirados())
             except Erro as e:
                 status, resposta = e.status, {'erro': e.mensagem}
@@ -364,6 +453,40 @@ def criar_handler(app):
     return Handler
 
 
+MAX_CONEXOES = 64
+
+
+class Servidor(ThreadingHTTPServer):
+    """Uma thread por conexão, no máximo `maximo` ao mesmo tempo; acima disso responde 503 e fecha."""
+    daemon_threads = True
+
+    def __init__(self, endereco, handler, maximo=MAX_CONEXOES):
+        super().__init__(endereco, handler)
+        self.vagas = threading.BoundedSemaphore(maximo)
+
+    def process_request(self, request, client_address):
+        if not self.vagas.acquire(blocking=False):
+            try:
+                corpo = b'{"erro": "Servidor ocupado, tente de novo."}'
+                request.sendall(b'HTTP/1.1 503 Service Unavailable\r\nContent-Type: application/json\r\n'
+                                b'Content-Length: %d\r\nConnection: close\r\n\r\n%s' % (len(corpo), corpo))
+            except OSError:
+                pass
+            self.shutdown_request(request)
+            return
+        try:
+            super().process_request(request, client_address)
+        except BaseException:
+            self.vagas.release()
+            raise
+
+    def process_request_thread(self, request, client_address):
+        try:
+            super().process_request_thread(request, client_address)
+        finally:
+            self.vagas.release()
+
+
 def relogio_automatico(app, parar):
     def painel():
         if app.sujo:
@@ -411,12 +534,16 @@ def main(argv=None):
     problema = segredos_de_exemplo(app)
     if problema and a.host not in LOCAIS and os.environ.get('ATENDE_PERMITIR_EXEMPLO') != '1':
         p.exit(2, f'Recusado: {problema} e o servidor escutaria em {a.host}. Rode ./instalar-vps.sh ou troque '
-                  'os segredos (token_gestor e códigos da equipe em negocio.json). Só para teste/demonstração: '
+                  'os segredos (token_gestor e códigos da equipe em negocio.json; WEBHOOK_SEGREDO e '
+                  'TELEGRAM_SEGREDO no .env, 16+ caracteres). Só para teste/demonstração: '
                   'ATENDE_PERMITIR_EXEMPLO=1.\n')
     if problema:
         log(f'aviso: {problema} (aceito só em {a.host})')
-    servidor = ThreadingHTTPServer((a.host, a.porta), criar_handler(app))
-    servidor.daemon_threads = True
+    try:
+        maximo = max(1, int(os.environ.get('ATENDE_MAX_CONEXOES') or MAX_CONEXOES))
+    except ValueError:
+        maximo = MAX_CONEXOES
+    servidor = Servidor((a.host, a.porta), criar_handler(app), maximo)
     parar = threading.Event()
     despachantes = saida.iniciar(app)
     if not app.modo_teste:

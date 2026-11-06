@@ -128,7 +128,12 @@ def prioridade(motivo, lead):
 
 def abrir(c, lead_id, motivo, resumo=None):
     """Abre chamado e devolve (id, respostas ao lead)."""
-    from . import cerebro
+    from . import cerebro, limite
+    ip = getattr(c._local, 'ip_publico', None)  # pedido veio do chat web ou da página do lead
+    if ip is not None:
+        if not limite.chamado_web_permitido(ip):
+            raise Erro(429, limite.MSG_CHAMADO_WEB)
+        c._local.abriu_publico = True  # contado depois que a requisição termina (a transação pode repetir)
     lead = c.lead(lead_id)
     agora = c.agora()
     no_horario = horario.no_horario(c, agora)
@@ -277,11 +282,15 @@ def distribuir(c):
 
 
 # ---------- assumir ----------
-def assumir(c, ident, colab):
+def assumir(c, ident, colab, restrito=False):
+    """restrito=True (colaborador pela API ou pelo Telegram): só quem recebeu a oferta, ou qualquer um com o
+    chamado em alerta. O gestor usa transferir."""
     ch = c.chamado(ident)
     r = c.colab(colab)
     if ch['status'] in ('atendendo', 'fechado') and ch['dono']:
         raise Erro(409, f"já foi assumido por {c.nome_colab(ch['dono'])}")
+    if restrito and ch['status'] == 'aguardando' and ch['ofertado_a'] != colab:
+        raise Erro(403, 'Este chamado não foi oferecido a você')
     if r['status'] == 'fora':
         raise Erro(409, 'Quem está fora não pode assumir')
     agora = iso(c.agora())
@@ -423,7 +432,9 @@ def fechar(c, ident, colab, b):
     c.db.execute("UPDATE leads SET status=?, estado='{}' WHERE id=?", (STATUS_LEAD[d['resultado']], lead['id']))
     evento = {'em': iso(agora), 'chamado_id': ident, 'colaborador': ch['dono'], 'resultado': d['resultado'],
               'valor': d['valor'], 'produto': d['produto'], 'motivo': d['motivo'], 'nota': d['nota'],
-              'minutos_ate_assumir': minutos(ch['aberto_em'], parse(ch['assumido_em'])) if ch['assumido_em'] else None,
+              # conta do início do prazo: a abertura do expediente, se o chamado chegou fora do horário
+              'minutos_ate_assumir': (minutos(ch['conta_desde'] or ch['aberto_em'], parse(ch['assumido_em']))
+                                      if ch['assumido_em'] else None),
               'minutos_atendimento': minutos(ch['assumido_em'], agora) if ch['assumido_em'] else None}
     c.db.execute('INSERT INTO historico(lead_id,dados) VALUES (?,?)', (lead['id'], json.dumps(evento, ensure_ascii=False)))
     _encerrar_mensagens(c, ch, f"✔️ #{ident} fechado: {d['resultado']}")
@@ -454,6 +465,55 @@ def _encerrar_mensagens(c, ch, texto):
     for campo in ('tg_linha', 'tg_alerta', 'tg_oferta'):
         if ch[campo] and ch['status'] in ('aguardando', 'alerta'):
             tg.editar(c, ch[campo], texto)
+
+
+def encerrar_por_apagar(c, lead_id):
+    """Lead pediu para apagar os dados (§4 regra 2): fecha os chamados abertos com resultado `apagado`,
+    tira os dados dele das mensagens do Telegram (oferta, alerta, linha do grupo, cartão), avisa o dono,
+    libera o colaborador e cancela o que ainda estava na fila de saída com dados dele."""
+    lead = c.lead(lead_id)
+    todos = [r['id'] for r in c.db.execute('SELECT id FROM chamados WHERE lead_id=?', (lead_id,))]
+    abertos = c.db.execute("SELECT * FROM chamados WHERE lead_id=? AND status IN ('aguardando','alerta','atendendo')",
+                           (lead_id,)).fetchall()
+    # 1) fila do Telegram: o que ainda não saiu e tem dados dele não sai mais
+    refs = []
+    for ch in c.db.execute('SELECT tg_linha, tg_alerta, tg_oferta, tg_cartao FROM chamados WHERE lead_id=?',
+                           (lead_id,)).fetchall():
+        refs += [r[2:] for r in ch if r and str(r).startswith('q:')]
+    filtros, args = [], []
+    if todos:
+        filtros.append(f"chamado_id IN ({','.join('?' * len(todos))})")
+        args += todos
+    if refs:
+        filtros.append(f"id IN ({','.join('?' * len(refs))})")
+        args += refs
+    for tel in {lead['telefone'], formatar_telefone(lead['telefone'])}:
+        if tel:
+            filtros.append('instr(corpo, ?) > 0')
+            args.append(tel)
+    if filtros:
+        c.db.execute(f"UPDATE tg_saida SET status='cancelado', corpo='{{}}' WHERE status='pendente' "
+                     f"AND metodo<>'painel' AND ({' OR '.join(filtros)})", args)
+    c.db.execute('DELETE FROM retornos WHERE lead_id=? AND enviado=0', (lead_id,))
+    # 2) chamados abertos
+    agora = iso(c.agora())
+    for ch in abertos:
+        ident = ch['id']
+        texto = f'🗑️ #{ident} lead pediu para apagar os dados'
+        c.db.execute("UPDATE chamados SET status='fechado', resultado='apagado', fechado_em=?, ofertado_a=NULL, "
+                     'ofertado_em=NULL WHERE id=?', (agora, ident))
+        for campo in ('tg_linha', 'tg_alerta', 'tg_oferta', 'tg_cartao'):
+            if ch[campo]:
+                tg.editar(c, ch[campo], texto)
+        if ch['dono']:
+            equipe.privado(c, ch['dono'], texto)
+        limpar_fluxos(c, ident)
+        equipe.liberar_se_vazio(c, ch['dono'])
+    if abertos:
+        if lead['status'] == 'em_atendimento':
+            c.db.execute("UPDATE leads SET status=COALESCE(status_antes,'novo') WHERE id=?", (lead_id,))
+        c.sujo = True
+    return len(abertos)
 
 
 def devolver(c, ident, colab):

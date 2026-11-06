@@ -178,7 +178,7 @@ def _callback(c, colab, dados, cq):
     pre = partes[0]
     if pre == 'as':
         ident = _id(partes[1])
-        chamados.assumir(c, ident, colab)
+        chamados.assumir(c, ident, colab, restrito=True)
         return f'Você assumiu #{ident}'
     if pre == 'pa':
         ident = _id(partes[1])

@@ -150,9 +150,9 @@ class Servidor:
 def cfg_exemplo(**mudar):
     cfg = json.loads((RAIZ / 'exemplos' / 'negocio.json').read_text())
     cfg['equipe'] = [
-        {'id': 'ana', 'nome': 'Ana', 'telefone': '5541999990010', 'codigo': 'ana-1234'},
-        {'id': 'bruno', 'nome': 'Bruno', 'telefone': '5541999990011', 'codigo': 'bruno-1234'},
-        {'id': 'carla', 'nome': 'Carla', 'telefone': '5541999990012', 'codigo': 'carla-1234'},
+        {'id': 'ana', 'nome': 'Ana', 'telefone': '5541999990010', 'codigo': 'ana-1234-dev01'},
+        {'id': 'bruno', 'nome': 'Bruno', 'telefone': '5541999990011', 'codigo': 'bruno-1234-dev01'},
+        {'id': 'carla', 'nome': 'Carla', 'telefone': '5541999990012', 'codigo': 'carla-1234-dev01'},
     ]
     cfg.update(mudar)
     return cfg

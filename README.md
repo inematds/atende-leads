@@ -6,7 +6,7 @@
 
 Guia completo (landing + passo a passo): **https://inematds.github.io/atende-leads/guia/**
 
-Atendimento de **leads pelo WhatsApp** com um agente que responde, qualifica e passa o lead para o **colaborador livre** pelo Telegram, com todos os dados e um botão para ligar. Python 3 só com biblioteca padrão, estado em SQLite, Docker para VPS. Código aberto, versão `1.0.1`.
+Atendimento de **leads pelo WhatsApp** com um agente que responde, qualifica e passa o lead para o **colaborador livre** pelo Telegram, com todos os dados e um botão para ligar. Python 3 só com biblioteca padrão, estado em SQLite, Docker para VPS. Código aberto, versão `1.0.2`.
 
 ## O que faz
 
@@ -27,7 +27,7 @@ Contrato completo: [`docs/ESPECIFICACAO.md`](docs/ESPECIFICACAO.md).
 
 Quem faz: 🧠 o dono/gestor · ⚙️ o sistema · 🤖 o agente.
 
-1. 🧠 **Instalar na VPS:** `./instalar-vps.sh` (pergunta nome, domínio, Telegram; gera segredos, `.env` e `dados/negocio.json`; sobe o Docker).
+1. 🧠 **Instalar na VPS:** `git clone https://github.com/inematds/atende-leads /opt/atende-leads && cd /opt/atende-leads && ./instalar-vps.sh` (pergunta nome, domínio, Telegram; gera segredos, `.env` e `dados/negocio.json`; sobe o Docker).
 2. 🧠 **Conectar o WhatsApp:** túnel `ssh -L 8081:127.0.0.1:8081 usuario@vps`, abrir `http://localhost:8081/manager`, criar a instância e ler o QR Code com o número do atendimento (use um número só para isso).
 3. 🧠 **Cadastrar** em `/gestor` → Cadastros: equipe (nome, telefone, código), produtos com palavras e preço, FAQ, horários e prazos.
 4. 🧠 **Equipe entra no bot:** cada colaborador manda `/entrar <código>` no privado do bot e toca 🟢 Livre.
@@ -46,16 +46,22 @@ Quem faz: 🧠 o dono/gestor · ⚙️ o sistema · 🤖 o agente.
 ```bash
 ./atende serve --porta 8080 --dados dados
 # chat do lead: http://localhost:8080/   equipe: /equipe   gestor: /gestor (token em dados/negocio.json)
-python3 -m pytest -q tests/        # contrato (282 testes; build e container Docker só com TESTAR_DOCKER=1)
+python3 -m pytest -q tests/        # contrato (302 testes; build e container Docker só com TESTAR_DOCKER=1)
 ```
 
 Relógio fixo para testar: `ATENDE_AGORA=2026-11-09T10:00 ./atende serve ...` e `POST /api/tarefas/rodar`.
 
 ## Deploy na VPS
 
-1. **Subir:** `./instalar-vps.sh` (ou `docker compose up -d`; com a Evolution no mesmo servidor: `docker compose --profile evolution up -d`). A aplicação escuta só em `127.0.0.1:8080` e a Evolution em `127.0.0.1:8081`. O instalador gera o token do gestor e os **códigos da equipe** (aleatórios, `secrets.token_urlsafe`) e imprime todos no fim.
-2. **Segredos de exemplo não sobem na rede:** se o `negocio.json` ainda tem `token_gestor` = `TROQUE-ESTE-TOKEN` ou algum código igual ao do `exemplos/negocio.json`, o servidor só aceita subir em `127.0.0.1`/`localhost`. Em `0.0.0.0` (como no Docker) ele **recusa** com a mensagem "rode ./instalar-vps.sh ou troque os segredos". Para teste/demonstração apenas: `ATENDE_PERMITIR_EXEMPLO=1` no ambiente (nunca em produção).
-3. **HTTPS:** proxy reverso (Caddy ou Nginx) do seu domínio para `127.0.0.1:8080`. Ex. Caddy: `leads.seudominio.com { reverse_proxy 127.0.0.1:8080 }`. Ajuste `url_publica` no `negocio.json`. O limite de tentativas (5 senhas erradas por minuto → 429) usa o IP do `X-Forwarded-For` só quando a conexão vem do proxy local.
+Todos os comandos abaixo usam o caminho **`/opt/atende-leads`** (o cron de backup também). Se instalar em outro lugar, troque o caminho em todos eles.
+
+0. **Baixar:** `git clone https://github.com/inematds/atende-leads /opt/atende-leads && cd /opt/atende-leads`
+1. **Subir:** `cd /opt/atende-leads && ./instalar-vps.sh`. Ele gera `.env` e `dados/negocio.json` com permissão só do dono (`umask 077`), o token do gestor e os **códigos da equipe** (aleatórios, `secrets.token_urlsafe`), dá a pasta `dados/` ao uid 1000 (o container **não roda como root**), sobe o compose e imprime tudo no fim. A aplicação escuta só em `127.0.0.1:8080` e a Evolution em `127.0.0.1:8081`.
+   - **Sem o instalador** (`docker compose up -d`, ou `docker compose --profile evolution up -d` com a Evolution no mesmo servidor): `cd /opt/atende-leads && cp .env.exemplo .env && mkdir -p dados && cp exemplos/negocio.json dados/` e **troque** o `token_gestor` e os códigos da equipe em `dados/negocio.json` (códigos com 12+ caracteres) e `WEBHOOK_SEGREDO`, `TELEGRAM_SEGREDO`, `EVOLUTION_API_KEY` e `EVOLUTION_DB_SENHA` no `.env`; depois `sudo chown -R 1000:1000 /opt/atende-leads/dados`. Com algum segredo de exemplo o container recusa subir (item 2).
+   - **Evolution externa** (já roda em outro servidor; não use o perfil `evolution`): no `.env`, `EVOLUTION_URL=https://<sua-evolution>`, `EVOLUTION_API_KEY=<API key dela>`, `EVOLUTION_INSTANCIA=<instância>`; e, no manager dela, o webhook `MESSAGES_UPSERT` para `https://<domínio>/webhook/evolution/<WEBHOOK_SEGREDO>` (item 5). Suba só `docker compose up -d`.
+   - **Atualizar uma instalação anterior à 1.0.2:** `cd /opt/atende-leads && git pull && sudo chown -R 1000:1000 dados && docker compose up -d --build`.
+2. **Segredos de exemplo não sobem na rede:** se o `negocio.json` ainda tem `token_gestor` = `TROQUE-ESTE-TOKEN` ou algum código igual ao do `exemplos/negocio.json`, ou se uma integração está ligada com `WEBHOOK_SEGREDO`/`TELEGRAM_SEGREDO` vazio, com menos de 16 caracteres ou contendo `troque`, o servidor só aceita subir em `127.0.0.1`/`localhost`. Em `0.0.0.0` (como no Docker) ele **recusa** com a mensagem "rode ./instalar-vps.sh ou troque os segredos". O `.env.exemplo` vem com `EVOLUTION_URL=` e `TELEGRAM_TOKEN=` vazios: as integrações ficam desligadas até você preencher. Para teste/demonstração apenas: `ATENDE_PERMITIR_EXEMPLO=1` no ambiente (nunca em produção).
+3. **HTTPS:** proxy reverso (Caddy ou Nginx) do seu domínio para `127.0.0.1:8080`. Ex. Caddy: `leads.seudominio.com { reverse_proxy 127.0.0.1:8080 }`. Ajuste `url_publica` no `negocio.json`. Limites por IP (5 senhas erradas por minuto → as erradas recebem 429, a certa sempre passa; 5 conversas novas do chat web em 10 min; 3 pedidos de atendimento pelo web por hora) usam o IP do `X-Forwarded-For` quando a conexão vem de um proxy confiável: `ATENDE_PROXY_CONFIAVEL` (CIDRs; padrão `127.0.0.1/32,::1/128,172.16.0.0/12,10.0.0.0/8,192.168.0.0/16`, que cobre o Caddy no host chegando pela bridge do Docker). Vazio = nunca confiar no `X-Forwarded-For`.
 4. **WhatsApp (QR Code):** a porta da Evolution só escuta em `127.0.0.1`, então abra um túnel do seu computador:
    ```bash
    ssh -L 8081:127.0.0.1:8081 usuario@vps
@@ -70,13 +76,14 @@ Relógio fixo para testar: `ATENDE_AGORA=2026-11-09T10:00 ./atende serve ...` e 
    ```
 8. **Restaurar:** pare o serviço antes (o `restaurar` recusa com o servidor no ar):
    ```bash
+   cd /opt/atende-leads
    docker compose stop atende
    docker compose run --rm -v /opt/atende-leads-backups:/backups atende \
      ./atende restaurar --dados /dados --arquivo /backups/leads-AAAA-MM-DD.tar.gz
    docker compose start atende
    ```
 
-Variáveis em [`.env.exemplo`](.env.exemplo) (inclui `ATENDE_PERMITIR_EXEMPLO`, só para demonstração). Sem as de uma integração, ela fica desligada e o resto funciona (painéis web). Envios ao Telegram e ao WhatsApp saem por uma caixa de saída em segundo plano: se uma API travar, o atendimento e o `/api/saude` continuam respondendo.
+Variáveis em [`.env.exemplo`](.env.exemplo) (inclui `ATENDE_PROXY_CONFIAVEL`, `ATENDE_MAX_CONEXOES` — conexões simultâneas, padrão 64, acima disso 503 — e `ATENDE_PERMITIR_EXEMPLO`, só para demonstração). Sem as de uma integração, ela fica desligada e o resto funciona (painéis web). Envios ao Telegram e ao WhatsApp saem por uma caixa de saída em segundo plano: se uma API travar, o atendimento e o `/api/saude` continuam respondendo.
 
 ## Cuidados
 

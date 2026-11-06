@@ -16,7 +16,7 @@ def preparar(falhar_edicao=False, env_extra=None):
     env = env_tg(tg)
     env.update(env_extra or {})
     s = Servidor(env=env, cfg=cfg_exemplo())
-    for fid, cod in ((ANA, 'ana-1234'), (BRUNO, 'bruno-1234'), (CARLA, 'carla-1234')):
+    for fid, cod in ((ANA, 'ana-1234-dev01'), (BRUNO, 'bruno-1234-dev01'), (CARLA, 'carla-1234-dev01')):
         s.tg(upd_msg(fid, f'/entrar {cod}'))
     return s, tg
 
@@ -129,7 +129,7 @@ def test_gestor_transferir_reabrir_config():
         st, p = s.g('GET', '/api/painel')
         est = {e['id']: e['status'] for e in p['equipe']}
         assert est['bruno'] == 'livre' and est['ana'] == 'atendendo'
-        st, x = s.e('ana-1234', 'POST', f"/api/equipe/chamados/{ch['id']}/devolver")
+        st, x = s.e('ana-1234-dev01', 'POST', f"/api/equipe/chamados/{ch['id']}/devolver")
         assert st == 200 and x['resultado'] == 'devolvido'
         st, f = s.g('GET', f"/api/gestor/leads/{r['lead']['id']}")
         assert f['lead']['status'] == 'novo'
@@ -138,14 +138,14 @@ def test_gestor_transferir_reabrir_config():
         st, cfg = s.g('GET', '/api/gestor/config')
         cfg['equipe'].append({'id': 'ana', 'nome': 'Outra', 'codigo': 'x'})
         assert s.g('PUT', '/api/gestor/config', cfg)[0] == 422
-        cfg['equipe'][-1] = {'id': 'davi', 'nome': 'Davi', 'codigo': 'ana-1234'}
+        cfg['equipe'][-1] = {'id': 'davi', 'nome': 'Davi', 'codigo': 'ana-1234-dev01'}
         assert s.g('PUT', '/api/gestor/config', cfg)[0] == 422
-        cfg['equipe'][-1] = {'id': 'davi', 'nome': 'Davi', 'codigo': 'davi-1'}
+        cfg['equipe'][-1] = {'id': 'davi', 'nome': 'Davi', 'codigo': 'davi-1-codigo-dev'}
         cfg['horarios']['seg'] = [['8:00', '18:00']]
         assert s.g('PUT', '/api/gestor/config', cfg)[0] == 422
         cfg['horarios']['seg'] = [['08:00', '18:00']]
         assert s.g('PUT', '/api/gestor/config', cfg)[0] == 200
-        assert s.e('davi-1', 'GET', '/api/equipe/eu')[1]['status'] == 'fora'
+        assert s.e('davi-1-codigo-dev', 'GET', '/api/equipe/eu')[1]['status'] == 'fora'
         assert s.req('GET', '/api/gestor/config', headers={'X-Token': 'TROQUE-ESTE-TOKEN'})[0] == 200
         assert s.req('GET', '/api/gestor/hoje')[0] == 401
         assert s.e('errado', 'GET', '/api/painel')[0] == 401
@@ -226,7 +226,7 @@ def test_reinicio_mantem_estado():
     tg = Falso()
     s = Servidor(env=env_tg(tg), cfg=cfg_exemplo(), manter=True)
     try:
-        s.tg(upd_msg(ANA, '/entrar ana-1234'))
+        s.tg(upd_msg(ANA, '/entrar ana-1234-dev01'))
         s.tg(upd_msg(ANA, '/livre'))
         st, r = s.msg('41999990090', 'falar com atendente', nome='Nina')
     finally:
@@ -251,7 +251,7 @@ def test_entrar_depois_recebe_oferta_e_imagem_primeiro():
         st, r = s.msg('41999990091', 'falar com atendente', nome='Edu')
         ch = s.g('GET', f"/api/gestor/leads/{r['lead']['id']}")[1]['chamados'][-1]
         assert ch['ofertado_a'] is None and ch['status'] == 'alerta'
-        s.tg(upd_msg(ANA, '/entrar ana-1234'))
+        s.tg(upd_msg(ANA, '/entrar ana-1234-dev01'))
         ch = s.g('GET', f"/api/gestor/leads/{r['lead']['id']}")[1]['chamados'][-1]
         assert ch['ofertado_a'] == 'ana'
     finally:

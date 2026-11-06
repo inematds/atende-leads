@@ -30,7 +30,7 @@ def hoje(c):
     abertos = q(f'SELECT COUNT(*) FROM chamados WHERE {no_dia("aberto_em")}').fetchone()[0]
     assumidos = q(f'SELECT * FROM chamados WHERE assumido_em IS NOT NULL AND {no_dia("assumido_em")}').fetchall()
     vendas = q(f"SELECT * FROM chamados WHERE status='fechado' AND resultado='vendeu' AND {no_dia('fechado_em')}").fetchall()
-    tempos = [minutos(ch['aberto_em'], parse(ch['assumido_em'])) for ch in assumidos]
+    tempos = [minutos(ch['conta_desde'] or ch['aberto_em'], parse(ch['assumido_em'])) for ch in assumidos]
     por = []
     for m in c.cfg.get('equipe', []):
         meus_v = [v for v in vendas if v['dono'] == m['id']]
@@ -153,6 +153,8 @@ def validar_config(c, novo):
             _erro('equipe: nome obrigatório')
         if not isinstance(m.get('codigo'), str) or not m['codigo'].strip():
             _erro('equipe: código obrigatório')
+        if len(m['codigo']) < 12:  # código curto é adivinhável (o limite de tentativas não basta)
+            _erro('equipe: código com pelo menos 12 caracteres')
         tel = m.get('telefone')
         if tel not in (None, '') and not re.fullmatch(r'\d+', str(tel)):
             _erro('equipe: telefone só com dígitos')
