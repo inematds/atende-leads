@@ -188,3 +188,66 @@ def test_novo_pedido_substitui_o_pendente_e_da_para_cancelar(api):
     assert len(ls) == 1 and ls[0]["dados"]["nome"] == "Ana B"
     st, r = api.req("DELETE", "/api/equipe/perfil", codigo=CODIGOS["ana"])
     assert ok(st) and r["pendente"] is None and api.get("/api/gestor/perfis")[1] == []
+
+
+# ---------- achados do revisor independente (1.10.8) ----------
+
+import pytest
+
+
+@pytest.mark.parametrize("frase", ["que horas tem atendente?", "é para alguém da minha família",
+                                   "serve para uma pessoa só?", "alguém da academia já usou?"])
+def test_frase_com_pessoa_nao_tira_o_silencio(api, frase):
+    r = api.msg_full(TEL, "quanto custa o plano anual?", nome="Maria Souza")
+    txt = api.msg(TEL, frase)
+    assert "já chamei" not in txt
+    assert chamados(api, r["lead"]["id"])[0]["silencioso"] is True
+
+
+@pytest.mark.parametrize("frase", ["tem alguém aí?", "alguém?", "ninguém me responde", "quero falar com uma pessoa"])
+def test_pedido_de_pessoa_tira_o_silencio(api, frase):
+    r = api.msg_full(TEL, "quanto custa o plano anual?", nome="Maria Souza")
+    assert "já chamei alguém da equipe" in api.msg(TEL, frase)
+    assert chamados(api, r["lead"]["id"])[0]["silencioso"] is False
+
+
+def test_venda_de_lead_morno_nao_vira_nota_quente(api):
+    api.msg(TEL, "oi")
+    api.msg(TEL, "Maria Souza")
+    api.msg(TEL, "1")
+    r = api.msg_full(TEL, "2")                                    # este mês → morno, venda calada
+    f = api.fila()[0]
+    assert r["lead"]["nota"] == "morno" and f["nota"] == "morno"  # a tela usa a nota: sem alarme de quente
+
+
+def test_config_com_versao_velha_da_409(api):
+    st, velho = api.get("/api/gestor/config")
+    assert velho["_versao"]
+    st, cfg2 = api.get("/api/gestor/config")
+    cfg2["permissoes"] = {"perfil_sem_aprovacao": True}
+    assert ok(api.put("/api/gestor/config", cfg2)[0])
+    assert ok(api.post("/api/equipe/perfil", {"nome": "Ana Paula"}, codigo=CODIGOS["ana"])[0])
+    st, cfg3 = api.get("/api/gestor/config")
+    cfg3["nome"] = cfg3["nome"]                                     # aba que ficou aberta antes da mudança
+    velho["nome"] = "Outro nome"
+    assert api.put("/api/gestor/config", velho)[0] == 409
+    assert perfil(api, "ana")["nome"] == "Ana Paula"               # o cadastro da Ana não foi desfeito
+    assert ok(api.put("/api/gestor/config", cfg3)[0])              # com a versão atual, salva
+
+
+def test_perfil_nome_tem_que_ser_texto_e_telefone_unico(api):
+    assert api.post("/api/equipe/perfil", {"nome": ["<b>x</b>"]}, codigo=CODIGOS["ana"])[0] == 422
+    st, cfg = api.get("/api/gestor/config")
+    outro = next(m for m in cfg["equipe"] if m["id"] != "ana" and m.get("telefone"))
+    assert api.post("/api/equipe/perfil", {"telefone": outro["telefone"]}, codigo=CODIGOS["ana"])[0] == 422
+
+
+def test_nao_sei_e_sim_avisa_a_equipe(api):
+    api.msg(TEL, "oi")
+    api.msg(TEL, "Maria Souza")
+    api.msg(TEL, "1")
+    lead = api.msg_full(TEL, "3")["lead"]
+    api.msg(TEL, "xpto blablabla")
+    txt = api.msg(TEL, "sim")
+    assert "avisei a equipe" in txt.lower()
+    assert [c["motivo"] for c in chamados(api, lead["id"])] == ["precisa"]

@@ -258,9 +258,16 @@ def cfg_alertas(c):
     return {'bip_quente': bool(a.get('bip_quente')), 'bip_s': int(a.get('bip_s') or 20)}
 
 
+def versao_cfg(cfg):
+    """Versão da lista da equipe (o que o atendente também muda, pelo Meu cadastro)."""
+    import hashlib
+    return hashlib.sha256(json.dumps(cfg.get('equipe', []), sort_keys=True, ensure_ascii=False).encode()).hexdigest()[:16]
+
+
 def config_publica(c):
     cfg = copy.deepcopy(c.cfg)
     cfg['token_gestor'] = '***'
+    cfg['_versao'] = versao_cfg(c.cfg)  # 1.10.8: quem salva com a versão velha leva 409 (não desfaz o que mudou)
     return cfg
 
 
@@ -492,6 +499,11 @@ def _validar_cerebro(cer, nome, vazio_ok=False):
 
 
 def gravar_config(c, novo):
+    if isinstance(novo, dict) and '_versao' in novo:
+        if 'equipe' in novo and novo['_versao'] != versao_cfg(c.cfg):
+            raise Erro(409, 'A equipe mudou depois que você abriu esta tela (outra aba ou um atendente mudou o '
+                            'próprio cadastro). Clique em Atualizar e refaça a alteração.')
+        novo = {k: v for k, v in novo.items() if k != '_versao'}
     cfg = validar_config(c, novo)
     c.salvar_cfg(cfg)
     c.sujo = True

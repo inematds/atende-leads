@@ -194,7 +194,7 @@ def silencioso_por_padrao(motivo):
     return motivo == 'venda'
 
 
-def abrir(c, lead_id, motivo, resumo=None):
+def abrir(c, lead_id, motivo, resumo=None, silencioso=None):
     """Abre chamado e devolve (id, respostas ao lead). Chance de venda abre calado: respostas = []."""
     from . import cerebro, limite
     ip = getattr(c._local, 'ip_publico', None)  # pedido veio do chat web ou da página do lead
@@ -207,7 +207,7 @@ def abrir(c, lead_id, motivo, resumo=None):
     no_horario = horario.no_horario(c, agora)
     if resumo is None:
         resumo = cerebro.resumo(c, lead, motivo)
-    calado = silencioso_por_padrao(motivo)
+    calado = silencioso_por_padrao(motivo) if silencioso is None else bool(silencioso)
     ident = c.db.execute(
         'INSERT INTO chamados(lead_id,motivo,prioridade,status,aberto_em,conta_desde,token,resumo,silencioso) '
         'VALUES (?,?,?,?,?,?,?,?,?)',
@@ -225,7 +225,7 @@ def abrir(c, lead_id, motivo, resumo=None):
         extra = [f"Acompanhe aqui: {c.url_publica()}/meu/{lead['token']}"]
     if no_horario:
         ativar(c, ident)
-        return ident, [TXT_PEDIU if motivo == 'pediu_humano' else TXT_PRECISA] + extra
+        return ident, [TXT_PRECISA if motivo == 'precisa' else TXT_PEDIU] + extra
     prox = horario.proximo_inicio(c, agora)
     quando = ddmm_hhmm(prox) if prox else 'no próximo expediente'
     return ident, [f'Agora estamos fora do horário de atendimento; já deixei avisado, e alguém da equipe fala com '

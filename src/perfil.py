@@ -18,13 +18,20 @@ def _limpar(c, colab, b):
         raise Erro(422, 'Envie nome e/ou telefone')
     dados = {}
     if 'nome' in b:
-        nome = ' '.join(str(b['nome'] or '').split())
+        if not isinstance(b['nome'], str):
+            raise Erro(422, 'Nome deve ser texto')
+        nome = ' '.join(b['nome'].split())
         if not 1 <= len(nome) <= 80:
             raise Erro(422, 'Nome de 1 a 80 caracteres')
         dados['nome'] = nome
     if 'telefone' in b:
-        tel = str(b['telefone'] or '').strip()
+        if b['telefone'] is not None and not isinstance(b['telefone'], str):
+            raise Erro(422, 'Telefone deve ser texto')
+        tel = (b['telefone'] or '').strip()
         dados['telefone'] = normalizar_telefone(tel) if tel else ''
+        if dados['telefone'] and any(str(o.get('telefone') or '') == dados['telefone'] and o['id'] != colab
+                                     for o in c.cfg.get('equipe', [])):
+            raise Erro(422, 'Este telefone já é de outra pessoa da equipe')
     dados = {k: v for k, v in dados.items() if v != str(m.get(k) or '')}
     if not dados:
         raise Erro(422, 'Nada mudou')

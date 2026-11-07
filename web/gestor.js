@@ -38,7 +38,7 @@
       opcoesTransf(null) + '</select><button type="button" class="btn peq" data-atribuir="' + r.lead_id + '">' + ic('swap') + 'Passar</button></div>' + verConversa(r.lead_id) + '</div>',
     espera: (ch, ext) => {
       const demais = ch.status === 'alerta' || ch.minutos > ext;
-      const q = ch.prioridade === 'quente' || ch.nota === 'quente';
+      const q = ch.nota === 'quente';
       return '<div class="it' + (demais ? ' ext' : '') + (q ? ' t-quente' : '') + '"><div class="l1">' + ident(ch.lead_id, ch.lead_nome, ch.telefone) + (q ? AL.nota('quente') : AL.nota(ch.nota)) +
         '<span class="espera' + (demais ? ' demais' : '') + '" style="margin-left:auto">' + ic('clock') + esc(AL.dur(ch.minutos)) + '</span></div>' +
         '<p>chamado #' + ch.id + ' · ' + esc(AL.MOTIVO[ch.motivo] || '') + ' · ' + (ch.ofertado_a ? 'oferecido a ' + esc(nomeColab(ch.ofertado_a)) : 'ninguém aceitou ainda') +
@@ -94,7 +94,7 @@
     $('av-robo-ajuda').textContent = 'Conversas das últimas ' + (p.conversa_ativa_h || 24) + ' h só com o assistente.';
     const col = (id, nid, lista, f, vaz) => { $(nid).textContent = lista.length; $(id).innerHTML = lista.length ? lista.map(x => f(x, ext)).join('') : vazio(vaz); };
     col('av-robo', 'av-robo-n', p.robo, cartoes.robo, 'Nenhuma conversa só com o robô agora.');
-    const quenteP = ch => (ch.prioridade === 'quente' || ch.nota === 'quente') ? 1 : 0;
+    const quenteP = ch => ch.nota === 'quente' ? 1 : 0;
     col('av-fila', 'av-fila-n', p.espera.slice().sort((a, b) => quenteP(b) - quenteP(a)), cartoes.espera, 'Ninguém esperando atendente.');
     col('av-atendendo', 'av-at-n', p.atendendo, cartoes.atendendo, 'Ninguém em atendimento agora.');
     col('av-encerrados', 'av-enc-n', p.encerrados, cartoes.encerrados, 'Nada encerrado hoje ainda.');
@@ -581,9 +581,14 @@
     if (!aprovar) { motivo = prompt('Motivo da recusa (opcional, a pessoa vê):', ''); if (motivo === null) return; }
     try {
       await perfis(await api('POST', '/api/gestor/perfis/' + b.dataset.perfil, {aprovar, motivo}));
-      const novo = await api('GET', '/api/gestor/config');  // a equipe mudou no servidor: traz nome/telefone novos sem perder o que está sendo editado
-      (novo.equipe || []).forEach(m => { const e = eqEd.find(x => x.id === m.id); if (e) { e.nome = m.nome; e.telefone = m.telefone; } });
-      cfg.equipe = novo.equipe; renderEquipe(); preencherColabs();
+      // a equipe mudou no servidor: traz nome/telefone novos, mas não apaga o que o gestor está editando e ainda não salvou
+      lerCadastros();
+      const novo = await api('GET', '/api/gestor/config');
+      (novo.equipe || []).forEach(m => {
+        const e = eqEd.find(x => x.id === m.id), o = (cfg.equipe || []).find(x => x.id === m.id);
+        if (e && o) ['nome', 'telefone'].forEach(k => { if (String(e[k] ?? '') === String(o[k] ?? '')) e[k] = m[k]; });
+      });
+      cfg.equipe = novo.equipe; cfg._versao = novo._versao; renderEquipe(); preencherColabs();
       aviso(aprovar ? 'Cadastro aprovado.' : 'Pedido recusado.');
     } catch (e) { aviso(e.message, true); }
   });

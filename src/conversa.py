@@ -26,6 +26,11 @@ the and'''.split())
 URG_OPCOES = '1 - Hoje / esta semana\n2 - Este mês\n3 - Só pesquisando'
 
 SEM_TEXTO = 'Por enquanto só consigo ler mensagens de texto.'
+# 1.10.8: no chamado silencioso, só um pedido de pessoa tira o silêncio ("é para alguém da família" não é pedido)
+PEDE_ALGUEM = re.compile(r'\b(tem|ha|cade) (alguem|ninguem|uma pessoa|atendente)\b|\bninguem (me |vai )?(responde|atende)'
+                         r'|\bfalar com (alguem|uma pessoa|gente|atendente|humano|vendedor)\b'
+                         r'|\balguem (ai|ae|de verdade|real|me atende|pode me atender|pra me atender|para me atender)\b'
+                         r'|^(alguem|ninguem|ola alguem|oi alguem)$')
 
 
 NEGACAO_1 = {'sem', 'nenhum', 'nenhuma'}
@@ -321,7 +326,8 @@ def decidir(c, lead, texto, t, primeiro, aberto):
     #    Chamado silencioso (1.10.8, chance de venda): o cliente não sabe — a conversa segue as regras normais;
     #    se ele pedir uma pessoa ("tem alguém aí?"), aí sim o robô conta que chamou.
     if aberto and aberto['silencioso']:
-        if tem(t, HUMANO) or re.search(r'\b(alguem|ninguem|atendente|humano|pessoa)\b', t):
+        horario = base.pergunta_horario(t) and re.search(r'\b(que horas?|horario|quando|abre|fecha)\b', t)
+        if not horario and (PEDE_ALGUEM.search(t) or (tem(t, HUMANO) and not base.pergunta_horario(t))):
             c.db.execute('UPDATE chamados SET silencioso=0 WHERE id=?', (aberto['id'],))
             return [chamados.TXT_PEDIU]
     elif aberto:
@@ -413,16 +419,16 @@ def _zerar_falhas(c, lid):
         gravar_estado(c, lid, e)
 
 
-def _abrir(c, lid, motivo, prefixo=''):
+def _abrir(c, lid, motivo, prefixo='', silencioso=None):
     gravar_estado(c, lid, {})
     aberto = chamados.aberto_do_lead(c, lid)
     if aberto:  # 1.10.8: já há chamado (silencioso): nunca abre outro
-        if motivo == 'venda':
+        if motivo == 'venda' and silencioso is not False:
             c.db.execute("UPDATE chamados SET prioridade='quente' WHERE id=?", (aberto['id'],))
             return _seguir_venda(c, lid, prefixo)
         c.db.execute('UPDATE chamados SET silencioso=0 WHERE id=?', (aberto['id'],))
         return [prefixo + (chamados.TXT_PEDIU if motivo == 'pediu_humano' else chamados.TXT_PRECISA)]
-    _ident, respostas = chamados.abrir(c, lid, motivo)
+    _ident, respostas = chamados.abrir(c, lid, motivo, silencioso=silencioso)
     if not respostas:  # chance de venda: a equipe foi chamada sem o cliente saber
         return _seguir_venda(c, lid, prefixo)
     respostas[0] = prefixo + respostas[0]
@@ -521,14 +527,16 @@ def qualificar(c, lead, e, texto, t):
         if 'nao' in palavras or t in NAO:
             gravar_estado(c, lid, {'falhas': 0})
             return ['Tudo bem! Se tiver qualquer dúvida, é só mandar mensagem por aqui.']
+        if palavras & SIM and len(palavras) <= 3:  # "sim" a "Quer que eu chame alguém?" (conversa de antes da 1.10.8)
+            return _abrir(c, lid, 'precisa')
         gravar_estado(c, lid, {'falhas': e.get('falhas', 0)})
         return None
-    if etapa == 'quer_falar':
+    if etapa == 'quer_falar':  # só existe em conversa de antes da 1.10.8 ("Quer que eu chame alguém?")
         if 'nao' in palavras or t in NAO:
             gravar_estado(c, lid, {'falhas': 0})
             return ['Tudo bem! Se tiver qualquer dúvida, é só mandar mensagem por aqui.']
-        if palavras & SIM:
-            return _abrir(c, lid, 'venda')
+        if palavras & SIM:  # ele aceitou que chamássemos alguém: avisa (não é chamado calado)
+            return _abrir(c, lid, 'venda', silencioso=False)
         gravar_estado(c, lid, {'falhas': e.get('falhas', 0)})
         return None
     gravar_estado(c, lid, {})

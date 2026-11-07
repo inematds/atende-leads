@@ -31,7 +31,8 @@
 
   // ---------- faixa "Esperando por você" ----------
   // 1.10.8: cliente quente pede atenção forte (vermelho pulsando); morno e frio ganham a cor da nota
-  const quente = ch => ch.nota === 'quente' || ch.prioridade === 'quente';
+  // a nota do lead manda (chance de venda de lead morno não vira alarme de quente)
+  const quente = ch => ch.nota === 'quente';
   function oferta(ch) {
     const demais = ch.status === 'alerta', q = quente(ch);
     return '<article class="of t-' + (q ? 'quente' : esc(ch.nota || 'frio')) + '" data-of="' + ch.id + '">' +
@@ -53,7 +54,8 @@
     $('status-seg').setAttribute('aria-label', 'Meu status: ' + (AL.COLAB[eu.status] || eu.status));
     $('espera').hidden = vista !== 'atender' || !eu.ofertas.length;
     $('espera-n').textContent = eu.ofertas.length;
-    const ofs = eu.ofertas.slice().sort((a, b) => quente(b) - quente(a));
+    const peso = o => (quente(o) ? 2 : 0) + (o.status === 'alerta' ? 1 : 0);  // quente, depois esperando demais
+    const ofs = eu.ofertas.slice().sort((a, b) => peso(b) - peso(a));
     $('ofertas').innerHTML = ofs.map(oferta).join('');
     alarmeQuente(ofs.filter(quente));
     desenharCadastro();
@@ -117,10 +119,11 @@
   function bip() { if (somLigado()) try { tom(880, 0, 0.4, 0.15); } catch (_) {} }
   function bipUrgente() { if (somLigado()) try { tom(988, 0, 0.18, 0.25); tom(740, 0.22, 0.18, 0.25); tom(988, 0.44, 0.25, 0.25); } catch (_) {} }
   // 1.10.8: cliente quente esperando → faixa vermelha e, se o gestor ligou, bip repetido até alguém assumir
-  let alarme = null, alarmeS = 0;
+  let alarme = null, alarmeS = 0, alarmeN = 0;
   function alarmeQuente(qs) {
     const on = qs.length > 0, cfg = eu.alertas || {};
     $('alerta-quente').hidden = !on;
+    if (qs.length !== alarmeN) { alarmeN = qs.length; $('quente-sr').textContent = qs.length ? qs.length + (qs.length === 1 ? ' cliente quente esperando' : ' clientes quentes esperando') : ''; }
     $('espera').classList.toggle('tem-quente', on);
     if (on) $('alerta-quente-txt').textContent = qs.length === 1 ? (qs[0].lead_nome || 'Cliente') + ' é cliente quente e está esperando há ' + AL.dur(qs[0].minutos) + ': atenda agora'
       : qs.length + ' clientes quentes esperando: atenda agora';
