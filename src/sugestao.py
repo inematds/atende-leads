@@ -227,7 +227,8 @@ def registrar_resposta(c, ch, colab, texto, sugestao_id=None):
         sug = c.db.execute('SELECT * FROM sugestoes WHERE id=? AND chamado_id=?', (sugestao_id, ch['id'])).fetchone()
         if not sug or not sug['texto']:
             raise Erro(422, 'sugestao_id inválido')
-    ult = c.db.execute("SELECT MAX(id) FROM mensagens WHERE chamado_id=? AND de='humano'", (ch['id'],)).fetchone()[0]
+    ult = c.db.execute("SELECT MAX(id) FROM mensagens WHERE chamado_id=? AND de='humano' AND texto NOT LIKE ?",
+                       (ch['id'], '[Combinado fora do sistema]%')).fetchone()[0]
     msgs = [r['texto'] for r in c.db.execute("SELECT texto FROM mensagens WHERE chamado_id=? AND de='lead' AND id>? "
                                              'ORDER BY id', (ch['id'], ult or 0))]
     livre_sug = None if sug else c.db.execute(

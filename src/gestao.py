@@ -16,7 +16,8 @@ def sem_resposta_min(c, ch):
     Ninguém respondeu desde o assumir → conta do assumir; já respondeu → da 1ª mensagem do lead depois da última resposta.
     Só conta resposta enviada pelo sistema (painel/Telegram): ligação ou mensagem por fora não aparece aqui."""
     q = c.db.execute
-    ult_h = q("SELECT MAX(id) FROM mensagens WHERE chamado_id=? AND de='humano'", (ch['id'],)).fetchone()[0]
+    ult_h = q("SELECT MAX(id) FROM mensagens WHERE chamado_id=? AND de='humano' AND texto NOT LIKE ?",
+              (ch['id'], '[Combinado fora do sistema]%')).fetchone()[0]  # o resumo "por fora" não é resposta
     if not ult_h:
         return minutos(ch['assumido_em'], c.agora()) if ch['assumido_em'] else None
     r = q("SELECT em FROM mensagens WHERE lead_id=? AND de='lead' AND id>? ORDER BY id LIMIT 1",

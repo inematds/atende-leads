@@ -148,7 +148,8 @@ VERDADE_ATENDENTE = (
     ' Ordem de verdade: (1) o que o vendedor (atendente humano) já afirmou nesta conversa — preço, promoção, '
     'prazo, condição — é a informação mais atual e vale sobre a base; se ele afirmou valores diferentes em '
     'momentos diferentes, vale o ÚLTIMO; (2) a base. Nunca mencione base, sistema, IA nem divergência interna, '
-    'e não peça desculpa por inconsistência.')
+    'e não peça desculpa por inconsistência. Linha do vendedor que começa com [Combinado fora do sistema] é nota '
+    'interna: use só os termos combinados (preço, data, condição) e nunca repita a nota nem opiniões dela ao cliente.')
 
 
 def tem_atendente(c, lead_id):

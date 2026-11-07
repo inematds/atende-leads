@@ -305,3 +305,14 @@ def test_fechar_pelo_bot_com_fora(tatend):
     assert fechado(api, lead, ch)
     assert eventos(api, lead["id"])[0]["por_fora"] is True
     assert "[Combinado fora do sistema] liguei e ela fecha na sexta" in str(api.ficha(lead["id"]))
+
+
+def test_fora_curto_no_bot_mantem_o_fluxo(tatend):
+    api, tg, externo, lead, ch = tatend
+    a = TG_ID["ana"]
+    tg.cb(a, f"fe:{ch}:negociando")
+    tg.msg(a, "fora: liguei")                                   # curto: pede de novo, não perde o resultado
+    assert status_chamado(api, lead["id"], ch) != "fechado"
+    tg.msg(a, "fora: liguei e ela decide até sexta")
+    assert fechado(api, lead, ch)
+    assert eventos(api, lead["id"])[0]["resultado"] == "negociando"
