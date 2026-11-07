@@ -5,8 +5,100 @@ import io
 import json
 import re
 
-from .core import DIAS, ROOT, Erro, minutos, parse
+from datetime import timedelta
+
+from .core import DIAS, ROOT, Erro, iso, minutos, parse
 from . import base, cerebro, chamados, contatos, conversa, equipe, evolution, sugestao
+
+
+def sem_resposta_min(c, ch):
+    """Minutos que o cliente espera resposta da equipe neste atendimento (None = respondido).
+    Ninguém respondeu desde o assumir → conta do assumir; já respondeu → da 1ª mensagem do lead depois da última resposta.
+    Só conta resposta enviada pelo sistema (painel/Telegram): ligação ou mensagem por fora não aparece aqui."""
+    q = c.db.execute
+    ult_h = q("SELECT MAX(id) FROM mensagens WHERE chamado_id=? AND de='humano'", (ch['id'],)).fetchone()[0]
+    if not ult_h:
+        return minutos(ch['assumido_em'], c.agora()) if ch['assumido_em'] else None
+    r = q("SELECT em FROM mensagens WHERE lead_id=? AND de='lead' AND id>? ORDER BY id LIMIT 1",
+          (ch['lead_id'], ult_h)).fetchone()
+    return minutos(r['em'], c.agora()) if r and r['em'] else None
+
+
+def _atendendo_json(c, ch):
+    d = chamados.json_chamado(c, ch)
+    d['sem_resposta_min'] = sem_resposta_min(c, ch)
+    return d
+
+
+def _ativo_desde(c):
+    """Corte da "conversa ativa": contato do lead nas últimas `prazos.conversa_ativa_h` horas (padrão 24)."""
+    return iso(c.agora() - timedelta(hours=c.prazo('conversa_ativa_h', 24)))
+
+
+def _robo_ativo(c, lead, aberto=False):
+    """Sem chamado aberto, contato recente e (nenhum chamado fechado ou o lead falou depois do último fechamento)."""
+    if not lead['ultimo_contato'] or lead['ultimo_contato'] < _ativo_desde(c):
+        return False
+    if (chamados.aberto_do_lead(c, lead['id']) if aberto is False else aberto):
+        return False
+    fech = c.db.execute("SELECT MAX(fechado_em) FROM chamados WHERE lead_id=? AND status='fechado'",
+                        (lead['id'],)).fetchone()[0]
+    if not fech:
+        return True
+    # a mensagem do lead que vem depois da última mensagem registrada no chamado fechado (por id: o minuto empata)
+    ult_ch = c.db.execute("SELECT MAX(m.id) FROM mensagens m JOIN chamados ch ON ch.id=m.chamado_id "
+                          "WHERE ch.lead_id=? AND ch.status='fechado'", (lead['id'],)).fetchone()[0]
+    if ult_ch is None:
+        ult = c.db.execute("SELECT MAX(em) FROM mensagens WHERE lead_id=? AND de='lead'", (lead['id'],)).fetchone()[0]
+        return bool(ult) and ult > fech
+    return bool(c.db.execute("SELECT 1 FROM mensagens WHERE lead_id=? AND de='lead' AND id>? AND chamado_id IS NULL LIMIT 1",
+                             (lead['id'], ult_ch)).fetchone())
+
+
+def situacao(c, lead):
+    """atendendo | espera | robo | encerrado | parado — a coluna do lead no Ao vivo."""
+    aberto = chamados.aberto_do_lead(c, lead['id'])
+    if aberto:
+        return 'atendendo' if aberto['status'] == 'atendendo' else 'espera'
+    if _robo_ativo(c, lead, None):
+        return 'robo'
+    if c.db.execute("SELECT 1 FROM chamados WHERE lead_id=? AND status='fechado' LIMIT 1", (lead['id'],)).fetchone():
+        return 'encerrado'
+    return 'parado'
+
+
+def robo(c):
+    out = []
+    for lead in c.db.execute("SELECT * FROM leads WHERE telefone NOT LIKE 'apagado-%' AND ultimo_contato>=? "
+                             'ORDER BY ultimo_contato DESC, id DESC', (_ativo_desde(c),)).fetchall():
+        if not _robo_ativo(c, lead):
+            continue
+        u = c.db.execute("SELECT texto FROM mensagens WHERE lead_id=? AND de='lead' ORDER BY id DESC LIMIT 1",
+                         (lead['id'],)).fetchone()
+        out.append({'lead_id': lead['id'], 'nome': lead['nome'], 'telefone': lead['telefone'], 'nota': lead['nota'],
+                    'status': lead['status'], 'ultimo_contato': lead['ultimo_contato'],
+                    'minutos_desde_contato': minutos(lead['ultimo_contato'], c.agora()),
+                    'ultima_mensagem': (u['texto'] or '')[:120] if u else None})
+    return out
+
+
+def encerrados_hoje(c):
+    dia = c.agora().date().isoformat()
+    return [chamados.json_chamado(c, ch) for ch in
+            c.db.execute("SELECT * FROM chamados WHERE status='fechado' AND substr(fechado_em,1,10)=? "
+                         'ORDER BY fechado_em DESC, id DESC', (dia,))]
+
+
+def _grupos(c):
+    """Os quatro grupos do Ao vivo e do Hoje (1.8.8)."""
+    extr = c.prazo('assumir_extremo_min', 10)
+    espera = [chamados.json_chamado(c, ch) for ch in
+              c.db.execute("SELECT * FROM chamados WHERE status IN ('aguardando','alerta') ORDER BY aberto_em, id")]
+    atend = [_atendendo_json(c, ch) for ch in
+             c.db.execute("SELECT * FROM chamados WHERE status='atendendo' ORDER BY assumido_em, id")]
+    atrasos = sorted([a for a in atend if (a['sem_resposta_min'] or 0) > extr], key=lambda a: -a['sem_resposta_min'])
+    return {'robo': robo(c), 'espera': espera, 'atendendo': atend, 'encerrados': encerrados_hoje(c),
+            'sem_resposta': atrasos, 'conversa_ativa_h': c.prazo('conversa_ativa_h', 24)}
 
 
 def ao_vivo(c):
@@ -14,8 +106,10 @@ def ao_vivo(c):
     p['agora'] = c.agora().strftime('%Y-%m-%dT%H:%M')
     p['alertas'] = [chamados.json_chamado(c, ch) for ch in
                     c.db.execute("SELECT * FROM chamados WHERE status='alerta' ORDER BY aberto_em, id")]
-    p['atendendo'] = [chamados.json_chamado(c, ch) for ch in
-                      c.db.execute("SELECT * FROM chamados WHERE status='atendendo' ORDER BY assumido_em, id")]
+    for f in p['fila']:  # o gestor vê o telefone e o nome inteiro (a equipe e o grupo continuam com o primeiro nome)
+        lead = c.lead(f['lead_id'])
+        f['telefone'], f['lead_nome'], f['nota'] = lead['telefone'], lead['nome'], lead['nota']
+    p.update(_grupos(c))
     p['descartes'] = evolution.descartes(c)
     return p
 
@@ -62,6 +156,7 @@ def hoje(c):
             'tempo_medio_assumir_min': faixas['media_min'], 'assumir': faixas,
             'por_colaborador': por,
             'chamados_abertos_agora': [chamados.json_chamado(c, ch) for ch in agora_],
+            'grupos': _grupos(c),
             'leads_hoje': contatos.ordenar([_linha_lead(c, r) for r in de_hoje])}
 
 
@@ -77,7 +172,11 @@ def _linha_lead(c, lead):
     d['valor'] = ult['valor'] if ult else None
     d['chamado_status'] = ult['status'] if ult else None
     d.update(contatos.extras(c, lead))
+    d['situacao'] = situacao(c, lead)
     return d
+
+
+FAIXA_CONTATO = {'1h': (0, 60), '24h': (0, 24 * 60), '1a7d': (24 * 60, 7 * 24 * 60), 'mais7d': (7 * 24 * 60, None)}
 
 
 def leads(c, q):
@@ -95,7 +194,15 @@ def leads(c, q):
     if q.get('ate'):
         sql += ' AND substr(criado_em,1,10)<=?'
         args.append(q['ate'][:10])
-    return contatos.ordenar([_linha_lead(c, r) for r in c.db.execute(sql + ' ORDER BY id DESC', args)])
+    linhas = [_linha_lead(c, r) for r in c.db.execute(sql + ' ORDER BY id DESC', args)]
+    if q.get('situacao'):
+        linhas = [d for d in linhas if d['situacao'] == q['situacao']]
+    faixa = FAIXA_CONTATO.get(q.get('contato') or '')
+    if faixa:
+        de, ate = faixa
+        linhas = [d for d in linhas if d['minutos_desde_contato'] is not None and d['minutos_desde_contato'] >= de
+                  and (ate is None or d['minutos_desde_contato'] < ate)]
+    return contatos.ordenar(linhas)
 
 
 def ficha(c, lead_id):

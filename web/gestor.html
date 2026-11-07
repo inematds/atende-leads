@@ -45,10 +45,12 @@
       <!-- AO VIVO -->
       <section id="p-aovivo" role="tabpanel" aria-labelledby="t-aovivo" data-painel="aovivo">
         <div id="av-alerta"></div>
-        <div class="colunas">
-          <div class="painel"><h2><svg class="i" aria-hidden="true"><use href="#i-users"/></svg>Equipe agora <span class="cont leve" id="av-livres"></span></h2><div id="av-equipe"></div></div>
-          <div class="painel"><h2><svg class="i" aria-hidden="true"><use href="#i-msg"/></svg>Em atendimento <span class="cont leve" id="av-at-n">0</span></h2><div id="av-atendendo"></div></div>
-          <div class="painel"><h2><svg class="i" aria-hidden="true"><use href="#i-inbox"/></svg>Fila <span class="cont" id="av-fila-n">0</span></h2><div id="av-fila"></div></div>
+        <div class="painel av-equipe"><h2><svg class="i" aria-hidden="true"><use href="#i-users"/></svg>Equipe agora <span class="cont leve" id="av-livres"></span></h2><div id="av-equipe" class="eq-grade"></div></div>
+        <div class="colunas c4">
+          <div class="painel"><h2><svg class="i" aria-hidden="true"><use href="#i-spark"/></svg>Robô atendendo <span class="cont leve" id="av-robo-n">0</span></h2><p class="col-ajuda" id="av-robo-ajuda">Conversas das últimas 24 h só com o assistente.</p><div id="av-robo"></div></div>
+          <div class="painel"><h2><svg class="i" aria-hidden="true"><use href="#i-inbox"/></svg>Esperando atendente <span class="cont" id="av-fila-n">0</span></h2><p class="col-ajuda">Pediram alguém da equipe e ninguém assumiu.</p><div id="av-fila"></div></div>
+          <div class="painel"><h2><svg class="i" aria-hidden="true"><use href="#i-msg"/></svg>Em atendimento <span class="cont leve" id="av-at-n">0</span></h2><p class="col-ajuda">Com alguém da equipe. Vermelho = cliente sem resposta pelo sistema (ligação ou mensagem por fora não conta).</p><div id="av-atendendo"></div></div>
+          <div class="painel"><h2><svg class="i" aria-hidden="true"><use href="#i-check"/></svg>Encerradas hoje <span class="cont leve" id="av-enc-n">0</span></h2><p class="col-ajuda">Se o cliente voltar a escrever, o assistente responde.</p><div id="av-encerrados"></div></div>
         </div>
       </section>
 
@@ -60,6 +62,10 @@
         <form id="form-filtro" class="filtros">
           <label class="campo">Status <select id="fl-status"><option value="">Todos</option><option value="novo">Novo</option><option value="em_atendimento">Em atendimento</option>
             <option value="negociando">Negociando</option><option value="retornar">Retornar</option><option value="ganho">Ganho</option><option value="perdido">Perdido</option><option value="invalido">Inválido</option></select></label>
+          <label class="campo">Situação <select id="fl-situacao"><option value="">Todas</option><option value="robo">Robô atendendo</option><option value="espera">Esperando atendente</option>
+            <option value="atendendo">Em atendimento</option><option value="encerrado">Encerrado</option><option value="parado">Sem conversa ativa</option></select></label>
+          <label class="campo">Último contato <select id="fl-contato"><option value="">Qualquer</option><option value="1h">Menos de 1 h</option><option value="24h">Últimas 24 h</option>
+            <option value="1a7d">De 1 a 7 dias</option><option value="mais7d">Mais de 7 dias</option></select></label>
           <label class="campo">Colaborador <select id="fl-colab"><option value="">Todos</option></select></label>
           <label class="campo">De <input id="fl-de" type="date"></label>
           <label class="campo">Até <input id="fl-ate" type="date"></label>

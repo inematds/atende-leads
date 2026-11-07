@@ -125,6 +125,7 @@ CREATE TABLE IF NOT EXISTS chamados (
     ultimo_mov TEXT, lembrado INTEGER NOT NULL DEFAULT 0,
     tg_linha TEXT, tg_alerta TEXT, tg_oferta TEXT, tg_cartao TEXT);
 CREATE INDEX IF NOT EXISTS chamados_status ON chamados(status, aberto_em);
+CREATE INDEX IF NOT EXISTS chamados_lead ON chamados(lead_id, status);
 CREATE TABLE IF NOT EXISTS historico (id INTEGER PRIMARY KEY, lead_id INTEGER NOT NULL, dados TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS saida (
     id INTEGER PRIMARY KEY, lead_id INTEGER, telefone TEXT, texto TEXT, tipo TEXT, status TEXT, em TEXT,

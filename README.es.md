@@ -14,7 +14,7 @@ Guía completa (landing + paso a paso): **https://inematds.github.io/atende-lead
 
 🎬 Video explicativo (2 min 37 s, en portugués): **https://inematds.github.io/atende-leads/videos/** · [YouTube](https://www.youtube.com/watch?v=-6VKlGAYwKY)
 
-Atención de **leads por WhatsApp** con un agente que responde, califica y asigna el lead al **colaborador disponible** por Telegram, con todos los datos y un botón para llamar. Python 3 solo con la biblioteca estándar, estado en SQLite, Docker para VPS. Código abierto, versión `1.7.8`.
+Atención de **leads por WhatsApp** con un agente que responde, califica y asigna el lead al **colaborador disponible** por Telegram, con todos los datos y un botón para llamar. Python 3 solo con la biblioteca estándar, estado en SQLite, Docker para VPS. Código abierto, versión `1.8.8`.
 
 ## Qué hace
 
@@ -48,7 +48,7 @@ Quién hace qué: 🧠 el dueño/gerente · ⚙️ el sistema · 🤖 el agente.
 9. ⚙️ **Alerta 🚨** en el grupo cuando vence el plazo o no hay nadie disponible.
 10. 🧠 **El colaborador se hace cargo**, llama (📞) o responde por WhatsApp (💬) o con una respuesta en el propio bot; ⚙️ con cada mensaje del lead llega una `💡 Sugerencia` (✅ Enviar / ✏️ Editar) y cada respuesta se incorpora al aprendizaje.
 11. 🧠 **Cierra** con el resultado; ⚙️ el sistema guarda el historial, programa el próximo contacto y devuelve al colaborador a la fila.
-12. 🧠 **El gestor hace seguimiento** en `/gestor` (en vivo, hoy, leads, exportar CSV) y, en la pestaña **Aprendizaje**, incorpora o descarta las propuestas para la base (⚙️ se generan cada semana, de forma predeterminada). Desde la 1.7.8, **Importar desde enlace o archivo** lee el sitio del negocio o un documento y crea propuestas con fuente y evidencia, **Preguntar a la base** comprueba lo que sabe el agente y **Actualizar** recarga cualquier panel sin volver a entrar.
+12. 🧠 **El gestor hace seguimiento** en `/gestor` (en vivo, hoy, leads, exportar CSV) y, en la pestaña **Aprendizaje**, incorpora o descarta las propuestas para la base (⚙️ se generan cada semana, de forma predeterminada). Desde la 1.7.8, **Importar desde enlace o archivo** lee el sitio del negocio o un documento y crea propuestas con fuente y evidencia, **Preguntar a la base** comprueba lo que sabe el agente y **Actualizar** recarga cualquier panel sin volver a entrar. Desde la 1.8.8, **En vivo** muestra cuatro grupos (atendido por el robot, esperando a un agente, en atención, cerrados hoy) con el número del lead y el teléfono, y avisa cuando un cliente se queda sin respuesta; la lista de leads se filtra por situación y último contacto y se ordena haciendo clic en el título de la columna.
 13. ⚙️ **Respaldo diario** mediante el único cron que instala `instalar-vps.sh` (`docker compose exec -T atende ./atende backup ...` → `/opt/atende-leads-backups/`).
 
 > Puedes realizar los pasos 2 a 12 **en tu máquina**, sin dominio ni HTTPS, antes de pasar a la VPS: consulta [Probar en tu máquina (sin dominio)](#probar-en-tu-máquina-sin-dominio) (Telegram en `TELEGRAM_MODO=polling`).

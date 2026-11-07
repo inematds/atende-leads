@@ -26,6 +26,41 @@
     return '<div class="acao"><label class="sr" for="tr-' + ch + '">Transferir #' + ch + ' para</label><select id="tr-' + ch + '" data-transf-sel="' + ch + '">' +
       opcoesTransf(atual) + '</select><button type="button" class="btn peq" data-transf="' + ch + '">' + ic('swap') + 'Transferir</button></div>';
   }
+  // identificação comum a todo cartão: #lead · nome · telefone
+  const ident = (id, nome, tel) => '<strong>#' + id + ' ' + esc(nome || 'sem nome') + '</strong>' +
+    (tel && !String(tel).startsWith('apagado-') ? '<span class="tel">' + esc(AL.fone(tel)) + '</span>' : '');
+  let voltaram = new Set();  // leads de "Encerradas hoje" que voltaram a escrever (estão no Robô atendendo)
+  const verConversa = id => '<div class="acao"><button type="button" class="btn sutil peq" data-ficha="' + id + '">' + ic('file') + 'Ver conversa</button></div>';
+  const cartoes = {
+    robo: r => '<div class="it"><div class="l1">' + ident(r.lead_id, r.nome, r.telefone) + AL.nota(r.nota) + '<span class="dir">' + esc(AL.ha(r.minutos_desde_contato)) + '</span></div>' +
+      (r.ultima_mensagem ? '<p>“' + esc(r.ultima_mensagem) + '”</p>' : '') + verConversa(r.lead_id) + '</div>',
+    espera: (ch, ext) => {
+      const demais = ch.status === 'alerta' || ch.minutos > ext;
+      return '<div class="it' + (demais ? ' ext' : '') + '"><div class="l1">' + ident(ch.lead_id, ch.lead_nome, ch.telefone) + (ch.prioridade === 'quente' ? AL.nota('quente') : '') +
+        '<span class="espera' + (demais ? ' demais' : '') + '" style="margin-left:auto">' + ic('clock') + esc(AL.dur(ch.minutos)) + '</span></div>' +
+        '<p>chamado #' + ch.id + ' · ' + esc(AL.MOTIVO[ch.motivo] || '') + ' · ' + (ch.ofertado_a ? 'oferecido a ' + esc(nomeColab(ch.ofertado_a)) : 'ninguém aceitou ainda') +
+        (demais ? ' · <strong class="ruim">esperando demais</strong>' : '') + '</p>' + transf(ch.id, null) + '</div>';
+    },
+    atendendo: (ch, ext) => {
+      const sr = ch.sem_resposta_min, grave = sr != null && sr > ext;
+      return '<div class="it' + (grave ? ' ext' : '') + '"><div class="l1">' + ident(ch.lead_id, ch.lead_nome, ch.telefone) + AL.nota(ch.nota) +
+        '<span class="dir">aberto há ' + esc(AL.dur(ch.minutos)) + '</span></div><p>com <strong>' + esc(nomeColab(ch.dono)) + '</strong> · chamado #' + ch.id +
+        (ch.interesse_nome ? ' · ' + esc(ch.interesse_nome) : '') + '</p>' +
+        (sr != null ? '<p><span class="espera' + (grave ? ' demais' : '') + '">' + ic('clock') + 'cliente sem resposta há ' + esc(AL.dur(sr)) + '</span></p>' : '<p class="ok-t">respondido</p>') +
+        transf(ch.id, ch.dono) + verConversa(ch.lead_id) + '</div>';
+    },
+    encerrados: ch => '<div class="it"><div class="l1">' + ident(ch.lead_id, ch.lead_nome, ch.telefone) + '<span class="dir">' + esc(AL.hm(ch.fechado_em)) + '</span></div>' +
+      '<p>' + esc(AL.RESULTADO[ch.resultado] || ch.resultado || '—') + (ch.valor ? ' · ' + esc(AL.brl(ch.valor)) : '') + (ch.dono ? ' · ' + esc(nomeColab(ch.dono)) : '') + ' · chamado #' + ch.id + '</p>' +
+      (voltaram.has(ch.lead_id) ? '<p><span class="sit s-robo">voltou a escrever · o robô está respondendo</span></p>' : '') +
+      verConversa(ch.lead_id) + '</div>',
+  };
+  function alertaResposta(lista) {
+    if (!lista.length) return '';
+    const p = lista[0];
+    return '<div class="alerta" role="alert">' + ic('alert') + '<p><strong>' + lista.length + (lista.length === 1 ? ' cliente sem resposta' : ' clientes sem resposta') + ' no atendimento</strong> — ' +
+      esc(p.lead_nome || 'Lead') + ' espera resposta de ' + esc(nomeColab(p.dono)) + ' há ' + esc(AL.dur(p.sem_resposta_min)) + '.</p>' +
+      (aba !== 'aovivo' ? '<button type="button" class="btn pri" data-ir="aovivo">Ver no Ao vivo' + ic('arrow') + '</button>' : '') + '</div>';
+  }
   async function aoVivo() {
     const p = await api('GET', '/api/gestor/ao-vivo');
     $('data').textContent = 'atualizado ' + AL.hm(p.agora);
@@ -39,25 +74,17 @@
       '<div class="seg" role="group" aria-label="Status de ' + esc(e.nome) + '">' + ['livre', 'ocupado', 'fora'].map(s => '<button type="button" data-colab="' + esc(e.id) +
         '" data-st="' + s + '" aria-pressed="' + (e.status === s) + '">' + AL.ponto(s) + s + '</button>').join('') + '</div></div>').join('')
       : vazio('Ninguém da equipe cadastrado.');
-    $('av-at-n').textContent = p.atendendo.length;
-    $('av-atendendo').innerHTML = p.atendendo.length ? p.atendendo.map(ch => '<div class="it"><div class="l1"><strong>#' + ch.id + ' ' + esc(ch.lead_nome || 'Lead') + '</strong>' +
-      AL.nota(ch.nota) + '<span class="dir">aberto há ' + esc(AL.dur(ch.minutos)) + '</span></div><p>com ' + esc(nomeColab(ch.dono)) +
-      (ch.interesse_nome ? ' · ' + esc(ch.interesse_nome) : '') + ' · ' + esc(AL.MOTIVO[ch.motivo] || '') + '</p>' + transf(ch.id, ch.dono) +
-      '<div class="acao"><button type="button" class="btn sutil peq" data-ficha="' + ch.lead_id + '">' + ic('file') + 'Ver conversa</button></div></div>').join('')
-      : vazio('Ninguém em atendimento agora.');
-    $('av-fila-n').textContent = p.fila.length;
-    $('nav-fila').hidden = !p.fila.length; $('nav-fila').textContent = p.fila.length;
     const ext = extremo();
-    $('av-fila').innerHTML = p.fila.length ? p.fila.map(ch => {
-      const demais = ch.status === 'alerta' || ch.minutos > ext;
-      return '<div class="it' + (demais ? ' ext' : '') + '"><div class="l1"><strong>#' + ch.id + ' ' + esc(ch.lead || 'Lead') + '</strong>' +
-        (ch.prioridade === 'quente' ? AL.nota('quente') : '') +
-        '<span class="espera' + (demais ? ' demais' : '') + '" style="margin-left:auto">' + ic('clock') + esc(AL.dur(ch.minutos)) + '</span></div>' +
-        '<p>' + esc(AL.MOTIVO[ch.motivo] || '') + ' · ' + (ch.ofertado_a ? 'oferecido a ' + esc(nomeColab(ch.ofertado_a)) : 'ninguém aceitou ainda') +
-        (demais ? ' · <strong style="color:var(--ruim)">esperando demais</strong>' : '') + '</p>' + transf(ch.id, null) + '</div>';
-    }).join('') : vazio('Fila vazia. Ninguém esperando.');
-    const atrasados = p.fila.filter(ch => ch.status === 'alerta' || ch.minutos > ext);
-    $('av-alerta').innerHTML = atrasados.length ? alerta(atrasados.map(ch => ({nome: ch.lead, minutos: ch.minutos})), false) : '';
+    voltaram = new Set(p.robo.map(r => r.lead_id));
+    $('av-robo-ajuda').textContent = 'Conversas das últimas ' + (p.conversa_ativa_h || 24) + ' h só com o assistente.';
+    const col = (id, nid, lista, f, vaz) => { $(nid).textContent = lista.length; $(id).innerHTML = lista.length ? lista.map(x => f(x, ext)).join('') : vazio(vaz); };
+    col('av-robo', 'av-robo-n', p.robo, cartoes.robo, 'Nenhuma conversa só com o robô agora.');
+    col('av-fila', 'av-fila-n', p.espera, cartoes.espera, 'Ninguém esperando atendente.');
+    col('av-atendendo', 'av-at-n', p.atendendo, cartoes.atendendo, 'Ninguém em atendimento agora.');
+    col('av-encerrados', 'av-enc-n', p.encerrados, cartoes.encerrados, 'Nada encerrado hoje ainda.');
+    $('nav-fila').hidden = !p.espera.length; $('nav-fila').textContent = p.espera.length;
+    const atrasados = p.espera.filter(ch => ch.status === 'alerta' || ch.minutos > ext);
+    $('av-alerta').innerHTML = alertaResposta(p.sem_resposta) + (atrasados.length ? alerta(atrasados.map(ch => ({nome: ch.lead_nome, minutos: ch.minutos})), false) : '');
   }
   function alerta(lista, comBotao) {
     const ext = extremo(), n = lista.length, pior = lista.slice().sort((a, b) => b.minutos - a.minutos)[0];
@@ -100,9 +127,11 @@
     const h = await api('GET', '/api/gestor/hoje');
     $('data').textContent = AL.ddmm(h.dia) + ' · até ' + AL.hm(h.agora);
     const a = h.assumir, ext = a.extremo_min;
-    const atrasados = h.chamados_abertos_agora.filter(ch => ch.status !== 'atendendo' && (ch.status === 'alerta' || ch.minutos > ext));
+    const g = h.grupos;
+    voltaram = new Set(g.robo.map(r => r.lead_id));
+    const atrasados = g.espera.filter(ch => ch.status === 'alerta' || ch.minutos > ext);
     const met = (rot, v) => '<div><dt>' + esc(rot) + '</dt><dd>' + esc(v) + '</dd></div>';
-    $('hoje').innerHTML = (atrasados.length ? alerta(atrasados.map(ch => ({nome: ch.lead_nome, minutos: ch.minutos})), true) : '') + regua(a) +
+    $('hoje').innerHTML = alertaResposta(g.sem_resposta) + (atrasados.length ? alerta(atrasados.map(ch => ({nome: ch.lead_nome, minutos: ch.minutos})), true) : '') + regua(a) +
       '<dl class="painel metricas">' + met('Leads novos', h.leads_novos) + met('Chamados abertos', h.chamados_abertos) + met('Assumidos', h.assumidos) +
       met('Vendas', h.vendas) + met('Valor vendido', AL.brl(h.valor_vendido)) + met('Abertos agora', h.abertos_agora) +
       met('Média p/ assumir', AL.dur(h.tempo_medio_assumir_min)) + met('Maior espera', AL.dur(a.maior_min)) + '</dl>' +
@@ -112,32 +141,64 @@
         '</td><td class="num">' + p.assumir.medios + '</td><td class="num">' + (p.assumir.extremos ? '<span class="selo st-perdido">' + p.assumir.extremos + '</span>' : 0) +
         '</td><td class="num">' + esc(AL.dur(p.assumir.maior_min)) + '</td><td class="num">' + p.vendas + '</td><td class="num">' + esc(AL.brl(p.valor)) + '</td></tr>').join('') +
       '</tbody></table></div>' +
-      '<h2 class="bloco">Chamados abertos agora</h2><div class="painel tab">' + (h.chamados_abertos_agora.length ?
-        '<table><thead><tr><th>#</th><th>Lead</th><th>Nota</th><th>Situação</th><th>Com</th><th class="num">Há</th></tr></thead><tbody>' + h.chamados_abertos_agora.map(ch => {
-          const demais = ch.status !== 'atendendo' && (ch.status === 'alerta' || ch.minutos > ext);
-          return '<tr class="' + (demais ? 'ext' : '') + '"><td>#' + ch.id + '</td><td><strong>' + esc(ch.lead_nome || 'Lead') + '</strong></td><td>' + AL.nota(ch.nota) +
-            '</td><td><span class="selo st-' + esc(ch.status) + '">' + esc(AL.CHAMADO[ch.status] || ch.status) + '</span></td><td>' +
-            esc(ch.dono ? nomeColab(ch.dono) : (ch.ofertado_a ? 'oferecido a ' + nomeColab(ch.ofertado_a) : '—')) + '</td><td class="num">' +
-            '<span class="espera' + (demais ? ' demais' : '') + '">' + esc(AL.dur(ch.minutos)) + '</span></td></tr>';
-        }).join('') + '</tbody></table>' : vazio('Nenhum chamado aberto.')) + '</div>' +
-      '<h2 class="bloco">Leads de hoje</h2><div class="painel tab" id="hoje-leads">' + (h.leads_hoje.length ? tabelaLeads(h.leads_hoje) : vazio('Nenhum lead hoje.')) + '</div>';
+      '<h2 class="bloco">Agora</h2><div class="grupos-hoje">' + grupoHoje('Robô atendendo', 'spark', g.robo, cartoes.robo, ext, 'Nenhuma conversa só com o robô.') +
+      grupoHoje('Esperando atendente', 'inbox', g.espera, cartoes.espera, ext, 'Ninguém esperando.') +
+      grupoHoje('Em atendimento', 'msg', g.atendendo, cartoes.atendendo, ext, 'Ninguém em atendimento.') +
+      grupoHoje('Encerradas hoje', 'check', g.encerrados, cartoes.encerrados, ext, 'Nada encerrado hoje ainda.') + '</div>' +
+      '<h2 class="bloco">Leads de hoje</h2><div class="painel tab" id="hoje-leads">' + (h.leads_hoje.length ? tabelaLeads(h.leads_hoje, 'hoje-leads') : vazio('Nenhum lead hoje.')) + '</div>';
   }
 
-  function tabelaLeads(ls) {
-    return '<table><thead><tr><th>Lead</th><th>Status</th><th>Nota</th><th>Telefone</th><th>Colaborador</th><th>Resultado</th><th>Tempos</th><th><span class="sr">Ação</span></th></tr></thead><tbody>' +
-      ls.map(l => '<tr class="clic" data-linha="' + l.id + '"><td><strong>' + esc(l.nome || 'sem nome') + '</strong> <span class="mut peq">#' + l.id + '</span></td><td>' + AL.selo(l.status) +
-        (l.retornar_em ? ' <span class="mut peq">' + esc(AL.hora(l.retornar_em)) + '</span>' : '') + '</td><td>' + AL.nota(l.nota) + '</td><td>' + esc(AL.fone(l.telefone)) +
+  function grupoHoje(titulo, icone, lista, f, ext, vaz) {
+    return '<details class="painel grupo"' + (lista.length ? ' open' : '') + '><summary>' + ic(icone) + esc(titulo) + ' <span class="cont leve">' + lista.length + '</span></summary>' +
+      (lista.length ? lista.map(x => f(x, ext)).join('') : vazio(vaz)) + '</details>';
+  }
+
+  // Tabela de leads: clicar no título ordena; 2º clique inverte (o resto da ordem é a "por nível" do servidor).
+  const SITUACAO = {robo: 'robô atendendo', espera: 'esperando atendente', atendendo: 'em atendimento', encerrado: 'encerrado', parado: 'sem conversa ativa'};
+  const NIVEL = {em_atendimento: 0, retornar: 1, negociando: 2, novo: 3, ganho: 4, perdido: 5, invalido: 6};
+  const NOTA = {quente: 0, morno: 1, frio: 2};
+  const SIT_ORD = {espera: 0, atendendo: 1, robo: 2, encerrado: 3, parado: 4};
+  const COLS = [
+    ['nome', 'Lead', l => l.nome || null], ['situacao', 'Situação', l => SIT_ORD[l.situacao] ?? 9], ['status', 'Status', l => NIVEL[l.status] ?? 9],
+    ['nota', 'Nota', l => NOTA[l.nota] ?? 9], ['telefone', 'Telefone', l => l.telefone || ''], ['colaborador', 'Colaborador', l => l.colaborador ? nomeColab(l.colaborador) : null],
+    ['resultado', 'Resultado', l => AL.RESULTADO[l.resultado] || l.resultado || null], ['contato', 'Último contato', l => l.minutos_desde_contato ?? 1e12, 'num'],
+    ['conversa', 'Conversa', l => l.minutos_conversa || 0, 'num']];
+  const tabelas = {}, ordemTab = {};
+  function corContato(m) { return m == null ? '' : m < 60 ? 'c-agora' : m < 1440 ? 'c-hoje' : m < 10080 ? 'c-semana' : 'c-velho'; }
+  function tabelaLeads(ls, onde) {
+    tabelas[onde] = ls;
+    const o = ordemTab[onde];
+    let lista = ls;
+    if (o) { const col = COLS.find(c => c[0] === o.campo); lista = ls.map((l, i) => [l, i]).sort((x, y) => { const a = col[2](x[0]), b = col[2](y[0]);
+      if (a == null || b == null) return a == null && b == null ? x[1] - y[1] : a == null ? 1 : -1;  // vazio sempre no fim
+      const d = typeof a === 'string' ? a.localeCompare(b, 'pt-BR', {sensitivity: 'base'}) : (a < b ? -1 : a > b ? 1 : 0);
+      return d ? d * o.dir : x[1] - y[1]; }).map(x => x[0]); }
+    const th = c => { const at = o && o.campo === c[0];
+      return '<th' + (c[3] ? ' class="num"' : '') + (at ? ' aria-sort="' + (o.dir > 0 ? 'ascending' : 'descending') + '"' : '') + '><button type="button" class="ord" data-ord="' + c[0] + '" data-tab="' + onde + '">' +
+        esc(c[1]) + '<span aria-hidden="true">' + (at ? (o.dir > 0 ? ' ▲' : ' ▼') : ' ↕') + '</span></button></th>'; };
+    return '<table class="ordenavel"><thead><tr>' + COLS.map(th).join('') + '<th><span class="sr">Ação</span></th></tr></thead><tbody>' +
+      lista.map(l => '<tr class="clic" data-linha="' + l.id + '"><td><strong>' + esc(l.nome || 'sem nome') + '</strong> <span class="mut peq">#' + l.id + '</span></td>' +
+        '<td><span class="sit s-' + esc(l.situacao) + '">' + esc(SITUACAO[l.situacao] || l.situacao || '—') + '</span></td><td>' + AL.selo(l.status) +
+        (l.retornar_em ? ' <span class="mut peq">' + esc(AL.hora(l.retornar_em)) + '</span>' : '') + '</td><td>' + AL.nota(l.nota) + '</td><td class="nw">' + esc(AL.fone(l.telefone)) +
         '</td><td>' + esc(l.colaborador ? nomeColab(l.colaborador) : '—') + '</td><td>' + esc(AL.RESULTADO[l.resultado] || l.resultado || '—') +
-        (l.valor ? ' · ' + esc(AL.brl(l.valor)) : '') + '</td><td class="mut peq">' + AL.tempos(l) + '</td><td><button type="button" class="btn peq" data-ficha="' + l.id + '">Ficha</button></td></tr>').join('') +
+        (l.valor ? ' · ' + esc(AL.brl(l.valor)) : '') + '</td><td class="num"><span class="contato ' + corContato(l.minutos_desde_contato) + '">' + esc(AL.ha(l.minutos_desde_contato) || '—') + '</span>' +
+        (l.dia_anterior ? '<br><span class="mut peq">também em ' + esc(AL.ddmm(l.dia_anterior)) + '</span>' : '') + '</td><td class="num mut peq">' + (l.minutos_conversa ? esc(AL.dur(l.minutos_conversa)) : '—') +
+        '</td><td><button type="button" class="btn peq" data-ficha="' + l.id + '">Ficha</button></td></tr>').join('') +
       '</tbody></table>';
+  }
+  function ordenarTab(onde, campo) {
+    const o = ordemTab[onde];
+    ordemTab[onde] = o && o.campo === campo ? (o.dir > 0 ? {campo, dir: -1} : null) : {campo, dir: 1};
+    $(onde).innerHTML = tabelaLeads(tabelas[onde], onde);
+    const bt = $(onde).querySelector('[data-ord="' + campo + '"]'); if (bt) bt.focus();
   }
 
   async function leads() {
     const q = new URLSearchParams();
-    ['status', 'colab', 'de', 'ate'].forEach(k => { const v = $('fl-' + k).value; if (v) q.set(k === 'colab' ? 'colaborador' : k, v); });
+    ['status', 'situacao', 'contato', 'colab', 'de', 'ate'].forEach(k => { const v = $('fl-' + k).value; if (v) q.set(k === 'colab' ? 'colaborador' : k, v); });
     const ls = await api('GET', '/api/gestor/leads?' + q);
     $('fl-total').textContent = ls.length + (ls.length === 1 ? ' lead' : ' leads') + ' · filtra ao mudar';
-    $('leads').innerHTML = ls.length ? tabelaLeads(ls) : vazio('Nenhum lead neste filtro.');
+    $('leads').innerHTML = ls.length ? tabelaLeads(ls, 'leads') : vazio('Nenhum lead neste filtro.');
   }
 
   async function ficha(id) {
@@ -404,7 +465,7 @@
   // ---------- Cadastros (formulário) ----------
   const DIAS = [['seg', 'Segunda'], ['ter', 'Terça'], ['qua', 'Quarta'], ['qui', 'Quinta'], ['sex', 'Sexta'], ['sab', 'Sábado'], ['dom', 'Domingo']];
   const PRAZOS = [['oferta_min', 'Oferta: tempo para aceitar', 2], ['alerta_quente_min', 'Alerta de lead quente', 2], ['alerta_normal_min', 'Alerta de lead normal', 5],
-    ['lembrete_min', 'Lembrete de atendimento parado', 30], ['assumir_imediato_min', 'Imediato até', 1], ['assumir_extremo_min', 'Extremo acima de', 10]];
+    ['lembrete_min', 'Lembrete de atendimento parado', 30], ['assumir_imediato_min', 'Imediato até', 1], ['assumir_extremo_min', 'Extremo acima de', 10], ['conversa_ativa_h', 'Conversa ativa por (horas)', 24]];
   let eqEd = [], prEd = [], horEd = {}, sujo = false;
   const marcarSujo = () => { sujo = true; $('c-estado').textContent = 'Alterações não salvas.'; };
   const slug = t => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'item';
@@ -565,7 +626,7 @@
     const d = {ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1}[ev.key]; if (!d) return;
     ev.preventDefault(); const n = tabs[(i + d + tabs.length) % tabs.length]; n.focus(); mostrar(n.dataset.aba);
   });
-  ['fl-status', 'fl-colab', 'fl-de', 'fl-ate'].forEach(id => $(id).addEventListener('change', () => leads().catch(e => aviso(e.message, true))));
+  ['fl-status', 'fl-situacao', 'fl-contato', 'fl-colab', 'fl-de', 'fl-ate'].forEach(id => $(id).addEventListener('change', () => leads().catch(e => aviso(e.message, true))));
   $('form-filtro').addEventListener('submit', ev => { ev.preventDefault(); leads().catch(e => aviso(e.message, true)); });
   ['a-de', 'a-ate', 'a-colab', 'a-origem'].forEach(id => $(id).addEventListener('change', () => aprendizado().catch(e => aviso(e.message, true))));
   $('form-apr').addEventListener('submit', ev => { ev.preventDefault(); aprendizado().catch(e => aviso(e.message, true)); });
@@ -575,6 +636,7 @@
     const b = ev.target.closest('button');
     if (!b && linha) { ev.preventDefault(); if (aba !== 'leads') await mostrar('leads'); ficha(linha.dataset.linha).catch(e => aviso(e.message, true)); return; }
     if (!b) return;
+    if (b.dataset.ord) { ordenarTab(b.dataset.tab, b.dataset.ord); return; }
     try {
       if (b.dataset.ir) await mostrar(b.dataset.ir);
       if (b.dataset.st) { await api('POST', '/api/gestor/equipe/' + encodeURIComponent(b.dataset.colab) + '/status', {status: b.dataset.st}); await aoVivo(); }
