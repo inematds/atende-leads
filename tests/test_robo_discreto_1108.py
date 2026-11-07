@@ -320,3 +320,73 @@ def test_sim_em_conversa_nova_nao_abre_chamado(api):
     api.msg(TEL, "xpto blablabla")                                # "Pode me contar de outro jeito…?"
     api.msg(TEL, "ok")
     assert all(c["motivo"] == "precisa" for c in chamados(api, lead["id"]))
+
+
+# ---------- achados do terceiro revisor (1.10.8) ----------
+
+@pytest.mark.parametrize("seq", [["obrigado", "ok"], ["valeu", "blz"], ["ok", "tá bom", "👍"]])
+def test_agradecimento_nao_revela_nem_abre_chamado(api, seq):
+    lid = _venda_completa(api)
+    for m in seq:
+        assert not revela(api.msg(TEL, m))
+    c = chamados(api, lid)
+    assert len(c) == 1 and c[0]["motivo"] == "venda" and c[0]["silencioso"] is True
+
+
+def test_agradecimento_sem_chamado_nao_abre(api):
+    api.msg(TEL, "oi")
+    api.msg(TEL, "Maria Souza")
+    api.msg(TEL, "1")
+    lead = api.msg_full(TEL, "3")["lead"]
+    for m in ("obrigado", "ok", "valeu"):
+        assert "Essa eu não sei" not in api.msg(TEL, m)
+    assert chamados(api, lead["id"]) == []
+
+
+def test_pagina_do_lead_nao_mostra_chamado_calado(api):
+    r = api.msg_full(TEL, "quanto custa o plano anual?", nome="Maria Souza")
+    st, meu = api.get(f"/api/meu/{r['lead']['token']}", token=None)
+    assert st == 200
+    st, html = api.req("GET", f"/meu/{r['lead']['token']}", token=None, bruto=True)
+    assert "Alguém da equipe vai falar" not in str(html)
+
+
+def test_so_pesquisando_tira_o_chamado_calado_da_fila(api):
+    api.status("ana", "livre")
+    r = api.msg_full(TEL, "quanto custa o plano anual?", nome="Maria Souza")
+    api.msg(TEL, "3")                                              # só pesquisando
+    c = chamados(api, r["lead"]["id"])[0]
+    assert c["status"] == "fechado" and c["resultado"] == "devolvido"
+    assert api.fila() == []
+
+
+def test_prioridade_segue_a_nota(api):
+    api.msg(TEL, "oi")
+    api.msg(TEL, "Maria Souza")
+    api.msg(TEL, "1")
+    r = api.msg_full(TEL, "2")                                     # morno
+    assert api.fila()[0]["prioridade"] == "normal"
+
+
+def test_put_de_equipe_sem_versao_da_409(api):
+    st, cfg = api.get("/api/gestor/config")
+    cfg.pop("_versao")
+    cfg["equipe"][0]["nome"] = "Outro Nome"
+    assert api.put("/api/gestor/config", cfg)[0] == 409
+    del cfg["equipe"]
+    cfg["nome"] = "Loja Nova"
+    assert ok(api.put("/api/gestor/config", cfg)[0])                # sem mexer na equipe, salva
+
+
+def test_nome_do_cadastro_so_letras(api):
+    assert api.post("/api/equipe/perfil", {"nome": "Ana <script>"}, codigo=CODIGOS["ana"])[0] == 422
+    assert ok(api.post("/api/equipe/perfil", {"nome": "Ana D'Ávila-Souza"}, codigo=CODIGOS["ana"])[0])
+
+
+def test_telefone_repetido_com_formato_diferente(api):
+    st, cfg = api.get("/api/gestor/config")
+    outro = next(m for m in cfg["equipe"] if m.get("telefone"))
+    d = outro["telefone"][2:]
+    m2 = next(m for m in cfg["equipe"] if m["id"] != outro["id"])
+    m2["telefone"] = d                                              # mesmo número sem o 55
+    assert api.put("/api/gestor/config", cfg)[0] == 422

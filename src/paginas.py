@@ -12,7 +12,7 @@ def status_lead(c, lead):
     if aberto and aberto['status'] == 'atendendo':
         nome = c.nome_colab(aberto['dono'])
         return f'{nome} está te atendendo', nome, None
-    if aberto:
+    if aberto and not aberto['silencioso']:  # 1.10.8: chamado calado não aparece para o cliente
         return 'Alguém da equipe vai falar com você', None, None
     ret = c.db.execute('SELECT * FROM retornos WHERE lead_id=? AND enviado=0 ORDER BY em DESC LIMIT 1',
                        (lead['id'],)).fetchone()

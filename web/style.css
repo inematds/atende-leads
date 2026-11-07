@@ -639,8 +639,7 @@ th[aria-sort] .ord span{opacity:1}
 .of.t-quente{flex-wrap:wrap;border:2px solid #dc2626;background:var(--ruim-f);animation:al-pulso 1.6s ease-in-out infinite;order:-1}
 .of.t-morno{border-left:4px solid var(--aten)}
 .of.t-frio{border-left:4px solid var(--info)}
-.of-alarme{flex-basis:100%;display:flex;align-items:center;gap:6px;margin:0;font:700 13px/1.2 var(--titulo);color:#dc2626;text-transform:uppercase;letter-spacing:.02em}
-[data-tema="escuro"] .of-alarme,[data-tema="marinho"] .of-alarme{color:var(--ruim)}
+.of-alarme{flex-basis:100%;display:flex;align-items:center;gap:6px;margin:0;font:700 13px/1.2 var(--titulo);color:var(--ruim);text-transform:uppercase;letter-spacing:.02em}
 .of-alarme .i{width:16px;height:16px}
 .of .calado{display:flex;align-items:flex-start;gap:6px;margin:4px 0 0;font-size:13px;color:var(--neg);background:var(--neg-f);padding:4px 8px;border-radius:8px}
 .of .calado .i{width:14px;height:14px;flex:none;margin-top:2px}

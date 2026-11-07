@@ -2,6 +2,7 @@
 Com `permissoes.perfil_sem_aprovacao`, a mudança vale na hora. Código e id nunca mudam por aqui."""
 import copy
 import json
+import re
 
 from .core import Erro, iso, normalizar_telefone
 
@@ -23,6 +24,8 @@ def _limpar(c, colab, b):
         nome = ' '.join(b['nome'].split())
         if not 1 <= len(nome) <= 80:
             raise Erro(422, 'Nome de 1 a 80 caracteres')
+        if not re.fullmatch(r"[^\W\d_]+(?:[ '.-][^\W\d_]+)*\.?", nome):  # o nome vai para o cliente ("X vai te atender")
+            raise Erro(422, 'Use só letras no nome')
         dados['nome'] = nome
     if 'telefone' in b:
         if b['telefone'] is not None and not isinstance(b['telefone'], str):
@@ -117,4 +120,7 @@ def decidir(c, ident, aprovar, motivo=None):
     c.db.execute('UPDATE pedidos_perfil SET status=?, decidido_em=?, motivo=? WHERE id=?',
                  ('aprovado' if aprovar else 'recusado', iso(c.agora()), motivo, ident))
     c.sujo = True
+    from . import equipe
+    equipe.privado(c, r['colaborador'], '✅ O gestor aprovou a mudança no seu cadastro.' if aprovar else
+                   '❌ O gestor recusou a mudança no seu cadastro' + (f': {motivo}' if motivo else '.'))
     return listar(c)

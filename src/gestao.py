@@ -325,7 +325,10 @@ def validar_config(c, novo):
         codigos.append(m['codigo'])
     if len(codigos) != len(set(codigos)):
         _erro('equipe: códigos repetidos')
-    tels = [str(m.get('telefone')) for m in cfg.get('equipe', []) if m.get('telefone') not in (None, '')]
+    def _tel(v):
+        d = re.sub(r'\D', '', str(v))
+        return '55' + d if len(d) in (10, 11) else d
+    tels = [_tel(m.get('telefone')) for m in cfg.get('equipe', []) if m.get('telefone') not in (None, '')]
     if len(tels) != len(set(tels)):  # 1.10.8: dois atendentes com o mesmo número confundem o WhatsApp
         _erro('equipe: telefones repetidos')
     for p in cfg.get('produtos', []):
@@ -502,10 +505,12 @@ def _validar_cerebro(cer, nome, vazio_ok=False):
 
 
 def gravar_config(c, novo):
-    if isinstance(novo, dict) and '_versao' in novo:
-        if 'equipe' in novo and novo['_versao'] != versao_cfg(c.cfg):
+    # a lista da equipe só muda com a versão que o gestor abriu (sem _versao, ou velha → 409)
+    if isinstance(novo, dict) and 'equipe' in novo and novo['equipe'] != c.cfg.get('equipe', []):
+        if novo.get('_versao') != versao_cfg(c.cfg):
             raise Erro(409, 'A equipe mudou depois que você abriu esta tela (outra aba ou um atendente mudou o '
                             'próprio cadastro). Clique em Atualizar e refaça a alteração.')
+    if isinstance(novo, dict):
         novo = {k: v for k, v in novo.items() if k != '_versao'}
     cfg = validar_config(c, novo)
     c.salvar_cfg(cfg)

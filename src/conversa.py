@@ -26,6 +26,12 @@ the and'''.split())
 URG_OPCOES = '1 - Hoje / esta semana\n2 - Este mês\n3 - Só pesquisando'
 
 SEM_TEXTO = 'Por enquanto só consigo ler mensagens de texto.'
+# 1.10.8: agradecimento e confirmação têm resposta própria (não contam como "não sei")
+AGRADECE = {'obrigado', 'obrigada', 'obg', 'brigado', 'brigada', 'valeu', 'vlw', 'agradeco', 'muito obrigado',
+            'muito obrigada', 'obrigado mesmo', 'obrigada mesmo', 'gratidao', 'grato', 'grata', 'valeu mesmo'}
+CONFIRMA = {'', 'ok', 'okay', 'blz', 'beleza', 'ta bom', 'ta', 'certo', 'entendi', 'show', 'top', 'perfeito',
+            'combinado', 'tudo bem', 'tudo certo', 'ah ta', 'hum', 'humm', 'sei', 'otimo', 'legal', 'massa', 'joia',
+            'ok obrigado', 'ok obrigada', 'certo obrigado', 'certo obrigada', 'ta obrigado', 'ta obrigada'}
 # 1.10.8: no chamado silencioso, só um pedido de pessoa tira o silêncio ("é para alguém da família" não é pedido)
 PEDE_ALGUEM = re.compile(r'\b(tem|ha|cade) (alguem|ninguem|uma pessoa|atendente)( (ai|ae|ai mesmo|online|por ai|de verdade))?$'
                          r'|\bninguem (me |vai )?(responde|atende)'
@@ -374,6 +380,12 @@ def decidir(c, lead, texto, t, primeiro, aberto):
         if r is not None:
             return r
         e = estado(c.lead(lid))
+    # 8a. agradecimento / confirmação (1.10.8): resposta curta, sem contar falha nem chamar ninguém
+    if not primeiro and (t in AGRADECE or t in CONFIRMA):
+        _zerar_falhas(c, lid)
+        if t in AGRADECE or 'obrigad' in t:
+            return ['Por nada! Se precisar de mais alguma coisa, é só mandar mensagem.']
+        return ['Combinado! Qualquer dúvida, é só mandar mensagem por aqui.']
     # 9. FAQ
     resposta = casar_faq(c, t)
     if resposta is not None:
@@ -428,10 +440,11 @@ def _abrir(c, lid, motivo, prefixo='', silencioso=None):
     aberto = chamados.aberto_do_lead(c, lid)
     if aberto:  # 1.10.8: já há chamado (silencioso): nunca abre outro
         if motivo == 'venda' and silencioso is not False:
-            c.db.execute("UPDATE chamados SET prioridade='quente' WHERE id=?", (aberto['id'],))
+            c.db.execute('UPDATE chamados SET prioridade=? WHERE id=?', (chamados.prioridade(motivo, c.lead(lid)), aberto['id']))
             return _seguir_venda(c, lid, prefixo)
         if aberto['silencioso']:
             return [prefixo + chamados.tirar_silencio(c, aberto, motivo)]
+        c.db.execute('UPDATE chamados SET prioridade=? WHERE id=?', (chamados.prioridade(motivo, c.lead(lid)), aberto['id']))
         return [prefixo + chamados.texto_chamei(c, motivo)]
     _ident, respostas = chamados.abrir(c, lid, motivo, silencioso=silencioso)
     if not respostas:  # chance de venda: a equipe foi chamada sem o cliente saber
@@ -528,6 +541,9 @@ def qualificar(c, lead, e, texto, t):
             return _abrir(c, lid, 'venda')
         if n == 3:
             c.db.execute("UPDATE leads SET urgencia=3, nota='frio' WHERE id=?", (lid,))
+            ab = chamados.aberto_do_lead(c, lid)
+            if ab and ab['silencioso'] and ab['status'] in ('aguardando', 'alerta'):
+                chamados.desistir_calado(c, ab)
             gravar_estado(c, lid, {'falhas': 0})
             return ['Sem problema. Se tiver qualquer dúvida, é só mandar mensagem por aqui.']
         return [f'Responda com o número:\n{URG_OPCOES}']

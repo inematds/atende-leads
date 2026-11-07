@@ -127,7 +127,7 @@
     $('espera').classList.toggle('tem-quente', on);
     if (on) $('alerta-quente-txt').textContent = qs.length === 1 ? (qs[0].lead_nome || 'Cliente') + ' é cliente quente e está esperando há ' + AL.dur(qs[0].minutos) + ': atenda agora'
       : qs.length + ' clientes quentes esperando: atenda agora';
-    const tocar = on && cfg.bip_quente;
+    const tocar = on && cfg.bip_quente && eu.status !== 'fora';  // quem está Fora não pode assumir: sem bip
     $('som-quente').hidden = !tocar || (somLigado() && actx && actx.state === 'running');
     if (!tocar) { clearInterval(alarme); alarme = null; return; }
     const s = Math.max(5, cfg.bip_s || 20);

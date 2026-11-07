@@ -53,7 +53,7 @@ def json_chamado(c, ch):
 
 
 # Frases prontas do robô na espera não contam como conversa (só avisam que a equipe foi chamada).
-PRONTAS = ('Eu já avisei a equipe', 'Sigo por aqui com você', 'Nossa equipe está ocupada', 'Certo, vou chamar alguém',
+PRONTAS = ('Eu já avisei a equipe', 'Essa eu não sei responder com certeza. Agora', 'Por nada!', 'Combinado!', 'Sigo por aqui com você', 'Nossa equipe está ocupada', 'Certo, vou chamar alguém',
            'Agora estamos fora do horário', 'Anotei!', 'Combinado! Vamos te procurar',
            'Certo, já chamei alguém', 'Já avisei a equipe', 'Essa eu não sei responder com certeza. Já avisei')
 
@@ -181,7 +181,8 @@ def guardar_msg(c, ref, chamado_id, tipo):
 
 # ---------- abrir / rotear ----------
 def prioridade(motivo, lead):
-    return 'quente' if motivo == 'venda' or lead['nota'] == 'quente' else 'normal'
+    # 1.10.8: a prioridade segue a nota do lead (venda de lead morno não ganha o prazo nem o 🔥 de quente)
+    return 'quente' if lead['nota'] == 'quente' else 'normal'
 
 
 # 1.10.8 — o que o robô diz ao abrir o chamado. Só fala em chamar alguém quando o cliente pediu; percebeu
@@ -571,6 +572,19 @@ def _encerrar_mensagens(c, ch, texto):
     for campo in ('tg_linha', 'tg_alerta', 'tg_oferta'):
         if ch[campo] and ch['status'] in ('aguardando', 'alerta'):
             tg.editar(c, ch[campo], texto)
+
+
+def desistir_calado(c, ch):
+    """1.10.8: chance de venda calada que esfriou ("só pesquisando") antes de alguém assumir: o chamado sai da
+    fila sem incomodar a equipe (o cliente nunca soube dele)."""
+    texto = f"↩️ #{ch['id']} o cliente disse que só está pesquisando; voltou para o assistente"
+    _encerrar_mensagens(c, ch, texto)
+    if ch['ofertado_a']:
+        equipe.privado(c, ch['ofertado_a'], texto)
+    c.db.execute("UPDATE chamados SET status='fechado', resultado='devolvido', fechado_em=?, ofertado_a=NULL, "
+                 'ofertado_em=NULL WHERE id=?', (iso(c.agora()), ch['id']))
+    limpar_fluxos(c, ch['id'])
+    c.sujo = True
 
 
 def encerrar_por_apagar(c, lead_id):
