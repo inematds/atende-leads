@@ -18,3 +18,9 @@ Formato: `- AAAA-MM-DD HH:MM · fato|aprendizado|glossário|armadilha · texto`
 - Armadilha: servidor de teste local que sobra segura o `dados/` ("Já há um servidor rodando") — matar o `atende serve` antes de repetir; `pkill -f <padrão>` mata o próprio shell se o padrão estiver no comando.
 - `leads.nao_contatar` já existe: PARAR ('parar','sair','pare') liga; qualquer nova mensagem do lead desliga.
 - 1.9.8 pedido (Nei, 07/11): equipe com Para assumir + Minhas conversas (abas), "Equipe" em menu à parte, Meus clientes, retomar contato encerrado (bloqueado se nao_contatar), avisos no navegador, robô cobre (gestor: assume após X min; atendente: "robô responde por mim"), tempos classificados, gestor transfere conversa do robô para atendente. 1.10.8: prospecção (só quem já conversou; gestor pode liberar todos) + análise por atendente.
+
+## 07/11/2026 (tarde) — 1.10.8 e 1.11.8 no ar
+- 1.10.8 (ae60717): robô discreto (chamado `silencioso` na chance de venda; só conta que chamou quando o cliente pede pessoa), alerta de quente vermelho + bip (`alertas.bip_quente/bip_s`), Meu cadastro com aprovação (`pedidos_perfil`, `permissoes.perfil_sem_aprovacao`, `_versao` da equipe no PUT). 3 revisores reprovaram (6), tudo corrigido.
+- 1.11.8 (c77225e): resumo "[Combinado fora do sistema]" ao encerrar (painel e Telegram com `fora:`), nunca vai ao cliente. Revisor aprovou (7).
+- Armadilha: prioridade do chamado agora segue a NOTA do lead (venda de morno = normal).
+- Telegram já está ligado em produção (webhook). Amanhã: ajustar o Telegram com o Nei.
