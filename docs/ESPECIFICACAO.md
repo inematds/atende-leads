@@ -332,4 +332,6 @@ Variáveis: `TELEGRAM_API_URL` (ex.: `https://api.telegram.org`), `TELEGRAM_TOKE
 
 ## 19. Fora do v1 (roteiro)
 
+**Versão futura — conversa do atendente pelo WhatsApp dele (pedido do Nei, 07/11/2026):** trazer para a base a conversa inteira que o atendente tem com o cliente pelo próprio WhatsApp (hoje só entra o resumo "[Combinado fora do sistema]" da 1.11.8). Caminho estudado: ligar o número de cada atendente como uma conexão a mais na Evolution (QR no celular dele) e copiar só as conversas com leads já cadastrados, gravando como mensagem do atendente no chamado; aceite do atendente (LGPD), celular conectado, risco de bloqueio do número pessoal. Começar com um atendente piloto.
+
 **Próxima versão:** consulta online da base — o agente busca no site do negócio na hora (com cache e citação da página) quando a base não responde. Depois: agente de voz automático; responder o WhatsApp pelo painel web; funil arrastável; CRM externo por webhook; metas e ranking; vários números de WhatsApp; API oficial da Meta (Cloud API); pesquisa de satisfação.
