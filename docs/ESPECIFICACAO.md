@@ -171,6 +171,12 @@ Chamado: `{id, lead_id, motivo: pediu_humano|venda|precisa, prioridade: quente|n
 - `GET /api/gestor/config` traz `_versao` (da lista da equipe); `PUT` que muda a `equipe` sem a `_versao` atual (ausente ou velha) → 409 (não desfaz mudança feita pelo Meu cadastro ou por outra aba).
 - Telas: equipe ganha o botão **Meu cadastro** (diálogo, selo "aguardando"); gestor ganha o aviso amarelo no Ao vivo, a seção **Pedidos de mudança de cadastro** e **Alertas e permissões da equipe** em Cadastros.
 
+### 7d. Conversa fora do sistema (1.11.8)
+
+- O botão "WhatsApp" da ficha abre o WhatsApp **do atendente**: o que for conversado lá não passa pelo sistema. Regra da equipe: conversar pelo painel ou pelo reply no Telegram (sai pelo número da empresa e fica registrado); o WhatsApp próprio serve para ligar.
+- Fechamento ganha `por_fora: bool` (padrão `false`; não-booleano → 422). Com `true`, a `nota` vira obrigatória (≥ 15 caracteres, senão 422) e é gravada na conversa do chamado como mensagem `de='humano'` (`autor` = dono) com o prefixo `[Combinado fora do sistema]` — **não** é enviada ao lead e não conta como 1ª resposta nos tempos. O histórico ganha `por_fora`. Como o cérebro e as sugestões leem o que o vendedor afirmou na conversa, o combinado passa a valer nas respostas seguintes a esse cliente.
+- O atendente vê no painel (além do privado no Telegram) quando o gestor decide o pedido de cadastro.
+
 ## 8. Painel fixo no grupo
 
 - Uma mensagem no grupo com o título `EQUIPE AGORA`, a hora (`HH:MM`), uma linha por colaborador (`🟢 <nome> livre há N min`, a primeira da ordem de vez com `(próxima da vez)`; `🟡 <nome> atendendo <primeiro nome do lead> · N min`; `🔴 <nome> ocupado`; `⚫ <nome> fora`) e a seção `FILA` com os chamados `aguardando`/`alerta` (`🔥`/`🙋` `<primeiro nome> · esperando N min`, e `⚠️ sem dono` se em alerta).

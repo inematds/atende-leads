@@ -169,7 +169,8 @@
             </div>
             <label class="campo" data-campo="retornar_em" hidden>Retornar em <input id="f-retornar" type="datetime-local"></label>
             <label class="campo" data-campo="motivo" hidden>Motivo <select id="f-motivo"></select></label>
-            <label class="campo">Nota (opcional) <input id="f-nota" maxlength="500" placeholder="Ex.: começa segunda, 7h"></label>
+            <label class="check"><input type="checkbox" id="f-por-fora"> Falei com o cliente fora do sistema (WhatsApp meu ou ligação)</label>
+            <label class="campo"><span id="f-nota-rot">Nota (opcional)</span> <textarea id="f-nota" maxlength="500" rows="2" placeholder="Ex.: começa segunda, 7h"></textarea></label>
             <div class="acoes">
               <button class="btn pri" type="submit">Encerrar atendimento</button>
               <button type="button" class="btn sutil info-desk" data-devolver><svg class="i" aria-hidden="true"><use href="#i-undo"/></svg>Devolver ao assistente</button>

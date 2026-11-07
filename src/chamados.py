@@ -97,7 +97,8 @@ def tempos(c, ch):
     conv = min(minutos(prim_r, parse(ult_r)), total - sem) if prim_r else 0
     prim = None
     if ch['assumido_em']:
-        r = c.db.execute("SELECT MIN(em) FROM mensagens WHERE chamado_id=? AND de='humano'", (ch['id'],)).fetchone()[0]
+        r = c.db.execute("SELECT MIN(em) FROM mensagens WHERE chamado_id=? AND de='humano' AND texto NOT LIKE ?",
+                         (ch['id'], POR_FORA + '%')).fetchone()[0]
         prim = minutos(ch['assumido_em'], parse(r)) if r else None
     return {'espera_min': total, 'espera_sem_resposta_min': sem, 'espera_robo_min': conv,
             'espera_silencio_min': total - sem - conv, 'robo_msgs': robo, 'primeira_resposta_min': prim}
@@ -480,6 +481,9 @@ def responder(c, ident, colab, texto, sugestao_id=None):
 
 
 # ---------- fechamento ----------
+POR_FORA = '[Combinado fora do sistema]'
+
+
 def validar_fechamento(c, b):
     if not isinstance(b, dict):
         raise Erro(422, 'Corpo inválido')
@@ -517,6 +521,13 @@ def validar_fechamento(c, b):
     nota = b.get('nota')
     if nota not in (None, ''):
         out['nota'] = str(nota)
+    # 1.11.8: conversou pelo WhatsApp dele ou por ligação → resumo obrigatório, que entra na conversa do cliente
+    por_fora = b.get('por_fora', False)
+    if not isinstance(por_fora, bool):
+        raise Erro(422, 'por_fora deve ser true ou false')
+    if por_fora and len((out['nota'] or '').strip()) < 15:
+        raise Erro(422, 'Conte em uma ou duas frases o que foi combinado fora do sistema (pelo menos 15 letras)')
+    out['por_fora'] = por_fora
     return out
 
 
@@ -543,7 +554,10 @@ def fechar(c, ident, colab, b):
               'minutos_ate_assumir': (minutos(ch['conta_desde'] or ch['aberto_em'], parse(ch['assumido_em']))
                                       if ch['assumido_em'] else None),
               'minutos_atendimento': minutos(ch['assumido_em'], agora) if ch['assumido_em'] else None}
+    evento['por_fora'] = d['por_fora']
     c.db.execute('INSERT INTO historico(lead_id,dados) VALUES (?,?)', (lead['id'], json.dumps(evento, ensure_ascii=False)))
+    if d['por_fora']:  # fica na conversa: o robô e as próximas sugestões passam a saber o que foi combinado
+        _registrar(c, lead['id'], ident, 'humano', f"{POR_FORA} {d['nota'].strip()}", autor=ch['dono'])
     _encerrar_mensagens(c, ch, f"✔️ #{ident} fechado: {d['resultado']}")
     if d['resultado'] == 'retornar':
         c.db.execute('INSERT OR REPLACE INTO retornos(chamado_id,lead_id,colaborador,em) VALUES (?,?,?,?)',

@@ -24,8 +24,8 @@
     const tel = '<a class="btn' + (compacto ? ' ic' : '') + '" href="' + esc(ch.link_ligar) + '" aria-label="Ligar (telefone)" title="Ligação comum pelo telefone">' +
       ic('phone') + (compacto ? '' : '<span>Ligar<small>telefone</small></span>') + '</a>';
     const wa = '<a class="btn' + (compacto ? ' ic' : '') + '" target="_blank" rel="noopener" href="https://wa.me/' + esc(ch.telefone) +
-      '" aria-label="WhatsApp (conversa ou chamada)" title="Abre a conversa; para ligar, toque no ícone de chamada dentro do WhatsApp">' +
-      ic('msg') + (compacto ? '' : '<span>WhatsApp<small>conversa ou chamada</small></span>') + '</a>';
+      '" aria-label="WhatsApp (conversa ou chamada)" title="Abre o SEU WhatsApp: o que for conversado lá não fica no sistema. Ao encerrar, marque &quot;Falei fora do sistema&quot; e resuma o combinado.">' +
+      ic('msg') + (compacto ? '' : '<span>WhatsApp<small>fora do sistema: resuma ao encerrar</small></span>') + '</a>';
     return tel + wa;
   }
 
@@ -412,9 +412,16 @@
   });
 
   // ---------- meu cadastro (1.10.8): nome e telefone; o gestor aprova a mudança (ou deixa valer na hora) ----------
+  let pendAntes = null;
   function desenharCadastro() {
     const pf = eu.perfil || {};
     $('meu-cad-st').hidden = !pf.pendente;
+    // o gestor decidiu o pedido desde a última atualização: avisa aqui também (além do Telegram)
+    if (pendAntes && !pf.pendente && pf.ultimo && pf.ultimo.id === pendAntes) {
+      aviso(pf.ultimo.status === 'aprovado' ? 'O gestor aprovou a mudança no seu cadastro.' : 'O gestor recusou a mudança no seu cadastro' + (pf.ultimo.motivo ? ': ' + pf.ultimo.motivo : '.'), pf.ultimo.status !== 'aprovado');
+      if (pf.ultimo.status === 'aprovado') { $('quem-nome').textContent = pf.nome; $('quem-av').textContent = AL.iniciais(pf.nome); }
+    }
+    pendAntes = pf.pendente ? pf.pendente.id : null;
   }
   function abrirCadastro() {
     const pf = eu.perfil || {}, pend = pf.pendente, ult = pf.ultimo;
@@ -518,6 +525,11 @@
       $('resposta').blur(); abrirFicha(fichaChamado.lead_id, fichaChamado.id, true);
     } catch (e) { aviso(e.message, true); }
   }
+  $('f-por-fora').addEventListener('change', () => {
+    const f = $('f-por-fora').checked;
+    $('f-nota-rot').textContent = f ? 'O que foi combinado fora do sistema (obrigatório: fica na conversa do cliente)' : 'Nota (opcional)';
+    $('f-nota').required = f; $('f-nota').placeholder = f ? 'Ex.: fechou o trimestral no Pix, começa segunda às 7h' : 'Ex.: começa segunda, 7h';
+  });
   $('form-fechar').addEventListener('submit', async ev => {
     ev.preventDefault();
     const r = $('f-resultado').value, corpo = {resultado: r};
@@ -529,10 +541,12 @@
     if (r === 'retornar') corpo.retornar_em = $('f-retornar').value.slice(0, 16);
     if (MOTIVOS[r]) corpo.motivo = $('f-motivo').value;
     if ($('f-nota').value.trim()) corpo.nota = $('f-nota').value.trim();
+    corpo.por_fora = $('f-por-fora').checked;
+    if (corpo.por_fora && (corpo.nota || '').length < 15) { aviso('Conte o que foi combinado fora do sistema (uma ou duas frases).', true); $('f-nota').focus(); return; }
     try {
       await api('POST', '/api/equipe/chamados/' + fichaChamado.id + '/fechar', corpo);
       aviso('Atendimento #' + fichaChamado.id + ' encerrado: ' + (AL.RESULTADO[r] || r) + '.');
-      $('form-fechar').reset(); camposFechar(); fecharFicha(); carregar();
+      $('form-fechar').reset(); $('f-por-fora').dispatchEvent(new Event('change')); camposFechar(); fecharFicha(); carregar();
     } catch (e) { aviso(e.message, true); }
   });
 })();
