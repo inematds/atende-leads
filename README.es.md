@@ -14,7 +14,7 @@ Guía completa (landing + paso a paso): **https://inematds.github.io/atende-lead
 
 🎬 Video explicativo (2 min 37 s, en portugués): **https://inematds.github.io/atende-leads/videos/** · [YouTube](https://www.youtube.com/watch?v=-6VKlGAYwKY)
 
-Atención de **leads por WhatsApp** con un agente que responde, califica y asigna el lead al **colaborador disponible** por Telegram, con todos los datos y un botón para llamar. Python 3 solo con la biblioteca estándar, estado en SQLite, Docker para VPS. Código abierto, versión `1.8.8`.
+Atención de **leads por WhatsApp** con un agente que responde, califica y asigna el lead al **colaborador disponible** por Telegram, con todos los datos y un botón para llamar. Python 3 solo con la biblioteca estándar, estado en SQLite, Docker para VPS. Código abierto, versión `1.8.9`.
 
 ## Qué hace
 

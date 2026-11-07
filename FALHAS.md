@@ -2,6 +2,7 @@
 
 | data | o que quebrou | menor correção | prompt \| infra |
 |---|---|---|---|
+| 2026-11-07 | Cadastros → "+ Produto" (e remover) quebrava com `palavras.join is not a function` depois de ler o formulário | aceitar palavras como texto ou lista ao redesenhar a linha | prompt |
 | 2026-11-07 | Ao vivo 1.8.8 (antes de publicar): atendimento assumido sem nenhuma resposta aparecia como "respondido" | sem resposta da equipe no chamado → contar do assumir; teste com cliente calado | prompt |
 | 2026-11-06 | "que hora tem atendimento humano?" abria chamado `pediu_humano` em vez de dizer o horário | detector de pergunta de horário (sem verbo de pedido) antes das regras 5–7 | prompt |
 | 2026-11-05 | Evolution guardava cópia das mensagens/contatos no Postgres (fora do "apagar meus dados") | `DATABASE_SAVE_*` = `false` no compose, exceto INSTANCE | infra |

@@ -490,7 +490,7 @@
       (prEd.length ? prEd.map((p, i) => '<div class="linha-f pr-linha">' +
         '<input data-pr="' + i + '" data-k="nome" value="' + esc(p.nome) + '" placeholder="Nome do produto" aria-label="Nome do produto">' +
         '<input data-pr="' + i + '" data-k="preco" value="' + esc(p.preco || '') + '" placeholder="R$ 0,00" aria-label="Preço de ' + esc(p.nome) + '">' +
-        '<input class="pal" data-pr="' + i + '" data-k="palavras" value="' + esc((p.palavras || []).join(', ')) + '" placeholder="mensal, mês, plano" aria-label="Palavras de ' + esc(p.nome) + '">' +
+        '<input class="pal" data-pr="' + i + '" data-k="palavras" value="' + esc(Array.isArray(p.palavras) ? p.palavras.join(', ') : String(p.palavras || '')) + '" placeholder="mensal, mês, plano" aria-label="Palavras de ' + esc(p.nome) + '">' +
         '<button type="button" class="btn sutil ic" data-pr-rm="' + i + '" aria-label="Remover ' + esc(p.nome) + '" title="Remover">' + ic('trash') + '</button></div>').join('')
         : vazio('Nenhum produto.'));
   }
