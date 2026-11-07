@@ -33,7 +33,9 @@
   const verConversa = id => '<div class="acao"><button type="button" class="btn sutil peq" data-ficha="' + id + '">' + ic('file') + 'Ver conversa</button></div>';
   const cartoes = {
     robo: r => '<div class="it"><div class="l1">' + ident(r.lead_id, r.nome, r.telefone) + AL.nota(r.nota) + '<span class="dir">' + esc(AL.ha(r.minutos_desde_contato)) + '</span></div>' +
-      (r.ultima_mensagem ? '<p>“' + esc(r.ultima_mensagem) + '”</p>' : '') + verConversa(r.lead_id) + '</div>',
+      (r.ultima_mensagem ? '<p>“' + esc(r.ultima_mensagem) + '”</p>' : '') +
+      '<div class="acao"><label class="sr" for="at-' + r.lead_id + '">Passar #' + r.lead_id + ' para</label><select id="at-' + r.lead_id + '" data-atrib-sel="' + r.lead_id + '">' +
+      opcoesTransf(null) + '</select><button type="button" class="btn peq" data-atribuir="' + r.lead_id + '">' + ic('swap') + 'Passar</button></div>' + verConversa(r.lead_id) + '</div>',
     espera: (ch, ext) => {
       const demais = ch.status === 'alerta' || ch.minutos > ext;
       return '<div class="it' + (demais ? ' ext' : '') + '"><div class="l1">' + ident(ch.lead_id, ch.lead_nome, ch.telefone) + (ch.prioridade === 'quente' ? AL.nota('quente') : '') +
@@ -47,13 +49,22 @@
         '<span class="dir">aberto há ' + esc(AL.dur(ch.minutos)) + '</span></div><p>com <strong>' + esc(nomeColab(ch.dono)) + '</strong> · chamado #' + ch.id +
         (ch.interesse_nome ? ' · ' + esc(ch.interesse_nome) : '') + '</p>' +
         (sr != null ? '<p><span class="espera' + (grave ? ' demais' : '') + '">' + ic('clock') + 'cliente sem resposta há ' + esc(AL.dur(sr)) + '</span></p>' : '<p class="ok-t">respondido</p>') +
+        tempos(ch.tempos) +
         transf(ch.id, ch.dono) + verConversa(ch.lead_id) + '</div>';
     },
     encerrados: ch => '<div class="it"><div class="l1">' + ident(ch.lead_id, ch.lead_nome, ch.telefone) + '<span class="dir">' + esc(AL.hm(ch.fechado_em)) + '</span></div>' +
       '<p>' + esc(AL.RESULTADO[ch.resultado] || ch.resultado || '—') + (ch.valor ? ' · ' + esc(AL.brl(ch.valor)) : '') + (ch.dono ? ' · ' + esc(nomeColab(ch.dono)) : '') + ' · chamado #' + ch.id + '</p>' +
       (voltaram.has(ch.lead_id) ? '<p><span class="sit s-robo">voltou a escrever · o robô está respondendo</span></p>' : '') +
-      verConversa(ch.lead_id) + '</div>',
+      tempos(ch.tempos) + verConversa(ch.lead_id) + '</div>',
   };
+  // espera até assumir (quanto dela com o robô conversando) · 1ª resposta da equipe
+  function tempos(t) {
+    if (!t) return '';
+    const p = ['esperou ' + AL.dur(t.espera_min) + (t.espera_sem_resposta_min ? ' (' + AL.dur(t.espera_sem_resposta_min) + ' sem resposta nenhuma)' : '')];
+    if (t.robo_msgs) p.push('robô respondeu ' + t.robo_msgs + (t.robo_msgs === 1 ? ' vez' : ' vezes') + (t.espera_robo_min ? ' em ' + AL.dur(t.espera_robo_min) + ' de conversa' : '') + ' na espera');
+    if (t.primeira_resposta_min != null) p.push('1ª resposta em ' + AL.dur(t.primeira_resposta_min));
+    return '<p class="peq mut">' + esc(p.join(' · ')) + '</p>';
+  }
   function alertaResposta(lista) {
     if (!lista.length) return '';
     const p = lista[0];
@@ -71,6 +82,8 @@
     $('av-equipe').innerHTML = eq.length ? eq.map(e => '<div class="it"><div class="l1">' + AL.ponto(e.status) + '<strong>' + esc(e.nome) + '</strong>' +
       '<span class="dir">' + esc(AL.COLAB[e.status] || e.status) + (e.status === 'atendendo' ? ' ' + (atendendoDe[e.id] || []).length : ' há ' + esc(AL.dur(e.minutos))) + '</span></div>' +
       '<p>' + (e.proximo ? '<strong>Próximo da vez</strong>' : '') + (atendendoDe[e.id] ? esc(atendendoDe[e.id].join(' · ')) : '') + '</p>' +
+      '<button type="button" class="btn sutil peq interr" data-robo-colab="' + esc(e.id) + '" aria-pressed="' + !!e.robo_por_mim + '">' + ic('spark') + 'Robô responde por ' + esc(e.nome.split(' ')[0]) +
+      '<b class="estado">' + (e.robo_por_mim ? 'ligado' : 'desligado') + '</b></button>' +
       '<div class="seg" role="group" aria-label="Status de ' + esc(e.nome) + '">' + ['livre', 'ocupado', 'fora'].map(s => '<button type="button" data-colab="' + esc(e.id) +
         '" data-st="' + s + '" aria-pressed="' + (e.status === s) + '">' + AL.ponto(s) + s + '</button>').join('') + '</div></div>').join('')
       : vazio('Ninguém da equipe cadastrado.');
@@ -134,7 +147,10 @@
     $('hoje').innerHTML = alertaResposta(g.sem_resposta) + (atrasados.length ? alerta(atrasados.map(ch => ({nome: ch.lead_nome, minutos: ch.minutos})), true) : '') + regua(a) +
       '<dl class="painel metricas">' + met('Leads novos', h.leads_novos) + met('Chamados abertos', h.chamados_abertos) + met('Assumidos', h.assumidos) +
       met('Vendas', h.vendas) + met('Valor vendido', AL.brl(h.valor_vendido)) + met('Abertos agora', h.abertos_agora) +
-      met('Média p/ assumir', AL.dur(h.tempo_medio_assumir_min)) + met('Maior espera', AL.dur(a.maior_min)) + '</dl>' +
+      met('Média p/ assumir', AL.dur(h.tempo_medio_assumir_min)) + met('Maior espera', AL.dur(a.maior_min)) +
+      met('Robô conversando na espera (média)', h.tempos && h.tempos.espera_robo_media_min != null ? AL.dur(h.tempos.espera_robo_media_min) : '—') +
+      met('Espera sem resposta (média)', h.tempos && h.tempos.espera_sem_resposta_media_min != null ? AL.dur(h.tempos.espera_sem_resposta_media_min) : '—') +
+      met('1ª resposta humana (média)', h.tempos && h.tempos.primeira_resposta_media_min != null ? AL.dur(h.tempos.primeira_resposta_media_min) : '—') + '</dl>' +
       '<h2 class="bloco">Por pessoa</h2><div class="painel tab"><table><thead><tr><th>Colaborador</th><th class="num">Assumidos</th><th class="num">Imediatos</th><th class="num">Médios</th>' +
       '<th class="num">Extremos</th><th class="num">Maior espera</th><th class="num">Vendas</th><th class="num">Valor</th></tr></thead><tbody>' +
       h.por_colaborador.map(p => '<tr><td><strong>' + esc(p.nome) + '</strong></td><td class="num">' + p.assumidos + '</td><td class="num">' + p.assumir.imediatos +
@@ -507,6 +523,8 @@
     $('c-prazos').innerHTML = PRAZOS.map(([k, rot, pad]) => '<label class="campo">' + rot + ' <input type="number" min="1" step="1" inputmode="numeric" id="pz-' + k + '" value="' +
       esc(pz[k] != null ? pz[k] : pad) + '"></label>').join('');
     previaPrazos();
+    const rb = cfg.robo || {};
+    $('c-robo-assume').checked = !!rb.assume_espera; $('c-robo-min').value = rb.apos_min || 10;
   }
   function previaPrazos() {
     const im = $('pz-assumir_imediato_min').value, ex = $('pz-assumir_extremo_min').value;
@@ -563,7 +581,8 @@
     if ($('c-cor').value.trim()) aparencia.cor_destaque = $('c-cor').value.trim();
     if ($('c-nome-exibido').value.trim()) aparencia.nome_exibido = $('c-nome-exibido').value.trim();
     const novo = Object.assign({}, cfg, {nome: $('c-nome').value.trim(), url_publica: $('c-urlpub').value.trim(), token_gestor: '***',
-      equipe, produtos, horarios: horEd, prazos, aparencia});
+      equipe, produtos, horarios: horEd, prazos, aparencia,
+      robo: {assume_espera: $('c-robo-assume').checked, apos_min: /^\d+$/.test($('c-robo-min').value.trim()) ? parseInt($('c-robo-min').value, 10) : $('c-robo-min').value}});
     cfg = await api('PUT', '/api/gestor/config', novo);
     try { localStorage.setItem('al_tema_negocio', aparencia.tema); if (!localStorage.getItem('al_tema')) AL.aplicarTema(aparencia.tema); } catch (e) { /* */ }
     aviso('Cadastros salvos.'); await cadastros(); preencherColabs();
@@ -637,6 +656,19 @@
     if (!b && linha) { ev.preventDefault(); if (aba !== 'leads') await mostrar('leads'); ficha(linha.dataset.linha).catch(e => aviso(e.message, true)); return; }
     if (!b) return;
     if (b.dataset.ord) { ordenarTab(b.dataset.tab, b.dataset.ord); return; }
+    if (b.dataset.atribuir) {
+      const sel = document.querySelector('[data-atrib-sel="' + b.dataset.atribuir + '"]');
+      if (!sel || !sel.value) { aviso('Escolha para quem passar.', true); return; }
+      try { await api('POST', '/api/gestor/leads/' + b.dataset.atribuir + '/atribuir', {colaborador: sel.value}); aviso('Conversa passada para ' + nomeColab(sel.value) + '.'); await mostrar(); }
+      catch (e) { aviso(e.message, true); }
+      return;
+    }
+    if (b.dataset.roboColab) {
+      const ativo = b.getAttribute('aria-pressed') !== 'true';
+      try { await api('POST', '/api/gestor/equipe/' + encodeURIComponent(b.dataset.roboColab) + '/robo', {ativo}); await aoVivo(); }
+      catch (e) { aviso(e.message, true); }
+      return;
+    }
     try {
       if (b.dataset.ir) await mostrar(b.dataset.ir);
       if (b.dataset.st) { await api('POST', '/api/gestor/equipe/' + encodeURIComponent(b.dataset.colab) + '/status', {status: b.dataset.st}); await aoVivo(); }

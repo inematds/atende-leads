@@ -36,16 +36,41 @@
     </form>
   </section>
 
+  <nav class="eq-nav" id="eq-nav" hidden>
+    <div class="abas" role="tablist" aria-label="Seções do painel">
+      <button type="button" role="tab" data-vista="atender" aria-selected="true">Atender <span class="cont" id="nv-atender" hidden></span></button>
+      <button type="button" role="tab" data-vista="clientes" aria-selected="false" tabindex="-1">Meus clientes</button>
+      <button type="button" role="tab" data-vista="equipe" aria-selected="false" tabindex="-1">Equipe</button>
+    </div>
+    <div class="nav-dir">
+      <button type="button" class="btn sutil interr" id="robo-mim" aria-pressed="false" title="Quando ligado, o assistente responde as dúvidas dos seus clientes enquanto você não responde. Você continua vendo tudo."><svg class="i" aria-hidden="true"><use href="#i-spark"/></svg><span>Robô responde por mim</span><b class="estado">desligado</b></button>
+      <button type="button" class="btn sutil" id="avisos" title="Aviso no navegador e som quando chegar cliente para você ou mensagem nova"><svg class="i" aria-hidden="true"><use href="#i-alert"/></svg><span id="avisos-txt">Ativar avisos</span></button>
+    </div>
+  </nav>
   <section id="painel" hidden>
     <p id="aviso-status" class="aviso" role="status" hidden></p>
   </section>
   <section class="faixa-espera" id="espera" aria-labelledby="espera-t" hidden>
-    <h2 id="espera-t">Esperando por você <span class="cont" id="espera-n">0</span></h2>
+    <h2 id="espera-t">Para assumir <span class="cont" id="espera-n">0</span></h2>
     <div class="ofertas" id="ofertas"></div>
   </section>
 
+  <section class="vista-equipe" id="vista-equipe" hidden aria-label="Equipe">
+    <div class="colunas c3">
+      <div class="painel"><h2><svg class="i" aria-hidden="true"><use href="#i-users"/></svg>Equipe agora</h2><div id="ve-equipe"></div></div>
+      <div class="painel"><h2><svg class="i" aria-hidden="true"><use href="#i-inbox"/></svg>Fila geral <span class="cont leve" id="ve-fila-n">0</span></h2><div id="ve-fila"></div></div>
+      <div class="painel"><h2><svg class="i" aria-hidden="true"><use href="#i-msg"/></svg>Em atendimento <span class="cont leve" id="ve-at-n">0</span></h2><div id="ve-atendendo"></div></div>
+    </div>
+  </section>
+
   <div class="eq-corpo" id="corpo" hidden>
-    <section class="col-contatos" aria-labelledby="ct-t">
+    <section class="col-conversas" id="col-conversas" aria-labelledby="cv-t">
+      <h2 id="cv-t" class="col-tit"><svg class="i" aria-hidden="true"><use href="#i-msg"/></svg>Minhas conversas <span class="cont leve" id="cv-n">0</span></h2>
+      <div class="lista" id="conversas" aria-label="Minhas conversas"></div>
+      <h2 class="col-tit"><svg class="i" aria-hidden="true"><use href="#i-cal"/></svg>Retornos de hoje</h2>
+      <div class="painel tab ret-col" id="retornos"></div>
+    </section>
+    <section class="col-contatos" id="col-contatos" aria-labelledby="ct-t">
       <div class="cab">
         <h2 id="ct-t" class="sr">Meus contatos</h2>
         <label class="busca"><svg class="i" aria-hidden="true"><use href="#i-search"/></svg><input id="busca" placeholder="Buscar nome ou telefone" aria-label="Buscar contato"></label>
@@ -65,17 +90,15 @@
 
     <section class="area" id="area" aria-label="Atendimento">
       <div class="inicio" id="inicio">
-        <div>
-          <h2><svg class="i" aria-hidden="true"><use href="#i-msg"/></svg>Meus atendimentos <span class="cont leve" id="ch-n">0</span></h2>
-          <div class="painel" id="chamados"></div>
-        </div>
-        <div class="retornos">
-          <h2><svg class="i" aria-hidden="true"><use href="#i-cal"/></svg>Retornos de hoje</h2>
-          <div class="painel tab" id="retornos"></div>
+        <div class="vazio-grande" id="inicio-txt">
+          <svg class="i" aria-hidden="true"><use href="#i-msg"/></svg>
+          <p><strong>Escolha uma conversa</strong> na lista ao lado, ou assuma um cliente na faixa de cima.</p>
+          <p class="mut peq">Com mais de uma conversa, troque pelas abas acima do chat. Mensagem nova aparece em destaque.</p>
         </div>
       </div>
 
       <div class="atend" id="atend" hidden>
+        <div class="abas-conv" id="abas-conv" role="group" aria-label="Trocar de conversa" hidden></div>
         <header class="at-cab">
           <button type="button" class="btn sutil voltar" id="voltar" aria-label="Voltar para a lista"><svg class="i" aria-hidden="true"><use href="#i-back"/></svg></button>
           <h2><span id="at-nome">Lead</span> <span class="num" id="at-num"></span></h2>
@@ -116,6 +139,10 @@
             </div>
           </div>
           <p class="mut peq" id="at-so-ler" hidden></p>
+          <div class="retomar-barra" id="at-retomar" hidden>
+            <p id="at-retomar-txt">Atendimento encerrado. Você pode voltar a falar com este cliente.</p>
+            <button type="button" class="btn pri" id="at-retomar-btn"><svg class="i" aria-hidden="true"><use href="#i-reopen"/></svg>Retomar conversa</button>
+          </div>
         </footer>
         <aside class="at-ficha" aria-label="Ficha do lead">
           <div class="info-desk">

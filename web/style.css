@@ -254,8 +254,9 @@ body.pagina-chat{height:100vh;height:100dvh;overflow:hidden;background:var(--bg)
 .cartao-ch strong{font:600 14px var(--titulo)}
 .cartao-ch p{font-size:13px;color:var(--mut)}
 .atend>*{min-width:0}
-.atend{flex:1;min-height:0;display:grid;grid-template-columns:1fr 320px;grid-template-rows:auto 1fr auto;
-  grid-template-areas:"cab ficha" "msgs ficha" "rod ficha"}
+.atend{flex:1;min-height:0;display:grid;grid-template-columns:1fr 320px;grid-template-rows:auto auto 1fr auto;
+  grid-template-areas:"abas ficha" "cab ficha" "msgs ficha" "rod ficha"}
+.abas-conv{grid-area:abas}
 .at-cab{grid-area:cab;display:flex;align-items:center;gap:10px;padding:10px 16px;min-height:52px;background:var(--sup);border-bottom:1px solid var(--linha);flex-wrap:wrap}
 .at-cab h2{font-size:15px}
 .at-cab .num{font:500 13px var(--corpo);color:var(--mut)}
@@ -583,3 +584,48 @@ th[aria-sort] .ord span{opacity:1}
 @media (max-width:1023px){.atualizar .quando{display:none}.confirma{top:auto;bottom:16px}}
 @media (min-width:1024px) and (max-width:1399px){.colunas.c4{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .nw{white-space:nowrap}
+/* ======================================================= 1.9.8: painel da equipe em abas */
+.eq-nav{display:flex;align-items:center;gap:12px;padding:0 20px;border-bottom:1px solid var(--linha);background:var(--sup);flex-wrap:wrap}
+.eq-nav .abas{display:flex;gap:4px}
+.eq-nav .abas button{font:600 14px var(--corpo);min-height:44px;padding:0 14px;border:0;border-bottom:3px solid transparent;background:transparent;color:var(--mut);cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.eq-nav .abas button[aria-selected="true"]{color:var(--tinta);border-bottom-color:var(--sel-filete)}
+.eq-nav .abas button:focus-visible{outline:2px solid var(--foco);outline-offset:-2px}
+.eq-nav .nav-dir{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+.interr .estado{font:600 11px var(--corpo);padding:2px 7px;border-radius:999px;background:var(--faixa);color:var(--mut)}
+.interr[aria-pressed="true"]{background:var(--info-f);color:var(--info)}
+.interr[aria-pressed="true"] .estado{background:var(--info);color:#fff}
+.eq-app[data-vista="atender"] .col-contatos{display:none}
+.eq-app[data-vista="clientes"] .col-conversas{display:none}
+.col-conversas{background:var(--sup);border-right:1px solid var(--linha);display:flex;flex-direction:column;min-height:0;overflow:auto}
+.col-tit{display:flex;align-items:center;gap:8px;font-size:14px;padding:12px 12px 8px;margin:0}
+.col-conversas .lista{flex:none;max-height:none}
+.ret-col{margin:0 12px 12px}
+.ct.tem-nova{background:var(--dica);box-shadow:inset 3px 0 0 var(--sel-filete)}
+.ct .espera{font-size:12px}
+.vazio-grande{max-width:420px;margin:12vh auto 0;text-align:center;color:var(--mut)}
+.vazio-grande .i{width:40px;height:40px;margin-bottom:10px;opacity:.6}
+.vazio-grande p{margin:6px 0}
+.abas-conv{display:flex;gap:6px;padding:8px 12px;border-bottom:1px solid var(--linha);overflow-x:auto;background:var(--sup2)}
+.abas-conv button{font:600 13px var(--corpo);min-height:34px;padding:0 12px;border-radius:999px;border:1px solid var(--linha);background:var(--sup);color:var(--tinta);cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
+.abas-conv button[aria-pressed="true"]{background:var(--amb);border-color:var(--amb-borda);color:var(--amb-tinta)}
+.abas-conv .pt{width:8px;height:8px;border-radius:50%;background:var(--ruim);display:inline-block}
+.retomar-barra{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.retomar-barra p{flex:1;min-width:200px;margin:0;font-size:14px;color:var(--mut)}
+.vista-equipe{padding:20px;overflow:auto;flex:1}
+.colunas.c3{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media (max-width:1023px){
+  .eq-nav{padding:0 8px;gap:4px}
+  .eq-nav .abas{width:100%;overflow-x:auto}
+  .eq-nav .abas button{flex:1;padding:0 8px}
+  .eq-nav .nav-dir{width:100%;margin:0 0 8px}
+  .eq-nav .nav-dir .btn{flex:1;min-height:40px;font-size:13px}
+  .col-conversas{border:0;background:transparent;overflow:visible}
+  .col-conversas .lista{margin:0 14px}
+  .ret-col{margin:0 14px 14px}
+  .eq-app[data-vista="atender"] .area:not(.aberta){display:none}
+  .colunas.c3{grid-template-columns:1fr}
+  .vista-equipe{padding:14px}
+}
+@media (max-width:1023px){.area:not(.aberta) .inicio{display:none}}
+@media (max-width:1023px){.topo .marca{min-width:0}.topo .marca h1{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}
+@media (max-width:1023px){.topo .marca>div{min-width:0}#atualizar{font-size:0;gap:0;padding:0 10px}#atualizar .i{margin:0}}

@@ -18,7 +18,8 @@ from . import rede
 from .core import log
 
 URGENCIA = {1: 'hoje', 2: 'este mês', 3: 'pesquisando'}
-ASSUNTO = {'pediu_humano': 'falar com alguém', 'venda': 'comprar', 'precisa': 'resolver um problema'}
+ASSUNTO = {'pediu_humano': 'falar com alguém', 'venda': 'comprar', 'precisa': 'resolver um problema', 'retomada': 'retomar a conversa',
+           'gestor': 'falar com a equipe'}
 TIPOS = ('regras', 'anthropic', 'openrouter', 'openai', 'ollama', 'claude_cli', 'codex_cli')
 ESFORCOS = ('low', 'medium', 'high', 'xhigh', 'max')
 ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages'

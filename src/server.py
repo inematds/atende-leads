@@ -19,7 +19,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlsplit
 
 from .core import App, Erro, ROOT, log, versao
-from . import (backup, bot, cerebro, chamados, chatbase, consolidada, contatos, conversa, equipe, evolution, fontes, gestao,
+from . import (atender, backup, bot, cerebro, chamados, chatbase, consolidada, contatos, conversa, equipe, evolution, fontes, gestao,
                limite, paginas, polling, saida, sugestao, tarefas)
 from . import telegram as tg
 
@@ -263,6 +263,13 @@ def rotear_equipe(c, metodo, rota, q, b, papel, colab):
             return 200, chamados.fechar(c, ident, None if g else colab, b)
         if acao == 'devolver':
             return 200, chamados.devolver(c, ident, None if g else colab)
+    if metodo == 'POST' and rota == '/robo':  # 1.9.8: "robô responde por mim"
+        ident = colab_do_corpo(c, b, q) if g else colab
+        return 200, atender.robo_por_mim(c, ident, b.get('ativo'))
+    m = re.fullmatch(r'/leads/(\d+)/retomar', rota)
+    if metodo == 'POST' and m:
+        ident = colab_do_corpo(c, b, q) if g else colab
+        return 200, atender.retomar(c, int(m[1]), ident)
     m = re.fullmatch(r'/sugestoes/(\d+)/base', rota)
     if metodo == 'POST' and m:
         return 200, sugestao.para_base(c, int(m[1]), None if g else colab)
@@ -285,7 +292,15 @@ def rotear_equipe(c, metodo, rota, q, b, papel, colab):
 
 def eu(c, colab):
     d = equipe.dados_colab(c, colab)
-    d['chamados'] = [chamados.json_chamado(c, ch) for ch in equipe.atendendo_de(c, colab)]
+    d['chamados'] = []
+    for ch in equipe.atendendo_de(c, colab):  # 1.9.8: minhas conversas — sem resposta e última mensagem do lead
+        j = chamados.json_chamado(c, ch)
+        j['sem_resposta_min'] = gestao.sem_resposta_min(c, ch)
+        ult = c.db.execute("SELECT MAX(id) FROM mensagens WHERE lead_id=? AND de='lead'", (ch['lead_id'],)).fetchone()[0]
+        j['ultima_msg_lead'] = ult or 0
+        d['chamados'].append(j)
+    d['robo_por_mim'] = atender.cobre_dono(c, {'dono': colab})
+    d['robo'] = atender.cfg_robo(c)
     d['ofertas'] = [chamados.json_chamado(c, ch) for ch in c.db.execute(
         "SELECT * FROM chamados WHERE status IN ('aguardando','alerta') AND (ofertado_a=? OR status='alerta') "
         'ORDER BY aberto_em, id', (colab,))]
@@ -310,6 +325,12 @@ def rotear_gestor(c, metodo, rota, q, b):
         if m[2] == 'transferir':
             return 200, chamados.transferir(c, ident, colab_do_corpo(c, b, q))
         return 200, chamados.reabrir(c, ident)
+    m = re.fullmatch(r'/leads/(\d+)/atribuir', rota)
+    if metodo == 'POST' and m:  # 1.9.8: passar conversa (robô, fila ou encerrada) para um atendente
+        return 200, atender.atribuir(c, int(m[1]), colab_do_corpo(c, b, q))
+    m = re.fullmatch(r'/equipe/([^/]+)/robo', rota)
+    if metodo == 'POST' and m:
+        return 200, atender.robo_por_mim(c, unquote(m[1]), b.get('ativo'))
     m = re.fullmatch(r'/equipe/([^/]+)/status', rota)
     if metodo == 'POST' and m:
         return 200, equipe.mudar_status(c, unquote(m[1]), b.get('status'))

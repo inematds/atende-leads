@@ -1,6 +1,6 @@
 """Tarefas de tempo (seções 1, 7, 9, 10): rodam por POST /api/tarefas/rodar ou a cada 30 s."""
 from .core import depois, formatar_telefone, iso, parse
-from . import chamados, equipe, evolution, horario, sugestao
+from . import atender, chamados, equipe, evolution, horario, sugestao
 from . import telegram as tg
 
 
@@ -12,6 +12,7 @@ def rodar(c, forcar=False):
     acoes += alertas(c, agora)
     acoes += lembretes(c, agora)
     acoes += retornos(c, agora)
+    acoes += atender.assumir_esperas(c, agora)  # 1.9.8: robô segue com quem espera demais
     acoes += fim_expediente(c, agora)
     acoes += evolution.reenviar(c, forcar)
     acoes += sugestao.periodico(c)  # propostas para a base (seção 13a)

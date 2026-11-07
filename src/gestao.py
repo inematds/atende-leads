@@ -134,7 +134,9 @@ def hoje(c):
     q = c.db.execute
     leads_novos = q(f'SELECT COUNT(*) FROM leads WHERE {no_dia("criado_em")}').fetchone()[0]
     abertos = q(f'SELECT COUNT(*) FROM chamados WHERE {no_dia("aberto_em")}').fetchone()[0]
-    assumidos = q(f'SELECT * FROM chamados WHERE assumido_em IS NOT NULL AND {no_dia("assumido_em")}').fetchall()
+    # retomada e passagem pelo gestor nascem assumidas (espera 0): fora das métricas de tempo para assumir
+    assumidos = q(f"SELECT * FROM chamados WHERE assumido_em IS NOT NULL AND {no_dia('assumido_em')} "
+                  "AND motivo NOT IN ('retomada','gestor')").fetchall()
     vendas = q(f"SELECT * FROM chamados WHERE status='fechado' AND resultado='vendeu' AND {no_dia('fechado_em')}").fetchall()
     def tempo(ch):
         return minutos(ch['conta_desde'] or ch['aberto_em'], parse(ch['assumido_em']))
@@ -150,13 +152,19 @@ def hoje(c):
     de_hoje = q(f"SELECT * FROM leads WHERE telefone NOT LIKE 'apagado-%' AND ({no_dia('criado_em')} OR "
                 f"{no_dia('ultimo_contato')})").fetchall()
     faixas = faixas_assumir(c, tempos)
+    tt = [chamados.tempos(c, ch) for ch in assumidos]
+    def media(campo):
+        vs = [t[campo] for t in tt if t and t[campo] is not None]
+        return round(sum(vs) / len(vs), 1) if vs else None
+    tempos_dia = {'espera_robo_media_min': media('espera_robo_min'), 'espera_sem_resposta_media_min': media('espera_sem_resposta_min'),
+                  'primeira_resposta_media_min': media('primeira_resposta_min')}
     return {'dia': dia, 'agora': c.agora().strftime('%Y-%m-%dT%H:%M'), 'leads_novos': leads_novos,
             'chamados_abertos': abertos, 'abertos_agora': len(agora_), 'assumidos': len(assumidos),
             'vendas': len(vendas), 'valor_vendido': float(sum(v['valor'] or 0 for v in vendas)),
             'tempo_medio_assumir_min': faixas['media_min'], 'assumir': faixas,
             'por_colaborador': por,
             'chamados_abertos_agora': [chamados.json_chamado(c, ch) for ch in agora_],
-            'grupos': _grupos(c),
+            'grupos': _grupos(c), 'tempos': tempos_dia,
             'leads_hoje': contatos.ordenar([_linha_lead(c, r) for r in de_hoje])}
 
 
@@ -317,6 +325,13 @@ def validar_config(c, novo):
     for f in cfg.get('faq', []):
         if not isinstance(f.get('perguntas'), list) or not isinstance(f.get('resposta'), str):
             _erro('faq: perguntas (lista) e resposta obrigatórias')
+    robo = cfg.get('robo')
+    if robo is not None:  # 1.9.8: robô segue com quem espera demais
+        if not isinstance(robo, dict) or not isinstance(robo.get('assume_espera', False), bool):
+            _erro('robo.assume_espera deve ser true ou false')
+        am = robo.get('apos_min', 10)
+        if isinstance(am, bool) or not isinstance(am, int) or am < 1:
+            _erro('robo.apos_min deve ser inteiro ≥ 1')
     hor = cfg.get('horarios')
     if not isinstance(hor, dict):
         _erro('horarios deve ser objeto')

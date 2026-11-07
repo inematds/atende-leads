@@ -106,7 +106,8 @@ def painel(c):
         if not r:
             continue
         equipe.append({'id': m['id'], 'nome': m['nome'], 'status': r['status'], 'livre_desde': r['livre_desde'],
-                       'minutos': _min_status(c, r, agora), 'proximo': m['id'] == proximo})
+                       'minutos': _min_status(c, r, agora), 'proximo': m['id'] == proximo,
+                       'robo_por_mim': bool(r['robo_por_mim'])})
     fila = []
     for ch in c.db.execute("SELECT * FROM chamados WHERE status IN ('aguardando','alerta') ORDER BY aberto_em, id"):
         lead = c.lead(ch['lead_id'])
@@ -114,7 +115,10 @@ def painel(c):
                      'prioridade': ch['prioridade'], 'status': ch['status'], 'motivo': ch['motivo'],
                      'minutos': minutos(ch['conta_desde'] or ch['aberto_em'], agora),
                      'ofertado_a': ch['ofertado_a']})
-    return {'equipe': equipe, 'fila': fila}
+    atend = [{'id': ch['id'], 'lead': primeiro_nome(c.lead(ch['lead_id'])['nome']), 'lead_id': ch['lead_id'],
+              'dono': ch['dono'], 'minutos': minutos(ch['assumido_em'], agora)}
+             for ch in c.db.execute("SELECT * FROM chamados WHERE status='atendendo' ORDER BY assumido_em, id")]
+    return {'equipe': equipe, 'fila': fila, 'atendendo': atend}
 
 
 def texto_painel(c):

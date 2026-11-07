@@ -14,7 +14,7 @@ Complete guide (landing page + walkthrough): **https://inematds.github.io/atende
 
 🎬 Explainer video (2 min 37 s, in Portuguese): **https://inematds.github.io/atende-leads/videos/** · [YouTube](https://www.youtube.com/watch?v=-6VKlGAYwKY)
 
-**WhatsApp lead** handling with an agent that replies, qualifies leads, and forwards them to the **available team member** via Telegram, with all the details and a button to call. Python 3 using only the standard library, SQLite for state, Docker for VPS deployment. Open source, version `1.8.9`.
+**WhatsApp lead** handling with an agent that replies, qualifies leads, and forwards them to the **available team member** via Telegram, with all the details and a button to call. Python 3 using only the standard library, SQLite for state, Docker for VPS deployment. Open source, version `1.9.8`.
 
 ## What it does
 
@@ -48,7 +48,7 @@ Who does what: 🧠 owner/manager · ⚙️ system · 🤖 agent.
 9. ⚙️ **🚨 Alert** in the group when the deadline expires or no one is available.
 10. 🧠 **Team member takes over**, calls (📞) or replies via WhatsApp (💬) or in a reply in the bot itself; ⚙️ each time a lead sends a message, a `💡 Sugestão` arrives (✅ Enviar / ✏️ Editar), and each reply is added to learning.
 11. 🧠 **Closes** with the outcome; ⚙️ records the history, schedules a follow-up, and returns the team member to the queue.
-12. 🧠 **Manager monitors** in `/gestor` (live, today, leads, export CSV) and, in the **Learning** tab, incorporates or discards proposals for the knowledge base (⚙️ generated every week by default). Since 1.7.8, **Import from link or file** reads the business website or a document and creates proposals with source and evidence, **Ask the knowledge base** checks what the agent knows, and **Refresh** reloads any panel without logging in again. Since 1.8.8, **Live** shows four groups (bot handling, waiting for an agent, being handled, closed today) with the lead number and phone, and warns when a customer is left without a reply; the leads list can be filtered by situation and last contact and sorted by clicking a column title.
+12. 🧠 **Manager monitors** in `/gestor` (live, today, leads, export CSV) and, in the **Learning** tab, incorporates or discards proposals for the knowledge base (⚙️ generated every week by default). Since 1.7.8, **Import from link or file** reads the business website or a document and creates proposals with source and evidence, **Ask the knowledge base** checks what the agent knows, and **Refresh** reloads any panel without logging in again. Since 1.8.8, **Live** shows four groups (bot handling, waiting for an agent, being handled, closed today) with the lead number and phone, and warns when a customer is left without a reply; the leads list can be filtered by situation and last contact and sorted by clicking a column title. Since 1.9.8 the team panel has tabs (**Attend**: your customers to take and your conversations; **My customers**: resume a closed conversation unless the customer opted out; **Team**: what others are doing), browser alerts with sound, **Bot answers for me**, and the manager can hand a bot conversation to an agent.
 13. ⚙️ **Daily backup** via the single cron job installed by `instalar-vps.sh` (`docker compose exec -T atende ./atende backup ...` → `/opt/atende-leads-backups/`).
 
 > You can complete steps 2 to 12 **on your machine**, without a domain or HTTPS, before moving to the VPS: see [Test on your machine (no domain)](#test-on-your-machine-no-domain) (Telegram with `TELEGRAM_MODO=polling`).

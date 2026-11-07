@@ -4,7 +4,10 @@
   const ic = AL.ic, esc = AL.esc;
   let codigo = null, eu = null, ficha = null, fichaChamado = null, produtos = [], sugestaoId = null, descartada = null;
   let filtro = '', contatosCache = [], relogio = null, fichaLeadId = null, fichaChId = null;
-  const MOTIVOS = {sem_interesse: [['preco', 'Preço'], ['ja_comprou', 'Já comprou'], ['curioso', 'Curioso'], ['outro', 'Outro']],
+  let vista = sessionStorage.getItem('al_vista_equipe') || 'atender';
+  const visto = {};                 // chamado → id da última mensagem do lead já vista (abriu a conversa)
+  let conhecidos = null;            // ofertas e mensagens já avisadas (null = 1ª carga, não avisa)
+  const MOTIVOS = {sem_interesse: [['preco', 'Preço'], ['ja_comprou', 'Já comprou'], ['curioso', 'Curioso'], ['nao_quer_contato', 'Não quer mais contato'], ['outro', 'Outro']],
     invalido: [['numero_errado', 'Número errado'], ['spam', 'Spam'], ['nao_e_lead', 'Não é lead']]};
   const api = (m, r, c) => AL.api(m, r, c, {'X-Codigo': codigo});
   let tAviso = null;
@@ -44,23 +47,110 @@
     $('quem-nome').textContent = eu.nome; $('quem-av').textContent = AL.iniciais(eu.nome);
     document.querySelectorAll('[data-status]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.status === eu.status)));
     $('status-seg').setAttribute('aria-label', 'Meu status: ' + (AL.COLAB[eu.status] || eu.status));
-    $('espera').hidden = !eu.ofertas.length;
+    $('espera').hidden = vista !== 'atender' || !eu.ofertas.length;
     $('espera-n').textContent = eu.ofertas.length;
     $('ofertas').innerHTML = eu.ofertas.map(oferta).join('');
-    $('ch-n').textContent = eu.chamados.length;
-    $('chamados').innerHTML = eu.chamados.length ? eu.chamados.map(ch => '<div class="cartao-ch"><div class="txt"><strong>' +
-      esc(ch.lead_nome || 'Lead') + '</strong> <span class="mut peq">#' + ch.id + '</span><p>' + esc(AL.MOTIVO[ch.motivo] || '') +
-      (ch.interesse_nome ? ' · ' + esc(ch.interesse_nome) : '') + ' · aberto há ' + esc(AL.dur(ch.minutos)) + '</p></div>' +
-      '<button type="button" class="btn pri" data-ficha="' + ch.lead_id + '" data-ch="' + ch.id + '">Abrir</button></div>').join('')
-      : '<p class="vazio">Nenhum atendimento aberto. Quando você assumir um lead, ele aparece aqui.</p>';
+    desenharConversas();
+    avisarNovidades();
+    $('robo-mim').setAttribute('aria-pressed', String(!!eu.robo_por_mim));
+    $('robo-mim').querySelector('.estado').textContent = eu.robo_por_mim ? 'ligado' : 'desligado';
+    if (vista === 'equipe') await vistaEquipe();
     $('retornos').innerHTML = eu.retornos_hoje.length ? '<table><thead><tr><th>Hora</th><th>Lead</th><th>Telefone</th></tr></thead><tbody>' +
       eu.retornos_hoje.map(r => '<tr><td>' + esc(r.em.slice(11, 16)) + '</td><td>' + esc(r.nome || 'Lead') + '</td><td>' +
         esc(AL.fone(r.telefone)) + '</td></tr>').join('') + '</tbody></table>' : '<p class="vazio">Nenhum retorno marcado para hoje.</p>';
-    await contatos();
+    if (vista === 'clientes') await contatos();
     if (fichaLeadId) {
       if (!digitando()) await abrirFicha(fichaLeadId, fichaChId, true);
       else await atualizarMensagens();  // digitando: só a conversa e a sugestão; o texto da caixa fica intacto
     }
+  }
+
+  // ---------- minhas conversas (1.9.8): uma linha por cliente que estou atendendo, novas em destaque ----------
+  const novas = ch => ch.ultima_msg_lead > (visto[ch.id] ?? 0) && !(String(ch.id) === String(fichaChId) && !document.hidden);
+  function desenharConversas() {
+    const cs = (eu.chamados || []).slice().sort((a, b) => (b.sem_resposta_min ?? -1) - (a.sem_resposta_min ?? -1));
+    // conversa que aparece agora: o que o lead já tinha escrito antes não é "novo" (retomada, transferência)
+    cs.forEach(ch => { if (visto[ch.id] === undefined) visto[ch.id] = conhecidos && conhecidos.msg[ch.id] !== undefined ? conhecidos.msg[ch.id] : ch.ultima_msg_lead; });
+    $('cv-n').textContent = cs.length;
+    $('conversas').innerHTML = cs.length ? cs.map(ch => {
+      const sr = ch.sem_resposta_min, nv = novas(ch);
+      return '<button type="button" class="ct' + (nv ? ' tem-nova' : '') + '" data-ficha="' + ch.lead_id + '" data-ch="' + ch.id + '"' +
+        (String(ch.id) === String(fichaChId) ? ' aria-current="true"' : '') + '><span class="l1"><strong>' + esc(ch.lead_nome || AL.fone(ch.telefone) || 'Lead') + '</strong>' +
+        '<span class="ha">#' + ch.id + '</span></span><span class="l3">' + AL.nota(ch.nota === 'frio' ? '' : ch.nota) +
+        (nv ? '<span class="selo novas">mensagem nova</span>' : '') +
+        (sr != null ? '<span class="espera' + (sr >= 5 ? ' demais' : '') + '">' + ic('clock') + 'sem resposta há ' + esc(AL.dur(sr)) + '</span>' : '<span class="mut">respondido</span>') +
+        '</span></button>';
+    }).join('') : '<p class="vazio">Nenhuma conversa aberta. Assuma um cliente em "Para assumir".</p>';
+    // abas acima do chat quando há mais de uma conversa
+    const abas = $('abas-conv');
+    abas.hidden = cs.length < 2;
+    abas.innerHTML = cs.length < 2 ? '' : cs.map(ch => '<button type="button" data-ficha="' + ch.lead_id + '" data-ch="' + ch.id + '" aria-pressed="' +
+      (String(ch.id) === String(fichaChId)) + '"' + (novas(ch) ? ' class="tem-nova"' : '') + '>' + esc((ch.lead_nome || 'Lead').split(' ')[0]) +
+      (novas(ch) ? ' <span class="pt" aria-label="mensagem nova"></span>' : '') + '</button>').join('');
+    const n = (eu.ofertas || []).length + cs.filter(novas).length;
+    $('nv-atender').hidden = !n; $('nv-atender').textContent = n;
+    document.title = (n ? '(' + n + ') ' : '') + 'Equipe · atendimento';
+  }
+
+  // ---------- avisos (1.9.8): notificação do navegador + som quando chega cliente para mim ou mensagem nova ----------
+  const somLigado = () => localStorage.getItem('al_som') !== '0';
+  function bip() {
+    if (!somLigado()) return;
+    try { const ctx = new (window.AudioContext || window.webkitAudioContext)(), o = ctx.createOscillator(), g = ctx.createGain();
+      o.frequency.value = 880; g.gain.setValueAtTime(0.15, ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+      o.connect(g); g.connect(ctx.destination); o.onended = () => ctx.close(); o.start(); o.stop(ctx.currentTime + 0.4); } catch (_) {}
+  }
+  function notificar(titulo, corpo) {
+    bip();
+    if (window.Notification && Notification.permission === 'granted' && document.hidden) {
+      try { const n = new Notification(titulo, {body: corpo, tag: 'al-equipe'}); n.onclick = () => { window.focus(); n.close(); }; } catch (_) {}
+    }
+  }
+  function avisarNovidades() {
+    const atual = {of: new Set((eu.ofertas || []).map(o => o.id)), msg: {}};
+    (eu.chamados || []).forEach(ch => { atual.msg[ch.id] = ch.ultima_msg_lead; });
+    if (conhecidos) {
+      const of = (eu.ofertas || []).filter(o => !conhecidos.of.has(o.id));
+      if (of.length) notificar('Cliente para assumir', (of[0].lead_nome || 'Um cliente') + (of.length > 1 ? ' e mais ' + (of.length - 1) : '') + ' está esperando.');
+      const ms = (eu.chamados || []).filter(ch => ch.ultima_msg_lead > (conhecidos.msg[ch.id] ?? ch.ultima_msg_lead));
+      if (ms.length && !(ms.length === 1 && String(ms[0].id) === String(fichaChId) && !document.hidden))
+        notificar('Mensagem nova', (ms[0].lead_nome || 'Cliente') + ' escreveu.');
+    }
+    conhecidos = atual;
+  }
+  function textoAvisos() {
+    const perm = window.Notification ? Notification.permission : 'denied';
+    $('avisos-txt').textContent = perm === 'granted' ? (somLigado() ? 'Avisos e som ligados' : 'Avisos ligados, sem som') : perm === 'denied' ? (somLigado() ? 'Som ligado' : 'Som desligado') : 'Ativar avisos';
+  }
+  textoAvisos();
+
+  // ---------- vista Equipe (1.9.8): o que está com os outros fica aqui, fora da tela de atender ----------
+  async function vistaEquipe() {
+    let p; try { p = await api('GET', '/api/painel'); } catch (_) { return; }
+    const nome = id => ((p.equipe.find(e => e.id === id) || {}).nome) || id || '—';
+    $('ve-equipe').innerHTML = p.equipe.map(e => '<div class="it"><div class="l1">' + AL.ponto(e.status) + '<strong>' + esc(e.nome) + '</strong>' +
+      (e.robo_por_mim ? '<span class="selo">' + ic('spark') + 'robô responde</span>' : '') + '<span class="dir">' + esc(AL.COLAB[e.status] || e.status) +
+      (e.status !== 'atendendo' ? ' há ' + esc(AL.dur(e.minutos)) : '') + '</span></div>' + (e.proximo ? '<p><strong>Próximo da vez</strong></p>' : '') + '</div>').join('');
+    $('ve-fila-n').textContent = p.fila.length;
+    $('ve-fila').innerHTML = p.fila.length ? p.fila.map(f => '<div class="it"><div class="l1"><strong>' + esc(f.lead || 'Lead') + '</strong>' +
+      (f.prioridade === 'quente' ? AL.nota('quente') : '') + '<span class="espera' + (f.status === 'alerta' ? ' demais' : '') + '" style="margin-left:auto">' + ic('clock') +
+      esc(AL.dur(f.minutos)) + '</span></div><p>' + esc(AL.MOTIVO[f.motivo] || '') + (f.ofertado_a ? ' · oferecido a ' + esc(nome(f.ofertado_a)) : '') + '</p></div>').join('')
+      : '<p class="vazio">Ninguém esperando.</p>';
+    const at = p.atendendo || [];
+    $('ve-at-n').textContent = at.length;
+    $('ve-atendendo').innerHTML = at.length ? at.map(a => '<div class="it"><div class="l1"><strong>' + esc(a.lead || 'Lead') + '</strong><span class="dir">há ' +
+      esc(AL.dur(a.minutos)) + '</span></div><p>com ' + esc(nome(a.dono)) + '</p></div>').join('') : '<p class="vazio">Ninguém em atendimento.</p>';
+  }
+
+  function mudarVista(v) {
+    vista = v; sessionStorage.setItem('al_vista_equipe', v);
+    document.querySelector('.eq-app').dataset.vista = v;
+    document.querySelectorAll('[data-vista]').forEach(b => { const s = b.dataset.vista === v; b.setAttribute('aria-selected', String(s)); b.tabIndex = s ? 0 : -1; });
+    $('vista-equipe').hidden = v !== 'equipe';
+    $('corpo').hidden = v === 'equipe';
+    $('espera').hidden = v !== 'atender' || !(eu && eu.ofertas && eu.ofertas.length);
+    if (v === 'clientes') contatos();
+    if (v === 'equipe') vistaEquipe();
   }
 
   // ---------- meus contatos ----------
@@ -78,6 +168,7 @@
       (l.ultima_mensagem ? '<span class="msg" style="display:block">“' + esc(l.ultima_mensagem) + '”</span>' : '') +
       '<span class="l3">' + AL.selo(l.status) + AL.nota(l.nota === 'frio' ? '' : l.nota) +
       (l.novas > 0 ? '<span class="selo novas">' + l.novas + (l.novas === 1 ? ' nova' : ' novas') + '</span>' : '') +
+      (l.nao_contatar ? '<span class="selo st-perdido">não quer contato</span>' : '') +
       (l.retornar_em ? '<span class="selo st-retornar">' + ic('cal') + 'retorno ' + esc(AL.hora(l.retornar_em)) + '</span>' : '') + '</span>' +
       '<span class="l3" style="margin-top:4px">' + AL.tempos(l) + '</span></button>').join('')
       : '<p class="vazio">Nenhum contato' + (filtro ? ' com este status' : '') + (q ? ' para essa busca' : '') + '.</p>';
@@ -117,6 +208,8 @@
     let f;
     try { f = await api('GET', '/api/equipe/leads/' + leadId); } catch (e) { if (!recarga) aviso(e.message, true); return; }
     ficha = f; fichaLeadId = leadId;
+    const chv = (eu.chamados || []).find(c => String(c.lead_id) === String(leadId));
+    if (chv) visto[chv.id] = chv.ultima_msg_lead;
     fichaChamado = f.chamados.find(c => String(c.id) === String(chId)) || f.chamados.find(c => c.status !== 'fechado') || f.chamados[f.chamados.length - 1];
     fichaChId = fichaChamado ? fichaChamado.id : null;
     const lead = f.lead, nome = lead.nome || AL.fone(lead.telefone) || 'Lead';
@@ -152,7 +245,16 @@
     }
     $('at-responder').hidden = !meu;
     $('form-fechar').hidden = !meu;
-    $('at-so-ler').hidden = meu || esperando;
+    const encerrado = !fichaChamado || fichaChamado.status === 'fechado';
+    $('at-so-ler').hidden = meu || esperando || encerrado;
+    $('at-retomar').hidden = !encerrado;
+    if (encerrado) {
+      const apagado = String(lead.telefone || '').startsWith('apagado-');
+      const bloq = !!lead.nao_contatar || apagado;
+      $('at-retomar-txt').textContent = apagado ? 'Este cliente pediu para apagar os dados.' : bloq ? 'Este cliente pediu para não ser mais contatado. Se ele voltar a escrever, o atendimento é liberado de novo.'
+        : 'Atendimento encerrado' + (fichaChamado && fichaChamado.resultado ? ' (' + (AL.RESULTADO[fichaChamado.resultado] || fichaChamado.resultado) + ')' : '') + '. Você pode voltar a falar com este cliente.';
+      $('at-retomar-btn').hidden = bloq; $('at-retomar-btn').dataset.lead = leadId;
+    }
     $('at-so-ler').textContent = !fichaChamado ? '' : fichaChamado.status === 'atendendo' ? 'Este atendimento está com outra pessoa da equipe.'
       : 'Atendimento encerrado' + (fichaChamado.resultado ? ' (' + (AL.RESULTADO[fichaChamado.resultado] || fichaChamado.resultado) + ')' : '') + '. Se o lead voltar a falar, um novo chamado chega pela faixa "Esperando por você".';
     if (!meu) $('area').classList.remove('encerrando');
@@ -164,12 +266,13 @@
     else if (!sg) { sugestaoId = null; }
     mostrarConflito(sg);
     $('resposta').placeholder = 'Responder a ' + (lead.nome ? lead.nome.split(' ')[0] : 'o lead');
-    if (!recarga) desenharContatos(); else desenharContatos();
+    desenharContatos(); if (eu) desenharConversas();
     if (!recarga) contatos();  // abrir a ficha zera as "novas" deste lead
   }
   function fecharFicha() {
     fichaLeadId = fichaChId = null; ficha = fichaChamado = null;
     $('atend').hidden = true; $('inicio').hidden = false; $('area').classList.remove('aberta', 'encerrando');
+    if (eu) desenharConversas();
     $('resposta').value = ''; sugestaoId = null;
     desenharContatos();
   }
@@ -190,7 +293,7 @@
   const CHAVE = 'al_codigo_equipe';
   function sair() {
     codigo = null; localStorage.removeItem(CHAVE); sessionStorage.removeItem(CHAVE);
-    ['espera', 'corpo', 'status-seg', 'quem', 'sair', 'atualizar-w'].forEach(id => { $(id).hidden = true; });
+    ['espera', 'corpo', 'status-seg', 'quem', 'sair', 'atualizar-w', 'eq-nav', 'vista-equipe'].forEach(id => { $(id).hidden = true; });
     $('login').hidden = false; clearInterval(relogio);
   }
   async function entrar(valor, lembrar) {
@@ -198,7 +301,8 @@
     try {
       const e0 = await api('GET', '/api/equipe/eu'); produtos = e0.produtos || [];
       (lembrar ? localStorage : sessionStorage).setItem(CHAVE, valor);
-      $('login').hidden = true; ['corpo', 'status-seg', 'quem', 'sair', 'atualizar-w'].forEach(id => { $(id).hidden = false; });
+      $('login').hidden = true; ['corpo', 'status-seg', 'quem', 'sair', 'atualizar-w', 'eq-nav'].forEach(id => { $(id).hidden = false; });
+      mudarVista(vista);
       $('f-produto').innerHTML = '<option value="">—</option>' + produtos.map(p => '<option value="' + esc(p.id) + '">' + esc(p.nome) + '</option>').join('');
       camposFechar(); await carregar();
       // Atualização: 2 s com atendimento/ficha aberta, 5 s no resto, 15 s com a aba escondida.
@@ -251,6 +355,30 @@
         await api('POST', '/api/equipe/chamados/' + fichaChamado.id + '/devolver', {}); aviso('Devolvido ao assistente.'); fecharFicha(); carregar();
       }
     } catch (e) { t.disabled = false; aviso(e.message, true); carregar(); }
+  });
+  document.querySelectorAll('[data-vista]').forEach(b => b.addEventListener('click', () => mudarVista(b.dataset.vista)));
+  $('eq-nav').querySelector('[role=tablist]').addEventListener('keydown', ev => {
+    if (!['ArrowLeft', 'ArrowRight'].includes(ev.key)) return;
+    const bs = [...document.querySelectorAll('[data-vista]')], i = bs.findIndex(b => b.dataset.vista === vista);
+    const n = bs[(i + (ev.key === 'ArrowRight' ? 1 : bs.length - 1)) % bs.length]; mudarVista(n.dataset.vista); n.focus();
+  });
+  $('robo-mim').addEventListener('click', async () => {
+    const ativo = $('robo-mim').getAttribute('aria-pressed') !== 'true';
+    try { await api('POST', '/api/equipe/robo', {ativo}); aviso(ativo ? 'O robô vai responder as dúvidas dos seus clientes enquanto você não responde.' : 'Robô desligado: só você responde.'); carregar(); }
+    catch (e) { aviso(e.message, true); }
+  });
+  $('avisos').addEventListener('click', async () => {
+    if (window.Notification && Notification.permission === 'default') { try { await Notification.requestPermission(); } catch (_) {} localStorage.setItem('al_som', '1'); bip(); }
+    else { localStorage.setItem('al_som', somLigado() ? '0' : '1'); if (somLigado()) bip(); }
+    textoAvisos();
+  });
+  $('at-retomar-btn').addEventListener('click', async () => {
+    const b = $('at-retomar-btn'); b.disabled = true;
+    try {
+      const r = await api('POST', '/api/equipe/leads/' + b.dataset.lead + '/retomar', {});
+      aviso('Conversa retomada. Escreva para o cliente.'); await carregar(); mudarVista('atender');
+      await abrirFicha(r.lead_id, r.id); $('resposta').focus();
+    } catch (e) { aviso(e.message, true); } finally { b.disabled = false; }
   });
   $('filtros').addEventListener('click', ev => {
     const b = ev.target.closest('[data-f]'); if (!b) return;

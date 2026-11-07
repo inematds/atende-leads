@@ -15,7 +15,7 @@ from . import telegram as tg
 ENTRAR = 'Envie /entrar <seu código>.'
 MOTIVOS_BT = {
     'sem_interesse': [('💸 Preço', 'preco'), ('🛒 Já comprou', 'ja_comprou'), ('👀 Curioso', 'curioso'),
-                      ('Outro', 'outro')],
+                      ('🚫 Não quer contato', 'nao_quer_contato'), ('Outro', 'outro')],
     'invalido': [('📵 Número errado', 'numero_errado'), ('🚫 Spam', 'spam'), ('🙅 Não é lead', 'nao_e_lead')],
 }
 AJUDA = ('Comandos: /livre /ocupado /fora /status /meus /retornos /lead <nome ou telefone> '

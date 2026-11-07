@@ -311,6 +311,10 @@ def decidir(c, lead, texto, t, primeiro, aberto):
         chamados.guardar_msg(c, ref, aberto['id'], 'lead')
         c.db.execute('UPDATE chamados SET ultimo_mov=?, lembrado=0 WHERE id=?', (iso(c.agora()), aberto['id']))
         sugestao.criar(c, aberto, lead, texto)  # sugestão de resposta ao dono (seção 7a), gerada fora do lock
+        from . import atender
+        if atender.cobre_dono(c, aberto):  # 1.9.8: "robô responde por mim" — o dono continua vendo tudo
+            return atender.resposta_robo(c, t, texto, lid, aberto,
+                                         f"Anotei! {primeiro_nome(c.nome_colab(aberto['dono']))} já vai te responder.")
         return []
     # 4. chamado aguardando: enquanto ninguém assume, o agente continua tirando dúvidas
     #    (horário, FAQ, informações, preço cadastrado, IA). Sem resposta → lembra que a equipe já foi avisada.
@@ -318,6 +322,8 @@ def decidir(c, lead, texto, t, primeiro, aberto):
         r = _duvida_em_espera(c, t, texto, lid)
         if r:
             return [r]
+        if aberto['robo_assumiu']:  # 1.9.8: o robô já avisou que segue com o lead
+            return ['Sigo por aqui com você. Assim que alguém da equipe ficar livre, assume a conversa.']
         return ['Eu já avisei a equipe; logo alguém fala com você por aqui.']
     e = estado(lead)
     # 4a. pergunta de horário/disponibilidade (antes de 5–7: "que hora tem atendimento humano?" não é pedido)

@@ -6,9 +6,10 @@ from .core import Erro, ddmm_hhmm, formatar_telefone, iso, minutos, novo_token, 
 from . import equipe, evolution, horario
 from . import telegram as tg
 
-MOTIVO_LEG = {'pediu_humano': 'pediu humano', 'venda': 'chance de venda', 'precisa': 'precisa de atenção'}
+MOTIVO_LEG = {'pediu_humano': 'pediu humano', 'venda': 'chance de venda', 'precisa': 'precisa de atenção',
+             'retomada': 'retomada pelo atendente', 'gestor': 'passado pelo gestor'}
 RESULTADOS = ('vendeu', 'retornar', 'negociando', 'sem_interesse', 'invalido')
-MOTIVOS_SEM = ('preco', 'ja_comprou', 'curioso', 'outro')
+MOTIVOS_SEM = ('preco', 'ja_comprou', 'curioso', 'nao_quer_contato', 'outro')
 MOTIVOS_INV = ('numero_errado', 'spam', 'nao_e_lead')
 STATUS_LEAD = {'vendeu': 'ganho', 'retornar': 'retornar', 'negociando': 'negociando',
                'sem_interesse': 'perdido', 'invalido': 'invalido'}
@@ -46,7 +47,58 @@ def json_chamado(c, ch):
         'minutos': minutos(ch['conta_desde'] or ch['aberto_em'], c.agora()),
         'lead_nome': lead['nome'], 'telefone': lead['telefone'], 'nota': lead['nota'],
         'interesse': lead['interesse'], 'interesse_nome': prod['nome'] if prod else None,
+        'nao_contatar': bool(lead['nao_contatar']), 'tempos': tempos(c, ch),
     }
+
+
+# Frases prontas do robô na espera não contam como conversa (só avisam que a equipe foi chamada).
+PRONTAS = ('Eu já avisei a equipe', 'Sigo por aqui com você', 'Nossa equipe está ocupada', 'Certo, vou chamar alguém',
+           'Agora estamos fora do horário', 'Anotei!', 'Combinado! Vamos te procurar')
+
+
+def pronta(texto):
+    t = str(texto or '')
+    return t.startswith(PRONTAS) or t.endswith('vai te atender agora.')
+
+
+def tempos(c, ch):
+    """1.9.8 — tempos classificados do chamado (minutos):
+    espera_min = do início do prazo (conta_desde/aberto_em) até assumir (ou até agora/fechar, se ninguém assumiu);
+    espera_sem_resposta_min = parte da espera com mensagem do lead sem resposta de verdade (frase pronta não conta);
+    espera_robo_min = da 1ª à última resposta de verdade do robô na espera (o robô conversando);
+    espera_silencio_min = o resto (ninguém escrevendo);
+    robo_msgs = respostas de verdade do robô na espera;
+    primeira_resposta_min = do assumir até a 1ª mensagem da equipe (None = ninguém respondeu ainda).
+    Chamado aberto já assumido (retomada, passado pelo gestor) tem espera 0."""
+    inicio = ch['conta_desde'] or ch['aberto_em']
+    if not inicio:
+        return None
+    fim = parse(ch['assumido_em']) or parse(ch['fechado_em']) or c.agora()
+    total = minutos(inicio, fim)
+    pend, sem, robo, prim_r, ult_r = None, 0, 0, None, None
+    for m in c.db.execute("SELECT de, em, texto FROM mensagens WHERE lead_id=? AND em>=? AND em<=? AND de IN ('lead','agente') "
+                          'ORDER BY id', (ch['lead_id'], inicio, iso(fim))):
+        if m['de'] == 'lead':
+            if m['em'] == inicio:  # o próprio pedido que abriu o chamado
+                continue
+            pend = pend or m['em']
+        elif not pronta(m['texto']):
+            robo += 1
+            prim_r = prim_r or m['em']
+            ult_r = m['em']
+            if pend:
+                sem += minutos(pend, parse(m['em']))
+                pend = None
+    if pend:
+        sem += minutos(pend, fim)
+    sem = min(sem, total)
+    conv = min(minutos(prim_r, parse(ult_r)), total - sem) if prim_r else 0
+    prim = None
+    if ch['assumido_em']:
+        r = c.db.execute("SELECT MIN(em) FROM mensagens WHERE chamado_id=? AND de='humano'", (ch['id'],)).fetchone()[0]
+        prim = minutos(ch['assumido_em'], parse(r)) if r else None
+    return {'espera_min': total, 'espera_sem_resposta_min': sem, 'espera_robo_min': conv,
+            'espera_silencio_min': total - sem - conv, 'robo_msgs': robo, 'primeira_resposta_min': prim}
 
 
 def ultimas_mensagens(c, lead_id, n=5):
@@ -438,6 +490,8 @@ def fechar(c, ident, colab, b):
                   iso(agora), ident))
     lead = c.lead(ch['lead_id'])
     c.db.execute("UPDATE leads SET status=?, estado='{}' WHERE id=?", (STATUS_LEAD[d['resultado']], lead['id']))
+    if d['motivo'] == 'nao_quer_contato':  # 1.9.8: some da retomada e da prospecção até ele voltar a escrever
+        c.db.execute('UPDATE leads SET nao_contatar=1 WHERE id=?', (lead['id'],))
     evento = {'em': iso(agora), 'chamado_id': ident, 'colaborador': ch['dono'], 'resultado': d['resultado'],
               'valor': d['valor'], 'produto': d['produto'], 'motivo': d['motivo'], 'nota': d['nota'],
               # conta do início do prazo: a abertura do expediente, se o chamado chegou fora do horário

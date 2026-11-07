@@ -113,6 +113,7 @@ CREATE TABLE IF NOT EXISTS mensagens (
     id INTEGER PRIMARY KEY, lead_id INTEGER NOT NULL, chamado_id INTEGER, de TEXT NOT NULL,
     autor TEXT, texto TEXT, em TEXT);
 CREATE INDEX IF NOT EXISTS mensagens_lead ON mensagens(lead_id, id);
+CREATE INDEX IF NOT EXISTS mensagens_chamado ON mensagens(chamado_id, de, em);
 CREATE TABLE IF NOT EXISTS colaboradores (
     id TEXT PRIMARY KEY, status TEXT NOT NULL DEFAULT 'fora', livre_desde TEXT, status_desde TEXT,
     telegram_id TEXT);
@@ -188,6 +189,12 @@ COMMIT;''')
     for nome, tipo in (('conflito', 'TEXT'), ('proposta_id', 'INTEGER')):  # 1.6.8
         if nome not in cols:
             db.execute(f'ALTER TABLE sugestoes ADD COLUMN {nome} {tipo}')
+    cols = {r[1] for r in db.execute('PRAGMA table_info(colaboradores)')}
+    if 'robo_por_mim' not in cols:  # 1.9.8: o robô responde pelo atendente
+        db.execute('ALTER TABLE colaboradores ADD COLUMN robo_por_mim INTEGER NOT NULL DEFAULT 0')
+    cols = {r[1] for r in db.execute('PRAGMA table_info(chamados)')}
+    if 'robo_assumiu' not in cols:  # 1.9.8: o robô avisou que segue com o lead enquanto ninguém assume
+        db.execute('ALTER TABLE chamados ADD COLUMN robo_assumiu TEXT')
     # WhatsApp: um lead por telefone. Web: um lead por sessão (o telefone é só contato).
     db.execute('CREATE UNIQUE INDEX IF NOT EXISTS leads_telefone_whats ON leads(telefone) WHERE sessao IS NULL')
 

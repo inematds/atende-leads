@@ -103,6 +103,7 @@ def de_colaborador(c, colab, q):
     for lead in c.db.execute(sql, args).fetchall():
         d = {k: lead[k] for k in ('id', 'nome', 'telefone', 'status', 'nota', 'interesse', 'ultimo_contato')}
         d['ultima_mensagem'] = _ultima_do_lead(c, lead['id'])
+        d['nao_contatar'] = bool(lead['nao_contatar'])
         d['novas'] = novas(c, colab, lead['id'])
         d.update(extras(c, lead))
         out.append(d)

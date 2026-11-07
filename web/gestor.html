@@ -231,6 +231,11 @@
             <div class="prazos" id="c-prazos"></div>
             <p class="previa" id="c-prazos-previa"></p>
           </fieldset>
+          <fieldset class="painel form-sec"><legend>Robô</legend>
+            <label class="check"><input type="checkbox" id="c-robo-assume"> Se ninguém assumir, o robô avisa o cliente e segue conversando com ele</label>
+            <label class="campo" style="max-width:260px">Depois de quantos minutos de espera <input type="number" min="1" step="1" inputmode="numeric" id="c-robo-min" value="10"></label>
+            <p class="mut peq">O chamado continua na fila: quando alguém ficar livre, assume a conversa. Cada atendente também pode ligar "Robô responde por mim" no painel da equipe (e você liga ou desliga por ele no Ao vivo).</p>
+          </fieldset>
         </div>
         <div class="salvar"><span class="mut" id="c-estado">Nenhuma alteração.</span><button id="salvar" class="btn pri" type="button"><svg class="i" aria-hidden="true"><use href="#i-check"/></svg>Salvar cadastros</button></div>
       </section>

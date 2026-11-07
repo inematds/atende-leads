@@ -107,7 +107,7 @@
       ganho: 'ganho', perdido: 'perdido', invalido: 'inválido'},
     COLAB: {livre: 'livre', ocupado: 'ocupado', fora: 'fora', atendendo: 'atendendo'},
     CHAMADO: {aguardando: 'aguardando', alerta: 'em alerta', atendendo: 'em atendimento', fechado: 'fechado'},
-    MOTIVO: {pediu_humano: 'pediu humano', venda: 'chance de venda', precisa: 'precisa de atenção'},
+    MOTIVO: {pediu_humano: 'pediu humano', venda: 'chance de venda', precisa: 'precisa de atenção', retomada: 'retomada', gestor: 'passado pelo gestor'},
     RESULTADO: {vendeu: 'vendeu', retornar: 'retornar', negociando: 'negociando', sem_interesse: 'sem interesse',
       invalido: 'inválido', apagado: 'apagado', devolvido: 'devolvido ao assistente'},
     selo(st) { return '<span class="selo st-' + esc(st) + '">' + esc(AL.STATUS[st] || st) + '</span>'; },
