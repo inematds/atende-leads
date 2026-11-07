@@ -318,7 +318,13 @@ def decidir(c, lead, texto, t, primeiro, aberto):
         return []
     # 4. chamado aguardando: enquanto ninguém assume, o agente continua tirando dúvidas
     #    (horário, FAQ, informações, preço cadastrado, IA). Sem resposta → lembra que a equipe já foi avisada.
-    if aberto:
+    #    Chamado silencioso (1.10.8, chance de venda): o cliente não sabe — a conversa segue as regras normais;
+    #    se ele pedir uma pessoa ("tem alguém aí?"), aí sim o robô conta que chamou.
+    if aberto and aberto['silencioso']:
+        if tem(t, HUMANO) or re.search(r'\b(alguem|ninguem|atendente|humano|pessoa)\b', t):
+            c.db.execute('UPDATE chamados SET silencioso=0 WHERE id=?', (aberto['id'],))
+            return [chamados.TXT_PEDIU]
+    elif aberto:
         r = _duvida_em_espera(c, t, texto, lid)
         if r:
             return [r]
@@ -372,9 +378,11 @@ def decidir(c, lead, texto, t, primeiro, aberto):
         lead = c.lead(lid)
         if not lead['nome']:
             return [f"Ótimo, {prod['nome']}! " + _pergunta_nome(c, lead, {'falhas': 0})]
-        gravar_estado(c, lid, {'etapa': 'quer_falar', 'falhas': 0})
         preco = f" ({base.preco_vigente(c, prod)})" if base.preco_vigente(c, prod) else ''
-        return [f"Temos o {prod['nome']}{preco}. Quer que eu chame alguém para te atender?"]
+        if lead['urgencia']:  # já disse para quando: é chance de venda (abre calado)
+            return _abrir(c, lid, 'venda', f"Temos o {prod['nome']}{preco}. ")
+        gravar_estado(c, lid, {'etapa': 'quando', 'falhas': 0})
+        return [f"Temos o {prod['nome']}{preco}. Para quando você precisa?\n{URG_OPCOES}"]
     # 11. primeiro contato
     if primeiro:
         lead = c.lead(lid)
@@ -393,9 +401,9 @@ def decidir(c, lead, texto, t, primeiro, aberto):
     if falhas >= 2:
         gravar_estado(c, lid, {})
         return _abrir(c, lid, 'precisa', NAO_SEI + ' ')
-    # Oferece chamar a equipe; um "sim/quero/pode" na próxima mensagem abre o chamado (etapa nao_sei).
-    gravar_estado(c, lid, {**e, 'etapa': 'nao_sei', 'falhas': falhas})
-    return [NAO_SEI + ' Quer que eu chame alguém da equipe?']
+    # 1.10.8: não oferece chamar ninguém (só quem pede ouve isso); a segunda seguida sem resposta avisa a equipe.
+    gravar_estado(c, lid, {'etapa': 'nao_sei', 'falhas': falhas})
+    return [NAO_SEI + ' Pode me contar de outro jeito o que você precisa?']
 
 
 def _zerar_falhas(c, lid):
@@ -407,9 +415,29 @@ def _zerar_falhas(c, lid):
 
 def _abrir(c, lid, motivo, prefixo=''):
     gravar_estado(c, lid, {})
+    aberto = chamados.aberto_do_lead(c, lid)
+    if aberto:  # 1.10.8: já há chamado (silencioso): nunca abre outro
+        if motivo == 'venda':
+            c.db.execute("UPDATE chamados SET prioridade='quente' WHERE id=?", (aberto['id'],))
+            return _seguir_venda(c, lid, prefixo)
+        c.db.execute('UPDATE chamados SET silencioso=0 WHERE id=?', (aberto['id'],))
+        return [prefixo + (chamados.TXT_PEDIU if motivo == 'pediu_humano' else chamados.TXT_PRECISA)]
     _ident, respostas = chamados.abrir(c, lid, motivo)
+    if not respostas:  # chance de venda: a equipe foi chamada sem o cliente saber
+        return _seguir_venda(c, lid, prefixo)
     respostas[0] = prefixo + respostas[0]
     return respostas
+
+
+def _seguir_venda(c, lid, prefixo=''):
+    """Depois de chamar a equipe em silêncio, o robô segue a conversa como se nada fosse."""
+    lead = c.lead(lid)
+    if not lead['nome']:
+        return [(prefixo or 'Ótimo! ') + _pergunta_nome(c, lead, {'falhas': 0})]
+    if not lead['urgencia']:
+        gravar_estado(c, lid, {'etapa': 'quando', 'falhas': 0})
+        return [prefixo + f'Para quando você precisa?\n{URG_OPCOES}']
+    return [prefixo + 'Anotado! Se tiver qualquer dúvida, pode perguntar por aqui.']
 
 
 def _pergunta_nome(c, lead, e):
@@ -479,23 +507,20 @@ def qualificar(c, lead, e, texto, t):
         if n == 1:
             c.db.execute("UPDATE leads SET urgencia=1, nota='quente' WHERE id=?", (lid,))
             return _abrir(c, lid, 'venda')
-        if n == 2:
+        if n == 2:  # 1.10.8: este mês também é chance de venda — chama a equipe sem dizer
             c.db.execute("UPDATE leads SET urgencia=2, nota='morno' WHERE id=?", (lid,))
-            gravar_estado(c, lid, {'etapa': 'quer_falar', 'falhas': 0})
-            return ['Ótimo! Quer que eu chame alguém para te atender?']
+            return _abrir(c, lid, 'venda')
         if n == 3:
             c.db.execute("UPDATE leads SET urgencia=3, nota='frio' WHERE id=?", (lid,))
             gravar_estado(c, lid, {'falhas': 0})
             return ['Sem problema. Se tiver qualquer dúvida, é só mandar mensagem por aqui.']
         return [f'Responda com o número:\n{URG_OPCOES}']
     if etapa == 'nao_sei':
-        # Depois do "Essa eu não sei responder...": sim → chamado `precisa`; não → encerra; outra coisa segue as
-        # regras (mantém as falhas: a segunda seguida sem resposta abre o chamado sozinha).
+        # Depois do "Essa eu não sei responder...": não → encerra; outra coisa segue as regras (mantém as falhas:
+        # a segunda seguida sem resposta avisa a equipe sozinha). 1.10.8: o robô não oferece mais chamar alguém.
         if 'nao' in palavras or t in NAO:
             gravar_estado(c, lid, {'falhas': 0})
             return ['Tudo bem! Se tiver qualquer dúvida, é só mandar mensagem por aqui.']
-        if palavras & SIM:
-            return _abrir(c, lid, 'precisa')
         gravar_estado(c, lid, {'falhas': e.get('falhas', 0)})
         return None
     if etapa == 'quer_falar':
@@ -518,9 +543,9 @@ def falar(c, token):
     aberto = chamados.aberto_do_lead(c, lead['id'])
     if aberto and aberto['status'] == 'atendendo':
         respostas = []
-    elif aberto:
+    elif aberto and not aberto['silencioso']:
         respostas = ['Eu já avisei a equipe; logo alguém fala com você por aqui.']
-    else:
+    else:  # sem chamado, ou chamado silencioso (agora o cliente pediu: conta que chamou)
         respostas = _abrir(c, lead['id'], 'pediu_humano')
     aberto = chamados.aberto_do_lead(c, lead['id'])
     for r in respostas:

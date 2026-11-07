@@ -114,7 +114,7 @@ def painel(c):
         fila.append({'id': ch['id'], 'lead': primeiro_nome(lead['nome']), 'lead_id': ch['lead_id'],
                      'prioridade': ch['prioridade'], 'status': ch['status'], 'motivo': ch['motivo'],
                      'minutos': minutos(ch['conta_desde'] or ch['aberto_em'], agora),
-                     'ofertado_a': ch['ofertado_a']})
+                     'ofertado_a': ch['ofertado_a'], 'nota': lead['nota'], 'silencioso': bool(ch['silencioso'])})
     atend = [{'id': ch['id'], 'lead': primeiro_nome(c.lead(ch['lead_id'])['nome']), 'lead_id': ch['lead_id'],
               'dono': ch['dono'], 'minutos': minutos(ch['assumido_em'], agora)}
              for ch in c.db.execute("SELECT * FROM chamados WHERE status='atendendo' ORDER BY assumido_em, id")]

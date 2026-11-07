@@ -5,7 +5,14 @@ from conftest import TEL, TEL_D, buscar, ok
 
 FAQ_HORARIO = "Atendemos de segunda a sexta, das 8h às 18h."
 FAQ_ENDERECO = "Ficamos na Rua Exemplo, 100, Centro."
-PERGUNTA_CHAMAR = "Quer que eu chame alguém para te atender?"
+PERGUNTA_CHAMAR = "Quer que eu chame alguém para te atender?"  # 1.10.8: o robô não oferece mais
+CHAMEI = "já chamei alguém da equipe"
+
+
+def revela(txt):
+    """1.10.8: o robô só conta que chamou a equipe quando o cliente pede."""
+    t = txt.lower()
+    return any(x in t for x in ("chamar", "chamei", "avisei a equipe", "equipe", "alguém da"))
 
 
 def motivos(api, lead_id):
@@ -123,7 +130,8 @@ def test_chamado_aguardando_mensagem_entra_no_historico(api):
                                    "tem algum vendedor aí", "me liga por favor", "prefiro ligação"])
 def test_pediu_humano(api, texto):
     r = api.msg_full(TEL, texto)
-    assert "vou chamar" in "\n".join(r["respostas"])
+    txt = "\n".join(r["respostas"])
+    assert CHAMEI in txt and "sigo com você" in txt  # pediu: avisa e continua a conversa
     assert motivos(api, r["lead"]["id"]) == ["pediu_humano"]
     assert r["lead"]["status"] == "novo"  # chamado não assumido não muda o status
 
@@ -141,7 +149,7 @@ def test_venda_com_preco_do_produto(api):
     r = api.msg_full(TEL, "Quanto custa o plano anual?")
     txt = "\n".join(r["respostas"])
     assert "Plano anual: R$ 1.200" in txt
-    assert "vou chamar" in txt
+    assert not revela(txt)  # 1.10.8: chance de venda chama a equipe sem dizer ao cliente
     assert r["lead"]["nota"] == "quente"
     c = api.chamados_do_lead(r["lead"]["id"])
     assert [x["motivo"] for x in c] == ["venda"] and c[0]["prioridade"] == "quente"
@@ -150,9 +158,11 @@ def test_venda_com_preco_do_produto(api):
 def test_venda_sem_produto_nao_inventa_preco(api):
     r = api.msg_full(TEL, "qual o valor?")
     txt = "\n".join(r["respostas"])
-    assert "vou chamar" in txt and "R$" not in txt
+    assert not revela(txt) and "R$" not in txt
+    assert txt.strip()  # o robô segue a conversa (pergunta o nome)
     assert r["lead"]["nota"] == "quente"
     assert motivos(api, r["lead"]["id"]) == ["venda"]
+    assert api.chamados_do_lead(r["lead"]["id"])[0]["silencioso"] is True
 
 
 def test_venda_vem_antes_de_necessidade(api):
@@ -166,9 +176,10 @@ def test_venda_vem_antes_de_necessidade(api):
                                    "não funciona"])
 def test_necessidade(api, texto):
     r = api.msg_full(TEL, texto)
-    assert "vou chamar" in "\n".join(r["respostas"])
+    txt = "\n".join(r["respostas"])
+    assert "avisei a equipe" in txt.lower() and "sigo com você" in txt  # avisa que notificou e segue
     c = api.chamados_do_lead(r["lead"]["id"])
-    assert [x["motivo"] for x in c] == ["precisa"] and c[0]["prioridade"] == "normal"
+    assert [x["motivo"] for x in c] == ["precisa"] and c[0]["silencioso"] is False and c[0]["prioridade"] == "normal"
 
 
 # ------------------------------------------------------------ regra 9: FAQ
@@ -202,13 +213,14 @@ def test_produto_sem_nome_vira_morno_e_qualifica(api):
     assert api.lead_csv(r["lead"]["id"])["interesse"] in ("curso-ingles", "Curso de inglês")
 
 
-def test_produto_com_nome_pergunta_e_sim_abre_venda(api):
+def test_produto_com_nome_pergunta_quando_e_abre_venda_calado(api):
     r = api.msg_full(TEL, "me fala do plano anual", nome="Maria Souza")
     txt = "\n".join(r["respostas"])
-    assert "Plano anual" in txt and PERGUNTA_CHAMAR in txt
+    assert "Plano anual" in txt and PERGUNTA_CHAMAR not in txt and "Para quando" in txt
     assert r["lead"]["nota"] == "morno"
     assert api.chamados_do_lead(r["lead"]["id"]) == []
-    api.msg_full(TEL, "sim")
+    txt = api.msg(TEL, "1")
+    assert not revela(txt)
     assert motivos(api, r["lead"]["id"]) == ["venda"]
 
 
@@ -265,12 +277,12 @@ def test_urgencia_1_quente_abre_venda(api):
     assert motivos(api, r["lead"]["id"]) == ["venda"]
 
 
-def test_urgencia_2_morno_pergunta(api):
+def test_urgencia_2_morno_abre_venda_calado(api):
     qualificar_ate_urgencia(api)
     r = api.msg_full(TEL, "2")
     assert r["lead"]["nota"] == "morno"
-    assert PERGUNTA_CHAMAR in "\n".join(r["respostas"])
-    assert api.chamados_do_lead(r["lead"]["id"]) == []
+    assert not revela("\n".join(r["respostas"]))
+    assert motivos(api, r["lead"]["id"]) == ["venda"]
 
 
 def test_urgencia_3_frio_sem_chamado(api):
@@ -284,7 +296,7 @@ def test_urgencia_3_frio_sem_chamado(api):
 def test_regras_1_a_7_valem_no_meio_da_qualificacao(api):
     api.msg(TEL, "oi")
     r = api.msg_full(TEL, "quero falar com um atendente")
-    assert "vou chamar" in "\n".join(r["respostas"])
+    assert CHAMEI in "\n".join(r["respostas"])
     assert motivos(api, r["lead"]["id"]) == ["pediu_humano"]
 
 
@@ -295,19 +307,19 @@ def _lead_sem_qualificacao(api):
     return api.msg_full(TEL, "3")["lead"]
 
 
-def test_nao_entendi_oferece_atendente(api):
+def test_nao_entendi_nao_oferece_atendente(api):
     _lead_sem_qualificacao(api)
     txt = api.msg(TEL, "xpto blablabla")
-    assert "não sei responder com certeza" in txt.lower() and "alguém da equipe" in txt.lower()
+    assert "não sei responder com certeza" in txt.lower() and not revela(txt)
     assert "desculpe, não entendi" not in txt.lower()
 
 
-@pytest.mark.parametrize("resposta", ["sim", "quero", "pode"])
-def test_nao_sei_e_sim_abre_chamado_precisa(api, resposta):
+def test_nao_sei_duas_vezes_avisa_que_notificou(api):
     lead = _lead_sem_qualificacao(api)
     api.msg(TEL, "xpto blablabla")
     assert api.chamados_do_lead(lead["id"]) == []
-    assert "vou chamar" in api.msg(TEL, resposta)
+    txt = api.msg(TEL, "qwerty zzz")
+    assert "avisei a equipe" in txt.lower() and "sigo com você" in txt
     assert motivos(api, lead["id"]) == ["precisa"]
 
 

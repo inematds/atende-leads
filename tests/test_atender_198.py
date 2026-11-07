@@ -147,7 +147,7 @@ def test_robo_config_invalida_422(api):
 # ---------- tempos classificados ----------
 
 def test_tempos_classificados(api):
-    lead, ch = api.abrir()                                # 10:00 abre (robô: "vou chamar alguém")
+    lead, ch = api.abrir()                                # 10:00 abre (robô: "já chamei alguém")
     api.avancar(2)
     api.msg(TEL, "qual o horário de vocês?")              # 10:02 robô responde na hora
     api.avancar(3)
@@ -187,7 +187,7 @@ def test_painel_equipe_mostra_quem_atende_sem_telefone(api):
 # ---------- achados do revisor independente (1.9.8) ----------
 
 def test_frase_pronta_nao_conta_como_conversa_do_robo(api):
-    lead, ch = api.abrir()                                # ninguém livre; robô: "vou chamar alguém" (pronta)
+    lead, ch = api.abrir()                                # ninguém livre; robô: "já chamei alguém" (pronta)
     api.avancar(1)
     api.msg(TEL, "ok")                                    # 10:01 "Eu já avisei a equipe" (pronta)
     api.avancar(9)                                        # 10:10

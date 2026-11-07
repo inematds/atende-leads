@@ -32,16 +32,18 @@
   let voltaram = new Set();  // leads de "Encerradas hoje" que voltaram a escrever (estão no Robô atendendo)
   const verConversa = id => '<div class="acao"><button type="button" class="btn sutil peq" data-ficha="' + id + '">' + ic('file') + 'Ver conversa</button></div>';
   const cartoes = {
-    robo: r => '<div class="it"><div class="l1">' + ident(r.lead_id, r.nome, r.telefone) + AL.nota(r.nota) + '<span class="dir">' + esc(AL.ha(r.minutos_desde_contato)) + '</span></div>' +
+    robo: r => '<div class="it' + (r.nota === 'quente' ? ' t-quente' : '') + '"><div class="l1">' + ident(r.lead_id, r.nome, r.telefone) + AL.nota(r.nota) + '<span class="dir">' + esc(AL.ha(r.minutos_desde_contato)) + '</span></div>' +
       (r.ultima_mensagem ? '<p>“' + esc(r.ultima_mensagem) + '”</p>' : '') +
       '<div class="acao"><label class="sr" for="at-' + r.lead_id + '">Passar #' + r.lead_id + ' para</label><select id="at-' + r.lead_id + '" data-atrib-sel="' + r.lead_id + '">' +
       opcoesTransf(null) + '</select><button type="button" class="btn peq" data-atribuir="' + r.lead_id + '">' + ic('swap') + 'Passar</button></div>' + verConversa(r.lead_id) + '</div>',
     espera: (ch, ext) => {
       const demais = ch.status === 'alerta' || ch.minutos > ext;
-      return '<div class="it' + (demais ? ' ext' : '') + '"><div class="l1">' + ident(ch.lead_id, ch.lead_nome, ch.telefone) + (ch.prioridade === 'quente' ? AL.nota('quente') : '') +
+      const q = ch.prioridade === 'quente' || ch.nota === 'quente';
+      return '<div class="it' + (demais ? ' ext' : '') + (q ? ' t-quente' : '') + '"><div class="l1">' + ident(ch.lead_id, ch.lead_nome, ch.telefone) + (q ? AL.nota('quente') : AL.nota(ch.nota)) +
         '<span class="espera' + (demais ? ' demais' : '') + '" style="margin-left:auto">' + ic('clock') + esc(AL.dur(ch.minutos)) + '</span></div>' +
         '<p>chamado #' + ch.id + ' · ' + esc(AL.MOTIVO[ch.motivo] || '') + ' · ' + (ch.ofertado_a ? 'oferecido a ' + esc(nomeColab(ch.ofertado_a)) : 'ninguém aceitou ainda') +
-        (demais ? ' · <strong class="ruim">esperando demais</strong>' : '') + '</p>' + transf(ch.id, null) + '</div>';
+        (demais ? ' · <strong class="ruim">esperando demais</strong>' : '') + '</p>' +
+        (ch.silencioso ? '<p class="peq mut">' + ic('spark') + ' chance de venda: o cliente não sabe que alguém vai falar com ele</p>' : '') + transf(ch.id, null) + '</div>';
     },
     atendendo: (ch, ext) => {
       const sr = ch.sem_resposta_min, grave = sr != null && sr > ext;
@@ -92,12 +94,15 @@
     $('av-robo-ajuda').textContent = 'Conversas das últimas ' + (p.conversa_ativa_h || 24) + ' h só com o assistente.';
     const col = (id, nid, lista, f, vaz) => { $(nid).textContent = lista.length; $(id).innerHTML = lista.length ? lista.map(x => f(x, ext)).join('') : vazio(vaz); };
     col('av-robo', 'av-robo-n', p.robo, cartoes.robo, 'Nenhuma conversa só com o robô agora.');
-    col('av-fila', 'av-fila-n', p.espera, cartoes.espera, 'Ninguém esperando atendente.');
+    const quenteP = ch => (ch.prioridade === 'quente' || ch.nota === 'quente') ? 1 : 0;
+    col('av-fila', 'av-fila-n', p.espera.slice().sort((a, b) => quenteP(b) - quenteP(a)), cartoes.espera, 'Ninguém esperando atendente.');
     col('av-atendendo', 'av-at-n', p.atendendo, cartoes.atendendo, 'Ninguém em atendimento agora.');
     col('av-encerrados', 'av-enc-n', p.encerrados, cartoes.encerrados, 'Nada encerrado hoje ainda.');
     $('nav-fila').hidden = !p.espera.length; $('nav-fila').textContent = p.espera.length;
     const atrasados = p.espera.filter(ch => ch.status === 'alerta' || ch.minutos > ext);
-    $('av-alerta').innerHTML = alertaResposta(p.sem_resposta) + (atrasados.length ? alerta(atrasados.map(ch => ({nome: ch.lead_nome, minutos: ch.minutos})), false) : '');
+    $('av-alerta').innerHTML = alertaResposta(p.sem_resposta) + (atrasados.length ? alerta(atrasados.map(ch => ({nome: ch.lead_nome, minutos: ch.minutos})), false) : '') +
+      (p.perfis_pendentes ? '<div class="alerta aten" role="status">' + ic('users') + '<p><strong>' + p.perfis_pendentes + (p.perfis_pendentes === 1 ? ' pedido' : ' pedidos') +
+        ' de mudança de cadastro</strong> esperando sua aprovação.</p><button type="button" class="btn pri" data-ir="cadastros">Ver em Cadastros' + ic('arrow') + '</button></div>' : '');
   }
   function alerta(lista, comBotao) {
     const ext = extremo(), n = lista.length, pior = lista.slice().sort((a, b) => b.minutos - a.minutos)[0];
@@ -525,6 +530,9 @@
     previaPrazos();
     const rb = cfg.robo || {};
     $('c-robo-assume').checked = !!rb.assume_espera; $('c-robo-min').value = rb.apos_min || 10;
+    const al = cfg.alertas || {};
+    $('c-bip-quente').checked = !!al.bip_quente; $('c-bip-s').value = al.bip_s || 20;
+    $('c-perfil-livre').checked = !!(cfg.permissoes || {}).perfil_sem_aprovacao;
   }
   function previaPrazos() {
     const im = $('pz-assumir_imediato_min').value, ex = $('pz-assumir_extremo_min').value;
@@ -554,7 +562,31 @@
     horEd = JSON.parse(JSON.stringify(cfg.horarios || {}));
     renderEquipe(); renderProdutos(); renderHorarios(); renderPrazos();
     sujo = false; $('c-estado').textContent = 'Nenhuma alteração.';
+    await perfis();
   }
+  // 1.10.8: pedidos de mudança de cadastro da equipe (nome/telefone)
+  async function perfis(lista) {
+    const ls = lista || await api('GET', '/api/gestor/perfis');
+    $('perfis-sec').hidden = !ls.length; $('perfis-n').textContent = ls.length;
+    const linha = (rot, de, para) => para == null ? '' : '<p>' + rot + ': <span class="de">' + esc(de || '—') + '</span> → <strong>' + esc(para || '(sem telefone)') + '</strong></p>';
+    $('c-perfis').innerHTML = ls.map(x => '<div class="it"><div class="l1"><strong>' + esc(x.atual.nome || x.colaborador) + '</strong><span class="dir">pediu ' + esc(AL.hm(x.em)) + '</span></div>' +
+      linha('Nome', x.atual.nome, x.dados.nome) + linha('Telefone', AL.fone(x.atual.telefone), x.dados.telefone != null ? AL.fone(x.dados.telefone) : null) +
+      '<div class="acao"><button type="button" class="btn pri peq" data-perfil="' + x.id + '" data-aprovar="1">' + ic('check') + 'Aprovar</button>' +
+      '<button type="button" class="btn sutil peq" data-perfil="' + x.id + '" data-aprovar="0">Recusar</button></div></div>').join('');
+  }
+  $('c-perfis').addEventListener('click', async ev => {
+    const b = ev.target.closest('[data-perfil]'); if (!b) return;
+    const aprovar = b.dataset.aprovar === '1';
+    let motivo = null;
+    if (!aprovar) { motivo = prompt('Motivo da recusa (opcional, a pessoa vê):', ''); if (motivo === null) return; }
+    try {
+      await perfis(await api('POST', '/api/gestor/perfis/' + b.dataset.perfil, {aprovar, motivo}));
+      const novo = await api('GET', '/api/gestor/config');  // a equipe mudou no servidor: traz nome/telefone novos sem perder o que está sendo editado
+      (novo.equipe || []).forEach(m => { const e = eqEd.find(x => x.id === m.id); if (e) { e.nome = m.nome; e.telefone = m.telefone; } });
+      cfg.equipe = novo.equipe; renderEquipe(); preencherColabs();
+      aviso(aprovar ? 'Cadastro aprovado.' : 'Pedido recusado.');
+    } catch (e) { aviso(e.message, true); }
+  });
   function lerCadastros() {
     document.querySelectorAll('[data-eq]').forEach(el => { eqEd[+el.dataset.eq][el.dataset.k] = el.value; });
     document.querySelectorAll('[data-pr]').forEach(el => { prEd[+el.dataset.pr][el.dataset.k] = el.value; });
@@ -582,7 +614,9 @@
     if ($('c-nome-exibido').value.trim()) aparencia.nome_exibido = $('c-nome-exibido').value.trim();
     const novo = Object.assign({}, cfg, {nome: $('c-nome').value.trim(), url_publica: $('c-urlpub').value.trim(), token_gestor: '***',
       equipe, produtos, horarios: horEd, prazos, aparencia,
-      robo: {assume_espera: $('c-robo-assume').checked, apos_min: /^\d+$/.test($('c-robo-min').value.trim()) ? parseInt($('c-robo-min').value, 10) : $('c-robo-min').value}});
+      robo: {assume_espera: $('c-robo-assume').checked, apos_min: /^\d+$/.test($('c-robo-min').value.trim()) ? parseInt($('c-robo-min').value, 10) : $('c-robo-min').value},
+      alertas: {bip_quente: $('c-bip-quente').checked, bip_s: /^\d+$/.test($('c-bip-s').value.trim()) ? parseInt($('c-bip-s').value, 10) : $('c-bip-s').value},
+      permissoes: Object.assign({}, cfg.permissoes, {perfil_sem_aprovacao: $('c-perfil-livre').checked})});
     cfg = await api('PUT', '/api/gestor/config', novo);
     try { localStorage.setItem('al_tema_negocio', aparencia.tema); if (!localStorage.getItem('al_tema')) AL.aplicarTema(aparencia.tema); } catch (e) { /* */ }
     aviso('Cadastros salvos.'); await cadastros(); preencherColabs();

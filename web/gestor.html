@@ -214,6 +214,10 @@
             <p class="mut peq">O tema também é o padrão da equipe e do gestor (cada aparelho pode trocar no topo).</p>
           </fieldset>
         </div>
+        <fieldset class="painel form-sec bloco perfis" id="perfis-sec" hidden><legend>Pedidos de mudança de cadastro <span class="cont" id="perfis-n">0</span></legend>
+          <div id="c-perfis"></div>
+          <p class="mut peq">O atendente pede pelo painel da equipe (Meu cadastro). Aprovar troca o nome ou telefone na hora; o código de acesso não muda.</p>
+        </fieldset>
         <fieldset class="painel form-sec bloco"><legend>Equipe <button type="button" class="btn" id="eq-add"><svg class="i" aria-hidden="true"><use href="#i-plus"/></svg>Pessoa</button></legend>
           <div class="linhas" id="c-equipe"></div>
           <p class="mut peq">Código de acesso: 12+ caracteres, diferente para cada pessoa. Use "gerar novo" e passe o código à pessoa por um canal seguro.</p>
@@ -235,6 +239,12 @@
             <label class="check"><input type="checkbox" id="c-robo-assume"> Se ninguém assumir, o robô avisa o cliente e segue conversando com ele</label>
             <label class="campo" style="max-width:260px">Depois de quantos minutos de espera <input type="number" min="1" step="1" inputmode="numeric" id="c-robo-min" value="10"></label>
             <p class="mut peq">O chamado continua na fila: quando alguém ficar livre, assume a conversa. Cada atendente também pode ligar "Robô responde por mim" no painel da equipe (e você liga ou desliga por ele no Ao vivo).</p>
+          </fieldset>
+          <fieldset class="painel form-sec"><legend>Alertas e permissões da equipe</legend>
+            <label class="check"><input type="checkbox" id="c-bip-quente"> Bip repetido no painel da equipe enquanto um cliente quente espera alguém assumir</label>
+            <label class="campo" style="max-width:260px">Repetir a cada quantos segundos <input type="number" min="5" max="600" step="1" inputmode="numeric" id="c-bip-s" value="20"></label>
+            <label class="check"><input type="checkbox" id="c-perfil-livre"> O atendente muda o próprio nome e telefone sem precisar da minha aprovação</label>
+            <p class="mut peq">O cartão do cliente quente fica vermelho e pulsa de qualquer jeito. O som só toca no navegador onde o atendente já clicou em algo (regra do navegador).</p>
           </fieldset>
         </div>
         <div class="salvar"><span class="mut" id="c-estado">Nenhuma alteração.</span><button id="salvar" class="btn pri" type="button"><svg class="i" aria-hidden="true"><use href="#i-check"/></svg>Salvar cadastros</button></div>

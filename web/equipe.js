@@ -30,11 +30,15 @@
   }
 
   // ---------- faixa "Esperando por você" ----------
+  // 1.10.8: cliente quente pede atenção forte (vermelho pulsando); morno e frio ganham a cor da nota
+  const quente = ch => ch.nota === 'quente' || ch.prioridade === 'quente';
   function oferta(ch) {
-    const demais = ch.status === 'alerta';
-    return '<article class="of" data-of="' + ch.id + '"><div class="txt"><div class="l1"><strong>' + esc(ch.lead_nome || AL.fone(ch.telefone) || 'Lead') + '</strong>' +
+    const demais = ch.status === 'alerta', q = quente(ch);
+    return '<article class="of t-' + (q ? 'quente' : esc(ch.nota || 'frio')) + '" data-of="' + ch.id + '">' +
+      (q ? '<p class="of-alarme">' + ic('flame') + 'Cliente quente: atenda agora</p>' : '') + '<div class="txt"><div class="l1"><strong>' + esc(ch.lead_nome || AL.fone(ch.telefone) || 'Lead') + '</strong>' +
       AL.nota(ch.nota) + '<span class="motivo">' + esc(AL.MOTIVO[ch.motivo] || '') + (ch.interesse_nome ? ' · ' + esc(ch.interesse_nome) : '') + '</span>' +
       '<span class="espera' + (demais ? ' demais' : '') + '">' + ic('clock') + esc(AL.dur(ch.minutos)) + (demais ? ' · esperando demais' : '') + '</span></div>' +
+      (ch.silencioso ? '<p class="calado">' + ic('spark') + 'O robô viu chance de venda e chamou você. O cliente não sabe que você vem: apresente-se.</p>' : '') +
       (ch.resumo ? '<q>' + esc(ch.resumo.split('\n').pop().replace(/^Disse:\s*/, '').replace(/^"|"$/g, '')) + '</q>' : '') + '</div>' +
       '<div class="acoes"><button type="button" class="btn pri" data-assumir="' + ch.id + '">' + ic('check') + 'Assumir</button>' +
       (ch.ofertado_a === eu.id ? '<button type="button" class="btn ic" data-passar="' + ch.id + '" aria-label="Passar para o próximo" title="Passar para o próximo">' + ic('pass') + '</button>' : '') +
@@ -49,7 +53,10 @@
     $('status-seg').setAttribute('aria-label', 'Meu status: ' + (AL.COLAB[eu.status] || eu.status));
     $('espera').hidden = vista !== 'atender' || !eu.ofertas.length;
     $('espera-n').textContent = eu.ofertas.length;
-    $('ofertas').innerHTML = eu.ofertas.map(oferta).join('');
+    const ofs = eu.ofertas.slice().sort((a, b) => quente(b) - quente(a));
+    $('ofertas').innerHTML = ofs.map(oferta).join('');
+    alarmeQuente(ofs.filter(quente));
+    desenharCadastro();
     desenharConversas();
     avisarNovidades();
     $('robo-mim').setAttribute('aria-pressed', String(!!eu.robo_por_mim));
@@ -94,11 +101,36 @@
 
   // ---------- avisos (1.9.8): notificação do navegador + som quando chega cliente para mim ou mensagem nova ----------
   const somLigado = () => localStorage.getItem('al_som') !== '0';
-  function bip() {
-    if (!somLigado()) return;
-    try { const ctx = new (window.AudioContext || window.webkitAudioContext)(), o = ctx.createOscillator(), g = ctx.createGain();
-      o.frequency.value = 880; g.gain.setValueAtTime(0.15, ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
-      o.connect(g); g.connect(ctx.destination); o.onended = () => ctx.close(); o.start(); o.stop(ctx.currentTime + 0.4); } catch (_) {}
+  // um AudioContext só, reaberto no primeiro clique (o navegador não deixa tocar som antes de um gesto)
+  let actx = null;
+  function audio() {
+    try { if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === 'suspended') actx.resume(); } catch (_) { actx = null; }
+    return actx;
+  }
+  document.addEventListener('pointerdown', () => { if (actx && actx.state === 'suspended') actx.resume(); }, true);
+  function tom(freq, ini, dur, vol) {
+    const ctx = audio(); if (!ctx) return;
+    const o = ctx.createOscillator(), g = ctx.createGain(), t = ctx.currentTime + ini;
+    o.frequency.value = freq; g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    o.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t + dur);
+  }
+  function bip() { if (somLigado()) try { tom(880, 0, 0.4, 0.15); } catch (_) {} }
+  function bipUrgente() { if (somLigado()) try { tom(988, 0, 0.18, 0.25); tom(740, 0.22, 0.18, 0.25); tom(988, 0.44, 0.25, 0.25); } catch (_) {} }
+  // 1.10.8: cliente quente esperando → faixa vermelha e, se o gestor ligou, bip repetido até alguém assumir
+  let alarme = null, alarmeS = 0;
+  function alarmeQuente(qs) {
+    const on = qs.length > 0, cfg = eu.alertas || {};
+    $('alerta-quente').hidden = !on;
+    $('espera').classList.toggle('tem-quente', on);
+    if (on) $('alerta-quente-txt').textContent = qs.length === 1 ? (qs[0].lead_nome || 'Cliente') + ' é cliente quente e está esperando há ' + AL.dur(qs[0].minutos) + ': atenda agora'
+      : qs.length + ' clientes quentes esperando: atenda agora';
+    const tocar = on && cfg.bip_quente;
+    $('som-quente').hidden = !tocar || (somLigado() && actx && actx.state === 'running');
+    if (!tocar) { clearInterval(alarme); alarme = null; return; }
+    const s = Math.max(5, cfg.bip_s || 20);
+    if (alarme && alarmeS === s) return;
+    clearInterval(alarme); alarmeS = s;
+    bipUrgente(); alarme = setInterval(bipUrgente, s * 1000);
   }
   function notificar(titulo, corpo) {
     bip();
@@ -371,6 +403,48 @@
     if (window.Notification && Notification.permission === 'default') { try { await Notification.requestPermission(); } catch (_) {} localStorage.setItem('al_som', '1'); bip(); }
     else { localStorage.setItem('al_som', somLigado() ? '0' : '1'); if (somLigado()) bip(); }
     textoAvisos();
+  });
+  $('som-quente').addEventListener('click', () => {
+    localStorage.setItem('al_som', '1'); audio(); bipUrgente(); $('som-quente').hidden = true; textoAvisos();
+  });
+
+  // ---------- meu cadastro (1.10.8): nome e telefone; o gestor aprova a mudança (ou deixa valer na hora) ----------
+  function desenharCadastro() {
+    const pf = eu.perfil || {};
+    $('meu-cad-st').hidden = !pf.pendente;
+  }
+  function abrirCadastro() {
+    const pf = eu.perfil || {}, pend = pf.pendente, ult = pf.ultimo;
+    $('cad-regra').textContent = pf.sem_aprovacao ? 'A mudança vale na hora.' : 'A mudança vale depois que o gestor aprovar.';
+    $('cad-nome').value = pend && pend.dados.nome != null ? pend.dados.nome : pf.nome || '';
+    $('cad-tel').value = pend && pend.dados.telefone != null ? AL.fone(pend.dados.telefone) : AL.fone(pf.telefone || '');
+    const msgs = [];
+    if (pend) msgs.push('Pedido enviado em ' + pend.em.slice(8, 10) + '/' + pend.em.slice(5, 7) + ' às ' + pend.em.slice(11, 16) + ', aguardando o gestor. Enviar de novo troca o pedido.');
+    else if (ult && ult.status === 'recusado') msgs.push('Seu último pedido foi recusado' + (ult.motivo ? ': ' + ult.motivo : '') + '.');
+    $('cad-pend').textContent = msgs.join(' '); $('cad-pend').hidden = !msgs.length;
+    $('cad-cancelar-pedido').hidden = !pend;
+    $('cad-erro').textContent = '';
+    $('dlg-cad').showModal();
+  }
+  $('meu-cad').addEventListener('click', abrirCadastro);
+  $('cad-fechar').addEventListener('click', () => $('dlg-cad').close());
+  $('form-cad').addEventListener('submit', async ev => {
+    ev.preventDefault();
+    const pf = eu.perfil || {}, corpo = {};
+    const nome = $('cad-nome').value.trim(), tel = $('cad-tel').value.replace(/\D/g, '');
+    if (nome !== (pf.nome || '')) corpo.nome = nome;
+    if ((/^\d{10,11}$/.test(tel) ? '55' + tel : tel) !== String(pf.telefone || '')) corpo.telefone = tel;
+    if (!Object.keys(corpo).length) { $('cad-erro').textContent = 'Nada mudou.'; return; }
+    try {
+      const r = await api('POST', '/api/equipe/perfil', corpo);
+      eu.perfil = r; $('dlg-cad').close(); desenharCadastro();
+      aviso(r.aplicado ? 'Cadastro atualizado.' : 'Pedido enviado ao gestor.');
+      if (r.aplicado) { $('quem-nome').textContent = r.nome; $('quem-av').textContent = AL.iniciais(r.nome); }
+    } catch (e) { $('cad-erro').textContent = e.message || 'Não deu para enviar.'; }
+  });
+  $('cad-cancelar-pedido').addEventListener('click', async () => {
+    try { eu.perfil = await api('DELETE', '/api/equipe/perfil'); $('dlg-cad').close(); desenharCadastro(); aviso('Pedido cancelado.'); }
+    catch (e) { $('cad-erro').textContent = e.message || 'Não deu para cancelar.'; }
   });
   $('at-retomar-btn').addEventListener('click', async () => {
     const b = $('at-retomar-btn'); b.disabled = true;

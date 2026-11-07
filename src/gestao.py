@@ -111,6 +111,8 @@ def ao_vivo(c):
         f['telefone'], f['lead_nome'], f['nota'] = lead['telefone'], lead['nome'], lead['nota']
     p.update(_grupos(c))
     p['descartes'] = evolution.descartes(c)
+    from . import perfil
+    p['perfis_pendentes'] = len(perfil.listar(c))  # 1.10.8: atendente pediu para mudar o cadastro
     return p
 
 
@@ -251,6 +253,11 @@ def exportar_csv(c):
 
 
 # ---------- configuração ----------
+def cfg_alertas(c):
+    a = c.cfg.get('alertas') or {}
+    return {'bip_quente': bool(a.get('bip_quente')), 'bip_s': int(a.get('bip_s') or 20)}
+
+
 def config_publica(c):
     cfg = copy.deepcopy(c.cfg)
     cfg['token_gestor'] = '***'
@@ -332,6 +339,17 @@ def validar_config(c, novo):
         am = robo.get('apos_min', 10)
         if isinstance(am, bool) or not isinstance(am, int) or am < 1:
             _erro('robo.apos_min deve ser inteiro ≥ 1')
+    al = cfg.get('alertas')
+    if al is not None:  # 1.10.8: bip repetido para cliente quente esperando
+        if not isinstance(al, dict) or not isinstance(al.get('bip_quente', False), bool):
+            _erro('alertas.bip_quente deve ser true ou false')
+        bs = al.get('bip_s', 20)
+        if isinstance(bs, bool) or not isinstance(bs, int) or not 5 <= bs <= 600:
+            _erro('alertas.bip_s deve ser inteiro de 5 a 600')
+    pm = cfg.get('permissoes')
+    if pm is not None and (not isinstance(pm, dict)
+                           or not isinstance(pm.get('perfil_sem_aprovacao', False), bool)):
+        _erro('permissoes.perfil_sem_aprovacao deve ser true ou false')
     hor = cfg.get('horarios')
     if not isinstance(hor, dict):
         _erro('horarios deve ser objeto')

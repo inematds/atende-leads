@@ -20,7 +20,7 @@ from urllib.parse import parse_qs, unquote, urlsplit
 
 from .core import App, Erro, ROOT, log, versao
 from . import (atender, backup, bot, cerebro, chamados, chatbase, consolidada, contatos, conversa, equipe, evolution, fontes, gestao,
-               limite, paginas, polling, saida, sugestao, tarefas)
+               limite, paginas, perfil, polling, saida, sugestao, tarefas)
 from . import telegram as tg
 
 
@@ -270,6 +270,14 @@ def rotear_equipe(c, metodo, rota, q, b, papel, colab):
     if metodo == 'POST' and m:
         ident = colab_do_corpo(c, b, q) if g else colab
         return 200, atender.retomar(c, int(m[1]), ident)
+    if rota == '/perfil':  # 1.10.8: meu cadastro (pedido de mudança vai para o gestor aprovar)
+        ident = colab_do_corpo(c, b, q) if g else colab
+        if metodo == 'GET':
+            return 200, perfil.meu(c, ident)
+        if metodo == 'POST':
+            return 200, perfil.pedir(c, ident, b)
+        if metodo == 'DELETE':
+            return 200, perfil.cancelar(c, ident)
     m = re.fullmatch(r'/sugestoes/(\d+)/base', rota)
     if metodo == 'POST' and m:
         return 200, sugestao.para_base(c, int(m[1]), None if g else colab)
@@ -301,6 +309,8 @@ def eu(c, colab):
         d['chamados'].append(j)
     d['robo_por_mim'] = atender.cobre_dono(c, {'dono': colab})
     d['robo'] = atender.cfg_robo(c)
+    d['alertas'] = gestao.cfg_alertas(c)
+    d['perfil'] = perfil.meu(c, colab)
     d['ofertas'] = [chamados.json_chamado(c, ch) for ch in c.db.execute(
         "SELECT * FROM chamados WHERE status IN ('aguardando','alerta') AND (ofertado_a=? OR status='alerta') "
         'ORDER BY aberto_em, id', (colab,))]
@@ -328,6 +338,11 @@ def rotear_gestor(c, metodo, rota, q, b):
     m = re.fullmatch(r'/leads/(\d+)/atribuir', rota)
     if metodo == 'POST' and m:  # 1.9.8: passar conversa (robô, fila ou encerrada) para um atendente
         return 200, atender.atribuir(c, int(m[1]), colab_do_corpo(c, b, q))
+    if metodo == 'GET' and rota == '/perfis':  # 1.10.8: pedidos de mudança de cadastro da equipe
+        return 200, perfil.listar(c)
+    m = re.fullmatch(r'/perfis/(\d+)', rota)
+    if metodo == 'POST' and m:
+        return 200, perfil.decidir(c, int(m[1]), b.get('aprovar'), b.get('motivo'))
     m = re.fullmatch(r'/equipe/([^/]+)/robo', rota)
     if metodo == 'POST' and m:
         return 200, atender.robo_por_mim(c, unquote(m[1]), b.get('ativo'))

@@ -21,7 +21,7 @@ def test_hora_atendimento_humano_responde_horario_sem_abrir_chamado(api):
     txt = r["respostas"][0]
     assert "seg a sex 08:00–18:00" in txt and "sáb 09:00–13:00" in txt, txt
     assert "Agora estamos atendendo." in txt
-    assert "vou chamar" not in txt.lower()
+    assert "chamar" not in txt.lower() and "chamei" not in txt.lower()
     assert chamados(api, r["lead"]["id"]) == []
 
 
@@ -44,7 +44,7 @@ def test_faq_de_horario_continua_exato(api):
 
 def test_pedido_de_humano_continua_abrindo_chamado(api):
     r = api.msg_full(TEL, "quero falar com um atendente agora", nome="Maria Souza")
-    assert "vou chamar" in "\n".join(r["respostas"]).lower()
+    assert "já chamei" in "\n".join(r["respostas"]).lower()
     assert chamados(api, r["lead"]["id"])
 
 
@@ -59,7 +59,8 @@ def test_forma_de_pagamento_continua_venda_com_prefixo(api):
     com_info(api)
     r = api.msg_full(TEL, "qual a forma de pagamento?", nome="Maria Souza")
     txt = "\n".join(r["respostas"])
-    assert txt.startswith("Formas de pagamento: Pix, cartão em até 10x e boleto. ") and "vou chamar" in txt.lower()
+    assert txt.startswith("Formas de pagamento: Pix, cartão em até 10x e boleto. ")
+    assert "chamar" not in txt.lower() and "chamei" not in txt.lower()  # 1.10.8: venda abre calada
     assert any(c["motivo"] == "venda" for c in chamados(api, r["lead"]["id"]))
 
 
@@ -81,7 +82,7 @@ def test_testar_nao_grava_nada(api):
     antes_leads = api.get("/api/gestor/leads")[1]
     st, r = api.post("/api/gestor/testar", {"texto": "quero falar com um atendente"})
     assert st == 200, r
-    assert "vou chamar" in "\n".join(r["respostas"]).lower() and r["chamado"] == "pediu_humano"
+    assert "já chamei" in "\n".join(r["respostas"]).lower() and r["chamado"] == "pediu_humano"
     st, r2 = api.post("/api/gestor/testar", {"texto": "que hora tem atendimento humano?"})
     assert st == 200 and "seg a sex" in r2["respostas"][0] and r2["chamado"] is None
     assert api.get("/api/gestor/leads")[1] == antes_leads

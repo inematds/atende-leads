@@ -48,12 +48,14 @@ def json_chamado(c, ch):
         'lead_nome': lead['nome'], 'telefone': lead['telefone'], 'nota': lead['nota'],
         'interesse': lead['interesse'], 'interesse_nome': prod['nome'] if prod else None,
         'nao_contatar': bool(lead['nao_contatar']), 'tempos': tempos(c, ch),
+        'silencioso': bool(ch['silencioso']),
     }
 
 
 # Frases prontas do robô na espera não contam como conversa (só avisam que a equipe foi chamada).
 PRONTAS = ('Eu já avisei a equipe', 'Sigo por aqui com você', 'Nossa equipe está ocupada', 'Certo, vou chamar alguém',
-           'Agora estamos fora do horário', 'Anotei!', 'Combinado! Vamos te procurar')
+           'Agora estamos fora do horário', 'Anotei!', 'Combinado! Vamos te procurar',
+           'Certo, já chamei alguém', 'Já avisei a equipe', 'Essa eu não sei responder com certeza. Já avisei')
 
 
 def pronta(texto):
@@ -133,6 +135,8 @@ def texto_ficha(c, ch, titulo):
               f"Nota: {lead['nota']}",
               f"Motivo: {MOTIVO_LEG[ch['motivo']]}",
               f"Interesse: {_interesse_nome(c, lead)}"]
+    if ch['silencioso']:
+        linhas.append('🤫 O cliente NÃO sabe que alguém vai falar com ele: o robô viu chance de venda e chamou você.')
     if ch['resumo']:
         linhas += ['', ch['resumo']]
     ult = ultimas_mensagens(c, lead['id'])
@@ -180,8 +184,18 @@ def prioridade(motivo, lead):
     return 'quente' if motivo == 'venda' or lead['nota'] == 'quente' else 'normal'
 
 
+# 1.10.8 — o que o robô diz ao abrir o chamado. Só fala em chamar alguém quando o cliente pediu; percebeu
+# necessidade (reclamação, dúvida sem resposta) → avisa que notificou e segue; chance de venda → não diz nada.
+TXT_PEDIU = 'Certo, já chamei alguém da equipe. Enquanto isso, sigo com você por aqui: pode perguntar.'
+TXT_PRECISA = 'Já avisei a equipe sobre isso, e alguém vai falar com você por aqui. Enquanto isso, sigo com você.'
+
+
+def silencioso_por_padrao(motivo):
+    return motivo == 'venda'
+
+
 def abrir(c, lead_id, motivo, resumo=None):
-    """Abre chamado e devolve (id, respostas ao lead)."""
+    """Abre chamado e devolve (id, respostas ao lead). Chance de venda abre calado: respostas = []."""
     from . import cerebro, limite
     ip = getattr(c._local, 'ip_publico', None)  # pedido veio do chat web ou da página do lead
     if ip is not None:
@@ -193,12 +207,17 @@ def abrir(c, lead_id, motivo, resumo=None):
     no_horario = horario.no_horario(c, agora)
     if resumo is None:
         resumo = cerebro.resumo(c, lead, motivo)
+    calado = silencioso_por_padrao(motivo)
     ident = c.db.execute(
-        'INSERT INTO chamados(lead_id,motivo,prioridade,status,aberto_em,conta_desde,token,resumo) '
-        'VALUES (?,?,?,?,?,?,?,?)',
+        'INSERT INTO chamados(lead_id,motivo,prioridade,status,aberto_em,conta_desde,token,resumo,silencioso) '
+        'VALUES (?,?,?,?,?,?,?,?,?)',
         (lead_id, motivo, prioridade(motivo, lead), 'aguardando', iso(agora),
-         iso(agora) if no_horario else None, novo_token(), resumo)).lastrowid
+         iso(agora) if no_horario else None, novo_token(), resumo, 1 if calado else 0)).lastrowid
     c.sujo = True
+    if calado:
+        if no_horario:
+            ativar(c, ident)
+        return ident, []
     # Link "meu atendimento": desligado por padrão; ligado (link_acompanhamento) só vai no WhatsApp,
     # nunca no chat do site (o lead já está na conversa).
     extra = []
@@ -206,11 +225,11 @@ def abrir(c, lead_id, motivo, resumo=None):
         extra = [f"Acompanhe aqui: {c.url_publica()}/meu/{lead['token']}"]
     if no_horario:
         ativar(c, ident)
-        return ident, ['Certo, vou chamar alguém da equipe para falar com você. Só um instante.'] + extra
+        return ident, [TXT_PEDIU if motivo == 'pediu_humano' else TXT_PRECISA] + extra
     prox = horario.proximo_inicio(c, agora)
     quando = ddmm_hhmm(prox) if prox else 'no próximo expediente'
-    return ident, [f'Agora estamos fora do horário de atendimento; vou chamar alguém da equipe assim que '
-                   f'abrirmos: {quando}.'] + extra
+    return ident, [f'Agora estamos fora do horário de atendimento; já deixei avisado, e alguém da equipe fala com '
+                   f'você assim que abrirmos: {quando}. Enquanto isso, sigo com você por aqui.'] + extra
 
 
 def ativar(c, ident):

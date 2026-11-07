@@ -45,6 +45,7 @@
     <div class="nav-dir">
       <button type="button" class="btn sutil interr" id="robo-mim" aria-pressed="false" title="Quando ligado, o assistente responde as dúvidas dos seus clientes enquanto você não responde. Você continua vendo tudo."><svg class="i" aria-hidden="true"><use href="#i-spark"/></svg><span>Robô responde por mim</span><b class="estado">desligado</b></button>
       <button type="button" class="btn sutil" id="avisos" title="Aviso no navegador e som quando chegar cliente para você ou mensagem nova"><svg class="i" aria-hidden="true"><use href="#i-alert"/></svg><span id="avisos-txt">Ativar avisos</span></button>
+      <button type="button" class="btn sutil" id="meu-cad" title="Seu nome e telefone no sistema"><svg class="i" aria-hidden="true"><use href="#i-users"/></svg><span>Meu cadastro</span><b class="estado" id="meu-cad-st" hidden>aguardando</b></button>
     </div>
   </nav>
   <section id="painel" hidden>
@@ -52,6 +53,7 @@
   </section>
   <section class="faixa-espera" id="espera" aria-labelledby="espera-t" hidden>
     <h2 id="espera-t">Para assumir <span class="cont" id="espera-n">0</span></h2>
+    <p class="alerta-quente" id="alerta-quente" role="status" hidden><svg class="i" aria-hidden="true"><use href="#i-flame"/></svg><span id="alerta-quente-txt">Cliente quente esperando: atenda agora</span><button type="button" class="btn" id="som-quente" hidden>Ligar o som</button></p>
     <div class="ofertas" id="ofertas"></div>
   </section>
 
@@ -179,6 +181,18 @@
   </div>
   <p id="aviso" class="toast" role="status" aria-live="polite"></p>
 </div>
+  <dialog class="dlg" id="dlg-cad" aria-labelledby="dlg-cad-t">
+    <form method="dialog" id="form-cad" class="painel">
+      <h2 id="dlg-cad-t">Meu cadastro</h2>
+      <p class="mut peq" id="cad-regra"></p>
+      <label class="campo">Nome <input id="cad-nome" maxlength="80" autocomplete="name" required></label>
+      <label class="campo">Telefone (com DDD) <input id="cad-tel" inputmode="tel" autocomplete="tel" placeholder="(41) 99999-0000"></label>
+      <p class="aviso" id="cad-pend" hidden></p>
+      <p class="erro" id="cad-erro" role="alert"></p>
+      <div class="acoes"><button type="button" class="btn sutil" id="cad-cancelar-pedido" hidden>Cancelar pedido</button><span style="flex:1"></span>
+        <button type="button" class="btn sutil" id="cad-fechar">Fechar</button><button type="submit" class="btn pri" id="cad-enviar">Enviar</button></div>
+    </form>
+  </dialog>
 <script src="/web/comum.js"></script>
 <script src="/web/equipe.js"></script>
 </body>

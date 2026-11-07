@@ -89,8 +89,9 @@ def assumir_esperas(c, agora):
     if not cfg['assume_espera']:
         return 0
     n = 0
+    # chamado silencioso (1.10.8) fica de fora: o cliente não sabe que a equipe foi chamada
     for ch in c.db.execute("SELECT * FROM chamados WHERE status IN ('aguardando','alerta') AND robo_assumiu IS NULL "
-                           'AND conta_desde IS NOT NULL').fetchall():
+                           'AND conta_desde IS NOT NULL AND silencioso=0').fetchall():
         if minutos(ch['conta_desde'], agora) < cfg['apos_min']:
             continue
         lead = c.lead(ch['lead_id'])

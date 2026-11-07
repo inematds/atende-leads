@@ -159,6 +159,9 @@ CREATE TABLE IF NOT EXISTS fontes (
     id INTEGER PRIMARY KEY, em TEXT, tipo TEXT NOT NULL, fonte TEXT NOT NULL, status TEXT NOT NULL,
     paginas INTEGER NOT NULL DEFAULT 0, caracteres INTEGER NOT NULL DEFAULT 0, propostas INTEGER NOT NULL DEFAULT 0,
     erro TEXT, avisos TEXT);
+CREATE TABLE IF NOT EXISTS pedidos_perfil (
+    id INTEGER PRIMARY KEY, colaborador TEXT NOT NULL, dados TEXT NOT NULL, em TEXT, status TEXT NOT NULL DEFAULT 'pendente',
+    decidido_em TEXT, motivo TEXT);
 '''
 
 COLUNAS_LEADS = ('id, token, nome, telefone, status, status_antes, nota, interesse, urgencia, nao_contatar, canal, '
@@ -195,6 +198,8 @@ COMMIT;''')
     cols = {r[1] for r in db.execute('PRAGMA table_info(chamados)')}
     if 'robo_assumiu' not in cols:  # 1.9.8: o robô avisou que segue com o lead enquanto ninguém assume
         db.execute('ALTER TABLE chamados ADD COLUMN robo_assumiu TEXT')
+    if 'silencioso' not in cols:  # 1.10.8: chance de venda percebida pelo robô — o cliente não foi avisado
+        db.execute('ALTER TABLE chamados ADD COLUMN silencioso INTEGER NOT NULL DEFAULT 0')
     # WhatsApp: um lead por telefone. Web: um lead por sessão (o telefone é só contato).
     db.execute('CREATE UNIQUE INDEX IF NOT EXISTS leads_telefone_whats ON leads(telefone) WHERE sessao IS NULL')
 

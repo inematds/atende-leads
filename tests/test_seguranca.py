@@ -164,7 +164,7 @@ def test_web_limita_chamados_por_ip(api):
     ip = "203.0.113.30"
     for i in range(3):
         st, r = _web(api, ip, "quero falar com um atendente")
-        assert st == 200 and "vou chamar" in "\n".join(r["respostas"]).lower(), (i, r)
+        assert st == 200 and "já chamei" in "\n".join(r["respostas"]).lower(), (i, r)
     antes = len(api.fila())
     # 4º chamado do mesmo IP na hora: recusado e nada abre (vale também para a página do lead)
     st, r = _web(api, "203.0.113.30", "oi")
