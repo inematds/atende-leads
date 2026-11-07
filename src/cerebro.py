@@ -165,6 +165,9 @@ def responder_duvida(c, texto, lead_id=None):
     instr = base.instrucoes(c).replace('Se a base não responder, diga que vai chamar alguém da equipe.',
                                        'Se nem a conversa nem a base responderem, responda exatamente: SEM_RESPOSTA '
                                        '(o sistema chama alguém da equipe).')
+    # 1.10.8: quem decide e conta ao cliente que a equipe vem é o sistema, nunca o modelo
+    instr += (' Nunca diga que vai chamar, avisar, encaminhar ou passar o cliente para alguém da equipe, nem prometa '
+              'contato de uma pessoa ou ligação.')
     usuario = texto
     if tem_atendente(c, lead_id):
         instr = instr.replace('Use SOMENTE a base de conhecimento abaixo.',

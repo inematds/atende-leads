@@ -136,7 +136,7 @@ def texto_ficha(c, ch, titulo):
               f"Motivo: {MOTIVO_LEG[ch['motivo']]}",
               f"Interesse: {_interesse_nome(c, lead)}"]
     if ch['silencioso']:
-        linhas.append('🤫 O cliente NÃO sabe que alguém vai falar com ele: o robô viu chance de venda e chamou você.')
+        linhas.append('🤫 Chance de venda percebida pelo robô: o cliente não pediu contato. Apresente-se com calma.')
     if ch['resumo']:
         linhas += ['', ch['resumo']]
     ult = ultimas_mensagens(c, lead['id'])
@@ -423,6 +423,7 @@ def _pos_assumir(c, ch_antes, colab, avisar_lead=True):
         lead = c.lead(lead['id'])
         _registrar(c, lead['id'], ident, 'agente', texto)
         evolution.enviar_lead(c, lead, texto, 'aviso', automatica=True)
+        c.db.execute('UPDATE chamados SET silencioso=0 WHERE id=?', (ident,))  # agora o cliente sabe
     c.sujo = True
 
 
@@ -454,6 +455,7 @@ def transferir(c, ident, colab):
     texto = f'{nome} vai te atender agora.'
     _registrar(c, lead['id'], ident, 'agente', texto)
     evolution.enviar_lead(c, lead, texto, 'aviso', automatica=True)
+    c.db.execute('UPDATE chamados SET silencioso=0 WHERE id=?', (ident,))
     c.sujo = True
     equipe.liberar_se_vazio(c, antigo)
     return json_chamado(c, c.chamado(ident))

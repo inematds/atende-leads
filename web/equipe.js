@@ -39,7 +39,7 @@
       (q ? '<p class="of-alarme">' + ic('flame') + 'Cliente quente: atenda agora</p>' : '') + '<div class="txt"><div class="l1"><strong>' + esc(ch.lead_nome || AL.fone(ch.telefone) || 'Lead') + '</strong>' +
       AL.nota(ch.nota) + '<span class="motivo">' + esc(AL.MOTIVO[ch.motivo] || '') + (ch.interesse_nome ? ' · ' + esc(ch.interesse_nome) : '') + '</span>' +
       '<span class="espera' + (demais ? ' demais' : '') + '">' + ic('clock') + esc(AL.dur(ch.minutos)) + (demais ? ' · esperando demais' : '') + '</span></div>' +
-      (ch.silencioso ? '<p class="calado">' + ic('spark') + 'O robô viu chance de venda e chamou você. O cliente não sabe que você vem: apresente-se.</p>' : '') +
+      (ch.silencioso ? '<p class="calado">' + ic('spark') + 'Chance de venda percebida pelo robô: o cliente não pediu contato. Apresente-se com calma.</p>' : '') +
       (ch.resumo ? '<q>' + esc(ch.resumo.split('\n').pop().replace(/^Disse:\s*/, '').replace(/^"|"$/g, '')) + '</q>' : '') + '</div>' +
       '<div class="acoes"><button type="button" class="btn pri" data-assumir="' + ch.id + '">' + ic('check') + 'Assumir</button>' +
       (ch.ofertado_a === eu.id ? '<button type="button" class="btn ic" data-passar="' + ch.id + '" aria-label="Passar para o próximo" title="Passar para o próximo">' + ic('pass') + '</button>' : '') +
