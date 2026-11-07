@@ -27,7 +27,8 @@ URG_OPCOES = '1 - Hoje / esta semana\n2 - Este mês\n3 - Só pesquisando'
 
 SEM_TEXTO = 'Por enquanto só consigo ler mensagens de texto.'
 # 1.10.8: no chamado silencioso, só um pedido de pessoa tira o silêncio ("é para alguém da família" não é pedido)
-PEDE_ALGUEM = re.compile(r'\b(tem|ha|cade) (alguem|ninguem|uma pessoa|atendente)\b|\bninguem (me |vai )?(responde|atende)'
+PEDE_ALGUEM = re.compile(r'\b(tem|ha|cade) (alguem|ninguem|uma pessoa|atendente)( (ai|ae|ai mesmo|online|por ai|de verdade))?$'
+                         r'|\bninguem (me |vai )?(responde|atende)'
                          r'|\bfalar com (alguem|uma pessoa|gente|atendente|humano|vendedor)\b'
                          r'|\balguem (ai|ae|de verdade|real|me atende|pode me atender|pra me atender|para me atender)\b'
                          r'|^(alguem|ninguem|ola alguem|oi alguem)$')
@@ -328,8 +329,7 @@ def decidir(c, lead, texto, t, primeiro, aberto):
     if aberto and aberto['silencioso']:
         horario = base.pergunta_horario(t) and re.search(r'\b(que horas?|horario|quando|abre|fecha)\b', t)
         if not horario and (PEDE_ALGUEM.search(t) or (tem(t, HUMANO) and not base.pergunta_horario(t))):
-            c.db.execute('UPDATE chamados SET silencioso=0 WHERE id=?', (aberto['id'],))
-            return [chamados.TXT_PEDIU]
+            return [chamados.tirar_silencio(c, aberto, 'pediu_humano')]
     elif aberto:
         r = _duvida_em_espera(c, t, texto, lid)
         if r:
@@ -353,8 +353,12 @@ def decidir(c, lead, texto, t, primeiro, aberto):
             c.db.execute('UPDATE leads SET interesse=? WHERE id=?', (prod['id'], lid))
             if base.preco_vigente(c, prod):
                 prefixo = f"{prod['nome']}: {base.preco_vigente(c, prod)}. "
+        elif re.search(r'\b(quanto custa|valor|valores|preco|precos|orcamento)\b', t):
+            prefixo = _tabela_precos(c)  # 1.10.8: pergunta de preço sem produto → mostra os preços cadastrados
         if base.PAGAMENTO.search(t):
             prefixo += base.prefixo_pagamento(c)
+        if not prefixo and len(t.split()) >= 3 and c.lead(lid)['nome'] and c.lead(lid)['urgencia']:
+            prefixo = ((cerebro.responder_duvida(c, texto, lid) or '') + ' ').lstrip()
         return _abrir(c, lid, 'venda', prefixo)
     if tem_palavra(t, PRECISA):
         return _abrir(c, lid, 'precisa')
@@ -408,7 +412,7 @@ def decidir(c, lead, texto, t, primeiro, aberto):
         gravar_estado(c, lid, {})
         return _abrir(c, lid, 'precisa', NAO_SEI + ' ')
     # 1.10.8: não oferece chamar ninguém (só quem pede ouve isso); a segunda seguida sem resposta avisa a equipe.
-    gravar_estado(c, lid, {'etapa': 'nao_sei', 'falhas': falhas})
+    gravar_estado(c, lid, {'etapa': 'nao_sei2', 'falhas': falhas})  # nao_sei = conversa de antes da 1.10.8
     return [NAO_SEI + ' Pode me contar de outro jeito o que você precisa?']
 
 
@@ -426,13 +430,19 @@ def _abrir(c, lid, motivo, prefixo='', silencioso=None):
         if motivo == 'venda' and silencioso is not False:
             c.db.execute("UPDATE chamados SET prioridade='quente' WHERE id=?", (aberto['id'],))
             return _seguir_venda(c, lid, prefixo)
-        c.db.execute('UPDATE chamados SET silencioso=0 WHERE id=?', (aberto['id'],))
-        return [prefixo + (chamados.TXT_PEDIU if motivo == 'pediu_humano' else chamados.TXT_PRECISA)]
+        if aberto['silencioso']:
+            return [prefixo + chamados.tirar_silencio(c, aberto, motivo)]
+        return [prefixo + chamados.texto_chamei(c, motivo)]
     _ident, respostas = chamados.abrir(c, lid, motivo, silencioso=silencioso)
     if not respostas:  # chance de venda: a equipe foi chamada sem o cliente saber
         return _seguir_venda(c, lid, prefixo)
     respostas[0] = prefixo + respostas[0]
     return respostas
+
+
+def _tabela_precos(c):
+    itens = [f"{p['nome']}: {base.preco_vigente(c, p)}" for p in c.cfg.get('produtos', []) if base.preco_vigente(c, p)]
+    return ('Nossos valores: ' + '; '.join(itens) + '. ') if itens else ''
 
 
 def _seguir_venda(c, lid, prefixo=''):
@@ -521,13 +531,13 @@ def qualificar(c, lead, e, texto, t):
             gravar_estado(c, lid, {'falhas': 0})
             return ['Sem problema. Se tiver qualquer dúvida, é só mandar mensagem por aqui.']
         return [f'Responda com o número:\n{URG_OPCOES}']
-    if etapa == 'nao_sei':
+    if etapa in ('nao_sei', 'nao_sei2'):
         # Depois do "Essa eu não sei responder...": não → encerra; outra coisa segue as regras (mantém as falhas:
         # a segunda seguida sem resposta avisa a equipe sozinha). 1.10.8: o robô não oferece mais chamar alguém.
         if 'nao' in palavras or t in NAO:
             gravar_estado(c, lid, {'falhas': 0})
             return ['Tudo bem! Se tiver qualquer dúvida, é só mandar mensagem por aqui.']
-        if palavras & SIM and len(palavras) <= 3:  # "sim" a "Quer que eu chame alguém?" (conversa de antes da 1.10.8)
+        if etapa == 'nao_sei' and palavras & SIM and len(palavras) <= 3:  # "sim" a "Quer que eu chame alguém?" (conversa de antes da 1.10.8)
             return _abrir(c, lid, 'precisa')
         gravar_estado(c, lid, {'falhas': e.get('falhas', 0)})
         return None

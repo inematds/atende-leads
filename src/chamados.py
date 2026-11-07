@@ -194,6 +194,33 @@ def silencioso_por_padrao(motivo):
     return motivo == 'venda'
 
 
+def texto_chamei(c, motivo):
+    """O que o lead ouve quando sabe que a equipe foi chamada (fora do horário diz quando abre)."""
+    agora = c.agora()
+    if horario.no_horario(c, agora):
+        return TXT_PRECISA if motivo == 'precisa' else TXT_PEDIU
+    prox = horario.proximo_inicio(c, agora)
+    quando = ddmm_hhmm(prox) if prox else 'no próximo expediente'
+    return (f'Agora estamos fora do horário de atendimento; já deixei avisado, e alguém da equipe fala com '
+            f'você assim que abrirmos: {quando}. Enquanto isso, sigo com você por aqui.')
+
+
+def tirar_silencio(c, ch, motivo):
+    """O cliente do chamado calado pediu uma pessoa ou reclamou: agora ele sabe. Atualiza motivo/prioridade,
+    não repete o aviso "equipe ocupada" (o texto já diz "sigo com você") e avisa quem tem o chamado."""
+    lead = c.lead(ch['lead_id'])
+    c.db.execute('UPDATE chamados SET silencioso=0, motivo=?, prioridade=?, robo_assumiu=COALESCE(robo_assumiu, ?) '
+                 'WHERE id=?', (motivo, prioridade('venda', lead) if ch['motivo'] == 'venda' else prioridade(motivo, lead),
+                                iso(c.agora()), ch['id']))
+    c.sujo = True
+    quem = ch['dono'] or ch['ofertado_a']
+    if quem:
+        o_que = 'pediu para falar com alguém' if motivo == 'pediu_humano' else 'está com um problema'
+        equipe.privado(c, quem, f"⚠️ #{ch['id']} {primeiro_nome(lead['nome']) or 'O cliente'} {o_que} e agora sabe "
+                                f"que a equipe vem. Não é mais só chance de venda: atenda logo.")
+    return texto_chamei(c, motivo)
+
+
 def abrir(c, lead_id, motivo, resumo=None, silencioso=None):
     """Abre chamado e devolve (id, respostas ao lead). Chance de venda abre calado: respostas = []."""
     from . import cerebro, limite
@@ -225,11 +252,7 @@ def abrir(c, lead_id, motivo, resumo=None, silencioso=None):
         extra = [f"Acompanhe aqui: {c.url_publica()}/meu/{lead['token']}"]
     if no_horario:
         ativar(c, ident)
-        return ident, [TXT_PRECISA if motivo == 'precisa' else TXT_PEDIU] + extra
-    prox = horario.proximo_inicio(c, agora)
-    quando = ddmm_hhmm(prox) if prox else 'no próximo expediente'
-    return ident, [f'Agora estamos fora do horário de atendimento; já deixei avisado, e alguém da equipe fala com '
-                   f'você assim que abrirmos: {quando}. Enquanto isso, sigo com você por aqui.'] + extra
+    return ident, [texto_chamei(c, motivo)] + extra
 
 
 def ativar(c, ident):

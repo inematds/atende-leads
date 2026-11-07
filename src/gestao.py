@@ -325,6 +325,9 @@ def validar_config(c, novo):
         codigos.append(m['codigo'])
     if len(codigos) != len(set(codigos)):
         _erro('equipe: códigos repetidos')
+    tels = [str(m.get('telefone')) for m in cfg.get('equipe', []) if m.get('telefone') not in (None, '')]
+    if len(tels) != len(set(tels)):  # 1.10.8: dois atendentes com o mesmo número confundem o WhatsApp
+        _erro('equipe: telefones repetidos')
     for p in cfg.get('produtos', []):
         if not isinstance(p.get('nome'), str) or not p['nome'].strip():
             _erro('produtos: nome obrigatório')

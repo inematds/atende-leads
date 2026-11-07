@@ -55,7 +55,7 @@
     $('espera').hidden = vista !== 'atender' || !eu.ofertas.length;
     $('espera-n').textContent = eu.ofertas.length;
     const peso = o => (quente(o) ? 2 : 0) + (o.status === 'alerta' ? 1 : 0);  // quente, depois esperando demais
-    const ofs = eu.ofertas.slice().sort((a, b) => peso(b) - peso(a));
+    const ofs = eu.ofertas.slice().sort((a, b) => (peso(b) - peso(a)) || ((b.minutos || 0) - (a.minutos || 0)));
     $('ofertas').innerHTML = ofs.map(oferta).join('');
     alarmeQuente(ofs.filter(quente));
     desenharCadastro();

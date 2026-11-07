@@ -46,7 +46,7 @@ def test_cliente_pede_pessoa_e_ai_o_robo_conta(api):
     assert "já chamei alguém da equipe" in txt and "sigo com você" in txt
     c = chamados(api, lid)
     assert len(c) == 1 and c[0]["silencioso"] is False
-    assert "Eu já avisei a equipe" in api.msg(TEL, "ok")        # daí em diante, a espera normal
+    assert "Sigo por aqui com você" in api.msg(TEL, "ok")        # daí em diante, a espera (o robô segue com ele)
 
 
 def test_reclamacao_durante_venda_calada_avisa_sem_novo_chamado(api):
@@ -248,6 +248,75 @@ def test_nao_sei_e_sim_avisa_a_equipe(api):
     api.msg(TEL, "1")
     lead = api.msg_full(TEL, "3")["lead"]
     api.msg(TEL, "xpto blablabla")
-    txt = api.msg(TEL, "sim")
+    txt = api.msg(TEL, "sim")                                     # 2ª sem resposta seguida: avisa a equipe
     assert "avisei a equipe" in txt.lower()
     assert [c["motivo"] for c in chamados(api, lead["id"])] == ["precisa"]
+
+
+# ---------- achados do segundo revisor (1.10.8) ----------
+
+def _venda_completa(api):
+    r = api.msg_full(TEL, "quanto custa o plano anual?", nome="Maria Souza")
+    api.msg(TEL, "1")                                               # hoje → urgência dita
+    return r["lead"]["id"]
+
+
+def test_pergunta_de_preco_depois_da_venda_calada_e_respondida(api):
+    _venda_completa(api)
+    txt = api.msg(TEL, "quanto custa?")
+    assert "R$" in txt and not revela(txt)
+
+
+def test_fora_do_horario_pedido_de_pessoa_diz_quando_abre(api):
+    api.relogio("2026-11-08T22:00")
+    lid = _venda_completa(api)
+    txt = api.msg(TEL, "tem alguém aí?")
+    assert "fora do horário" in txt and "assim que abrirmos" in txt
+    assert chamados(api, lid)[0]["silencioso"] is False
+
+
+@pytest.mark.parametrize("frase", ["tem alguém que entrega em Canoas?", "há alguém que use o plano anual?"])
+def test_tem_alguem_que_nao_e_pedido(api, frase):
+    lid = _venda_completa(api)
+    assert "já chamei" not in api.msg(TEL, frase)
+    assert chamados(api, lid)[0]["silencioso"] is True
+
+
+def test_silencio_cai_muda_motivo_e_avisa_quem_tem_o_chamado(api):
+    api.status("ana", "livre")
+    lid = _venda_completa(api)
+    api.msg(TEL, "o produto que comprei veio com defeito")
+    ch = chamados(api, lid)[0]
+    assert ch["motivo"] == "precisa" and ch["silencioso"] is False
+    st, eu = api.get("/api/equipe/eu", codigo=CODIGOS["ana"])
+    assert eu["ofertas"][0]["motivo"] == "precisa"
+
+
+def test_sem_aviso_duplicado_de_equipe_ocupada(api):
+    st, cfg = api.get("/api/gestor/config")
+    cfg["robo"] = {"assume_espera": True, "apos_min": 2}
+    assert ok(api.put("/api/gestor/config", cfg)[0])
+    _venda_completa(api)
+    api.avancar(5)
+    api.msg(TEL, "tem alguém aí?")
+    api.avancar(3)
+    assert "Nossa equipe está ocupada" not in api.textos_para(DIG)
+
+
+def test_telefone_repetido_na_equipe_recusado_tambem_na_aprovacao(api):
+    tel = "(41) 97777-1111"
+    assert ok(api.post("/api/equipe/perfil", {"telefone": tel}, codigo=CODIGOS["ana"])[0])
+    assert ok(api.post("/api/equipe/perfil", {"telefone": tel}, codigo=CODIGOS["bruno"])[0])
+    ls = api.get("/api/gestor/perfis")[1]
+    assert ok(api.post(f"/api/gestor/perfis/{ls[0]['id']}", {"aprovar": True})[0])
+    assert api.post(f"/api/gestor/perfis/{ls[1]['id']}", {"aprovar": True})[0] == 422
+
+
+def test_sim_em_conversa_nova_nao_abre_chamado(api):
+    api.msg(TEL, "oi")
+    api.msg(TEL, "Maria Souza")
+    api.msg(TEL, "1")
+    lead = api.msg_full(TEL, "3")["lead"]
+    api.msg(TEL, "xpto blablabla")                                # "Pode me contar de outro jeito…?"
+    api.msg(TEL, "ok")
+    assert all(c["motivo"] == "precisa" for c in chamados(api, lead["id"]))

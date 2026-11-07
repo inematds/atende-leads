@@ -158,7 +158,8 @@ def test_venda_com_preco_do_produto(api):
 def test_venda_sem_produto_nao_inventa_preco(api):
     r = api.msg_full(TEL, "qual o valor?")
     txt = "\n".join(r["respostas"])
-    assert not revela(txt) and "R$" not in txt
+    assert not revela(txt)
+    assert "R$" not in txt or "Plano anual: R$ 1.200" in txt  # 1.10.8: só preço cadastrado (tabela), nunca inventado
     assert txt.strip()  # o robô segue a conversa (pergunta o nome)
     assert r["lead"]["nota"] == "quente"
     assert motivos(api, r["lead"]["id"]) == ["venda"]

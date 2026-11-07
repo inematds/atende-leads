@@ -314,7 +314,8 @@
     }
     const faq = faqEd.filter(f => f.perguntas.length || f.resposta);
     if (faq.some(f => !f.perguntas.length || !f.resposta)) throw new Error('Cada pergunta do FAQ precisa de ao menos uma forma e de uma resposta.');
-    cfg = await api('PUT', '/api/gestor/config', Object.assign({}, cfg, {token_gestor: '***', info, faq, cerebro: cer, cerebro_curadoria: cur}));
+    const {equipe: _eq, _versao: _vs, ...semEquipe} = cfg;  // a base não mexe na equipe: não leva 409 se um atendente mudou o cadastro
+    cfg = await api('PUT', '/api/gestor/config', Object.assign({}, semEquipe, {token_gestor: '***', info, faq, cerebro: cer, cerebro_curadoria: cur}));
     sujoBase = false; aviso('Base de conhecimento salva.'); await base();
   }
 
@@ -798,7 +799,7 @@
     } catch (e) { $('t-resultado').innerHTML = '<p class="erro">' + esc(e.message) + '</p>'; }
   });
   $('a-periodo-salvar').addEventListener('click', async () => {
-    try { await recarregarCfg(); cfg = await api('PUT', '/api/gestor/config', Object.assign({}, cfg, {token_gestor: '***', aprendizado: {periodo: $('a-periodo').value}})); aviso('Período salvo.'); }
+    try { await recarregarCfg(); const {equipe: _eq, _versao: _vs, ...semEquipe} = cfg; cfg = await api('PUT', '/api/gestor/config', Object.assign({}, semEquipe, {token_gestor: '***', aprendizado: {periodo: $('a-periodo').value}})); aviso('Período salvo.'); }
     catch (e) { aviso(e.message, true); }
   });
   $('a-gerar').addEventListener('click', async ev => {
