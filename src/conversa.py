@@ -106,7 +106,8 @@ def mensagens_web(c, sessao):
                                                 (lead['id'],))}
     msgs = [{'de': r['de'], 'texto': r['texto'], 'em': r['em'],
              'tipo': 'aviso' if r['de'] == 'agente' and r['texto'] in avisos else r['de']} for r in
-            c.db.execute("SELECT de, texto, em FROM mensagens WHERE lead_id=? ORDER BY id DESC LIMIT 50", (lead['id'],))]
+            c.db.execute("SELECT de, texto, em FROM mensagens WHERE lead_id=? AND NOT (de='humano' AND texto LIKE ?) "
+                         'ORDER BY id DESC LIMIT 50', (lead['id'], chamados.POR_FORA + '%'))]  # resumo interno não vai ao cliente
     from . import paginas
     _t, colab, _r = paginas.status_lead(c, lead)
     return {'lead': lead_resumo(lead), 'colaborador': colab, 'mensagens': list(reversed(msgs))}

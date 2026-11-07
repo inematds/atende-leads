@@ -175,6 +175,7 @@ Chamado: `{id, lead_id, motivo: pediu_humano|venda|precisa, prioridade: quente|n
 
 - O botão "WhatsApp" da ficha abre o WhatsApp **do atendente**: o que for conversado lá não passa pelo sistema. Regra da equipe: conversar pelo painel ou pelo reply no Telegram (sai pelo número da empresa e fica registrado); o WhatsApp próprio serve para ligar.
 - Fechamento ganha `por_fora: bool` (padrão `false`; não-booleano → 422). Com `true`, a `nota` vira obrigatória (≥ 15 caracteres, senão 422) e é gravada na conversa do chamado como mensagem `de='humano'` (`autor` = dono) com o prefixo `[Combinado fora do sistema]` — **não** é enviada ao lead e não conta como 1ª resposta nos tempos. O histórico ganha `por_fora`. Como o cérebro e as sugestões leem o que o vendedor afirmou na conversa, o combinado passa a valer nas respostas seguintes a esse cliente.
+- O resumo nunca aparece no chat web do cliente (`/api/web/<sessao>` filtra o prefixo) nem entra nas propostas de preço para a base (é combinado só com aquele cliente). Nota cortada em 500 caracteres no servidor. Autor = quem fechou (`gestor` se foi o gestor). No Telegram, na etapa da nota, começar com `fora:` marca `por_fora`.
 - O atendente vê no painel (além do privado no Telegram) quando o gestor decide o pedido de cadastro.
 
 ## 8. Painel fixo no grupo

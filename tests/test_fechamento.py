@@ -294,3 +294,14 @@ def test_retorno_nao_vai_ao_lead_que_pediu_parar(tatend):
     assert ok(api.fechar("ana", ch, {"resultado": "retornar", "retornar_em": AMANHA_9})[0])
     api.avancar(para="2026-11-10T09:01")
     assert "Combinado!" not in externo.whats_texto(TEL2_D)
+
+
+def test_fechar_pelo_bot_com_fora(tatend):
+    """1.11.8: nota começando com 'fora:' = combinado fora do sistema (vai para a conversa, não para o cliente)."""
+    api, tg, externo, lead, ch = tatend
+    a = TG_ID["ana"]
+    tg.cb(a, f"fe:{ch}:negociando")
+    tg.msg(a, "fora: liguei e ela fecha na sexta")
+    assert fechado(api, lead, ch)
+    assert eventos(api, lead["id"])[0]["por_fora"] is True
+    assert "[Combinado fora do sistema] liguei e ela fecha na sexta" in str(api.ficha(lead["id"]))

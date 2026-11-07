@@ -23,3 +23,32 @@ def test_sem_por_fora_continua_como_antes(api):
     lead, ch = api.atendendo("ana")
     assert ok(api.fechar("ana", ch, {"resultado": "negociando"})[0])
     assert "Combinado fora do sistema" not in str(api.ficha(lead["id"]))
+
+
+def test_resumo_nao_aparece_no_chat_web(api):
+    api.status("ana", "livre")
+    st, w = api.post("/api/mensagens", {"telefone": "41980001220", "texto": "quero falar com um atendente",
+                                        "nome": "Carol Antunes", "canal": "web"}, token=None)
+    assert ok(st), w
+    ch = api.chamado_aberto(w["lead"]["id"])["id"]
+    assert ok(api.assumir("ana", ch)[0])
+    assert ok(api.fechar("ana", ch, {"resultado": "negociando", "por_fora": True,
+                                     "nota": "Combinamos visita na quinta às 10h"})[0])
+    st, r = api.get(f"/api/web/{w['sessao']}", token=None)
+    assert st == 200 and "Combinamos visita" not in str(r)
+    assert "Combinamos visita" in str(api.ficha(w["lead"]["id"]))
+
+
+def test_nota_so_espacos_nao_vale_como_resumo(api):
+    api.status("ana", "livre")
+    lead, ch = api.atendendo("ana")
+    assert api.fechar("ana", ch, {"resultado": "negociando", "por_fora": True, "nota": " " * 30})[0] == 422
+
+
+def test_gestor_fecha_por_fora(api):
+    api.status("ana", "livre")
+    lead, ch = api.atendendo("ana")
+    st, r = api.post(f"/api/equipe/chamados/{ch}/fechar", {"resultado": "negociando", "por_fora": True,
+                                                           "nota": "Liguei e ficou para a semana que vem"})
+    assert ok(st), r
+    assert "[Combinado fora do sistema] Liguei" in str(api.ficha(lead["id"]))

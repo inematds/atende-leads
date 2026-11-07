@@ -188,7 +188,8 @@ def para_base(c, sid, colab):
         raise Erro(422, 'Essa sugestão não tem divergência com a base.')
     lead = c.lead(s['lead_id'])
     vend = [r['texto'] for r in c.db.execute("SELECT texto FROM mensagens WHERE lead_id=? AND de='humano' "
-                                             'ORDER BY id DESC LIMIT 10', (lead['id'],))]
+                                             'AND texto NOT LIKE ? ORDER BY id DESC LIMIT 10',
+                                             (lead['id'], '[Combinado fora do sistema]%'))]  # combinado só com este cliente
     do_lead = [r['texto'] for r in c.db.execute("SELECT texto FROM mensagens WHERE lead_id=? AND de='lead' "
                                                 'ORDER BY id DESC LIMIT 3', (lead['id'],))]
     trecho = cerebro.conversa_texto(c, lead['id'], 6)

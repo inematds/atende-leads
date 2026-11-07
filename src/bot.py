@@ -70,7 +70,9 @@ def _dono_ok(c, ident, colab):
 def pedir_nota(c, colab, f):
     f['etapa'] = 'nota'
     gravar_fluxo(c, colab, f)
-    equipe.privado(c, colab, f"Quer deixar uma nota sobre #{f['chamado']}? Escreva ou mande um áudio.",
+    equipe.privado(c, colab, f"Quer deixar uma nota sobre #{f['chamado']}? Escreva ou mande um áudio.\n"
+                             "Falou com o cliente pelo seu WhatsApp ou por ligação? Comece com «fora:» e conte o que "
+                             "foi combinado (fica na conversa do cliente, não vai para ele).",
                    [[tg.bt('Pular', f"fp:{f['chamado']}")]])
 
 
@@ -100,7 +102,9 @@ def iniciar_fechamento(c, colab, ident, resultado):
 
 def concluir(c, colab, f, nota):
     corpo = {k: f.get(k) for k in ('resultado', 'valor', 'motivo', 'retornar_em')}
-    corpo['nota'] = nota
+    m = re.match(r'\s*fora\s*[:\-]\s*', nota or '', re.I)  # 1.11.8: "fora: …" = combinado fora do sistema
+    corpo['nota'] = nota[m.end():] if m else nota
+    corpo['por_fora'] = bool(m)
     gravar_fluxo(c, colab, None)
     try:
         chamados.fechar(c, f['chamado'], colab, corpo)

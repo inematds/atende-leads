@@ -2,6 +2,7 @@
 
 | data | o que quebrou | menor correção | prompt \| infra |
 |---|---|---|---|
+| 2026-11-07 | 1.11.8 (antes de publicar): resumo "combinado fora do sistema" aparecia para o cliente no chat web | filtrar o prefixo em mensagens_web e nas propostas para a base | prompt |
 | 2026-11-07 | 1.10.8 (antes de publicar): a IA podia prometer "vou chamar alguém" no chamado calado | uma linha no prompt do cérebro proibindo prometer contato | prompt |
 | 2026-11-07 | 1.10.8: ficha dizia "cliente não sabe" depois de ele receber "X vai te atender" | limpar `silencioso` ao avisar o lead (assumir/transferir) | prompt |
 | 2026-11-07 | 1.10.8: "obrigado" + "ok" viravam duas falhas e o robô avisava a equipe | resposta própria para agradecimento/confirmação (regra 8a) | prompt |

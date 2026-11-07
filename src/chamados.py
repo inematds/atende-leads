@@ -520,7 +520,7 @@ def validar_fechamento(c, b):
         out['produto'] = produto
     nota = b.get('nota')
     if nota not in (None, ''):
-        out['nota'] = str(nota)
+        out['nota'] = str(nota).strip()[:500] or None
     # 1.11.8: conversou pelo WhatsApp dele ou por ligação → resumo obrigatório, que entra na conversa do cliente
     por_fora = b.get('por_fora', False)
     if not isinstance(por_fora, bool):
@@ -557,7 +557,7 @@ def fechar(c, ident, colab, b):
     evento['por_fora'] = d['por_fora']
     c.db.execute('INSERT INTO historico(lead_id,dados) VALUES (?,?)', (lead['id'], json.dumps(evento, ensure_ascii=False)))
     if d['por_fora']:  # fica na conversa: o robô e as próximas sugestões passam a saber o que foi combinado
-        _registrar(c, lead['id'], ident, 'humano', f"{POR_FORA} {d['nota'].strip()}", autor=ch['dono'])
+        _registrar(c, lead['id'], ident, 'humano', f"{POR_FORA} {d['nota']}", autor=colab or 'gestor')
     _encerrar_mensagens(c, ch, f"✔️ #{ident} fechado: {d['resultado']}")
     if d['resultado'] == 'retornar':
         c.db.execute('INSERT OR REPLACE INTO retornos(chamado_id,lead_id,colaborador,em) VALUES (?,?,?,?)',
