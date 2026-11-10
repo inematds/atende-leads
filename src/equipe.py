@@ -122,29 +122,32 @@ def painel(c):
 
 
 def texto_painel(c):
+    """1.12.8: resumo na 2ª linha e, com gente esperando, a FILA vem antes da equipe (é o que pede ação)."""
     p = painel(c)
-    linhas = [f"EQUIPE AGORA · {c.agora().strftime('%H:%M')}"]
+    eq = []
     for e in p['equipe']:
         if e['status'] == 'livre':
-            linhas.append(f"🟢 {e['nome']} livre há {e['minutos']} min" + (' (próxima da vez)' if e['proximo'] else ''))
+            eq.append(f"🟢 {e['nome']} livre há {e['minutos']} min" + (' (próxima da vez)' if e['proximo'] else ''))
         elif e['status'] == 'atendendo':
             ch = atendendo_de(c, e['id'])
             quem = primeiro_nome(c.lead(ch[0]['lead_id'])['nome']) if ch else 'lead'
             extra = f' (+{len(ch) - 1})' if len(ch) > 1 else ''
-            linhas.append(f"🟡 {e['nome']} atendendo {quem} · {e['minutos']} min{extra}")
+            eq.append(f"🟡 {e['nome']} atendendo {quem} · {e['minutos']} min{extra}")
         elif e['status'] == 'ocupado':
-            linhas.append(f"🔴 {e['nome']} ocupado")
+            eq.append(f"🔴 {e['nome']} ocupado")
         else:
-            linhas.append(f"⚫ {e['nome']} fora")
-    linhas.append('')
-    linhas.append('FILA')
+            eq.append(f"⚫ {e['nome']} fora")
+    fila = ['FILA']
     if not p['fila']:
-        linhas.append('(vazia)')
+        fila.append('(vazia)')
     for f in p['fila']:
         icone = '🔥' if f['prioridade'] == 'quente' else '🙋'
-        linhas.append(f"{icone} {f['lead']} · esperando {f['minutos']} min" +
-                      (' ⚠️ sem dono' if f['status'] == 'alerta' else ''))
-    return '\n'.join(linhas)
+        fila.append(f"{icone} {f['lead']} · esperando {f['minutos']} min" +
+                    (' ⚠️ sem dono' if f['status'] == 'alerta' else ''))
+    conta = lambda st: sum(1 for e in p['equipe'] if e['status'] == st)
+    resumo = f"{len(p['fila'])} na fila · {conta('livre')} livre(s) · {conta('atendendo')} atendendo"
+    topo = [f"EQUIPE AGORA · {c.agora().strftime('%H:%M')}", resumo, '']
+    return '\n'.join(topo + (fila + [''] + eq if p['fila'] else eq + [''] + fila))
 
 
 def atualizar_painel(c):

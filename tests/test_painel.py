@@ -122,6 +122,7 @@ def test_painel_fila_e_atendendo(api_int, tg, externo):
     assert esperar(lambda: "FILA" in ultimo_painel(externo) and "esperando" in ultimo_painel(externo))
     t = ultimo_painel(externo)
     assert "Maria · esperando" in t and "⚠️ sem dono" in t
+    assert "1 na fila · " in t.split("\n")[1] and t.index("FILA") < t.index("Ana")  # 1.12.8: resumo e fila em cima
     assert "8888" not in t
     api_int.status("ana", "ocupado")
     tg.cb(TG_ID["ana"], f"as:{ch}", 1, chat_id=GRUPO)

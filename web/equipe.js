@@ -18,6 +18,7 @@
   const celular = () => window.matchMedia('(max-width: 1023px)').matches;
 
   AL.seletorTema('tema');
+  AL.seletorTema('tema-cad');
   AL.api('GET', '/api/aparencia').then(a => { $('negocio').textContent = a.nome_exibido; $('logo').textContent = AL.iniciais(a.nome_exibido); }).catch(() => {});
 
   function botoesContato(ch, compacto) {
@@ -36,14 +37,14 @@
   function oferta(ch) {
     const demais = ch.status === 'alerta', q = quente(ch);
     return '<article class="of t-' + (q ? 'quente' : esc(ch.nota || 'frio')) + '" data-of="' + ch.id + '">' +
-      (q ? '<p class="of-alarme">' + ic('flame') + 'Cliente quente: atenda agora</p>' : '') + '<div class="txt"><div class="l1"><strong>' + esc(ch.lead_nome || AL.fone(ch.telefone) || 'Lead') + '</strong>' +
+      '<div class="txt"><div class="l1"><strong>' + esc(ch.lead_nome || AL.fone(ch.telefone) || 'Lead') + '</strong>' +
       AL.nota(ch.nota) + '<span class="motivo">' + esc(AL.MOTIVO[ch.motivo] || '') + (ch.interesse_nome ? ' · ' + esc(ch.interesse_nome) : '') + '</span>' +
-      '<span class="espera' + (demais ? ' demais' : '') + '">' + ic('clock') + esc(AL.dur(ch.minutos)) + (demais ? ' · esperando demais' : '') + '</span></div>' +
+      '<span class="espera' + (demais ? ' demais' : '') + '">' + ic('clock') + 'esperando ' + esc(AL.dur(ch.minutos)) + (demais ? ' · demais' : '') + '</span></div>' +
       (ch.silencioso ? '<p class="calado">' + ic('spark') + 'Chance de venda percebida pelo robô: o cliente não pediu contato. Apresente-se com calma.</p>' : '') +
       (ch.resumo ? '<q>' + esc(ch.resumo.split('\n').pop().replace(/^Disse:\s*/, '').replace(/^"|"$/g, '')) + '</q>' : '') + '</div>' +
       '<div class="acoes"><button type="button" class="btn pri" data-assumir="' + ch.id + '">' + ic('check') + 'Assumir</button>' +
-      (ch.ofertado_a === eu.id ? '<button type="button" class="btn ic" data-passar="' + ch.id + '" aria-label="Passar para o próximo" title="Passar para o próximo">' + ic('pass') + '</button>' : '') +
-      '<button type="button" class="btn ic" data-ficha="' + ch.lead_id + '" data-ch="' + ch.id + '" aria-label="Ver conversa" title="Ver conversa">' + ic('file') + '</button>' +
+      (ch.ofertado_a === eu.id ? '<button type="button" class="btn ic" data-passar="' + ch.id + '" aria-label="Passar para o próximo" title="Passar para o próximo">' + ic('pass') + '<span class="rot">Passar</span></button>' : '') +
+      '<button type="button" class="btn ic" data-ficha="' + ch.lead_id + '" data-ch="' + ch.id + '" aria-label="Ver conversa" title="Ver conversa">' + ic('file') + '<span class="rot">Conversa</span></button>' +
       botoesContato(ch, true) + '</div></article>';
   }
 

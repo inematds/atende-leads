@@ -128,23 +128,29 @@ def texto_linha(c, ch, ofertado=None):
     return t
 
 
-def texto_ficha(c, ch, titulo):
+def texto_ficha(c, ch, titulo, oferta=True):
+    """1.12.8: ficha curta (nome e nota numa linha, sem repetir o motivo do título, respostas de menu fora das
+    últimas mensagens). Na oferta: prazo da vez e a explicação dos dois botões de contato."""
     lead = c.lead(ch['lead_id'])
     linhas = [titulo,
-              f"Nome: {lead['nome'] or 'não informado'}",
-              f"Telefone: {formatar_telefone(lead['telefone'])}",
-              f"Nota: {lead['nota']}",
-              f"Motivo: {MOTIVO_LEG[ch['motivo']]}",
-              f"Interesse: {_interesse_nome(c, lead)}"]
+              f"{lead['nome'] or 'Nome não informado'} · cliente {lead['nota']}",
+              f"Telefone: {formatar_telefone(lead['telefone'])}"]
+    interesse = _interesse_nome(c, lead)
+    if interesse != '—':
+        linhas.append(f'Interesse: {interesse}')
     if ch['silencioso']:
         linhas.append('🤫 Chance de venda percebida pelo robô: o cliente não pediu contato. Apresente-se com calma.')
     if ch['resumo']:
         linhas += ['', ch['resumo']]
-    ult = ultimas_mensagens(c, lead['id'])
+    ult = [m for m in ultimas_mensagens(c, lead['id']) if not m.strip().isdigit()]
     if ult:
         linhas += ['', 'Últimas mensagens:'] + [f'• {m}' for m in ult]
-    linhas += ['', '📞 Ligar = ligação comum pelo telefone.',
-               '💬 WhatsApp = abre a conversa; para ligar, toque no ícone de chamada dentro do WhatsApp.']
+    if oferta:
+        if ch['ofertado_em']:
+            ate = datetime.fromisoformat(ch['ofertado_em']) + timedelta(minutes=c.prazo('oferta_min', 2))
+            linhas += ['', f"⏱ Sua vez até {ate.strftime('%H:%M')}. Depois passa ao próximo."]
+        linhas += ['', '📞 Ligar = ligação comum pelo telefone.',
+                   '💬 WhatsApp = abre a conversa; para ligar, toque no ícone de chamada dentro do WhatsApp.']
     return '\n'.join(linhas)
 
 
@@ -162,8 +168,8 @@ def botoes_fechamento(c, ch):
 
 
 def enviar_cartao(c, ch):
-    texto = texto_ficha(c, ch, f"✅ Você está atendendo #{ch['id']} · {MOTIVO_LEG[ch['motivo']]}") + \
-        '\n\nResponda (reply) a esta mensagem para falar com o lead. Ao terminar, escolha o resultado:'
+    texto = texto_ficha(c, ch, f"✅ Você está atendendo #{ch['id']} · {MOTIVO_LEG[ch['motivo']]}", oferta=False) + \
+        '\n\nPara falar com o cliente, responda a esta mensagem. Ao terminar, escolha o resultado:'
     ref = equipe.privado(c, ch['dono'], texto, botoes_fechamento(c, ch))
     if ref:
         c.db.execute('UPDATE chamados SET tg_cartao=? WHERE id=?', (ref, ch['id']))
@@ -365,8 +371,9 @@ def alertar(c, ch):
     c.sujo = True
     lead = c.lead(ch['lead_id'])
     espera = minutos(ch['conta_desde'] or ch['aberto_em'], c.agora())
-    texto = (f"🚨 #{ch['id']} {primeiro_nome(lead['nome'])} · {MOTIVO_LEG[ch['motivo']]} · nota {lead['nota']} · "
-             f"interesse {_interesse_nome(c, lead)} · esperando há {espera} min")
+    interesse = _interesse_nome(c, lead)
+    texto = (f"🚨 #{ch['id']} {primeiro_nome(lead['nome'])} · esperando há {espera} min\n"
+             f"{MOTIVO_LEG[ch['motivo']]} · cliente {lead['nota']}" + (f' · {interesse}' if interesse != '—' else ''))
     gid = tg.grupo()
     if gid:
         ref = tg.enviar(c, gid, texto, [[tg.bt('✅ Assumir', f"as:{ch['id']}")]])

@@ -67,6 +67,8 @@ def test_oferta_privada_com_dados(api_int, tg, externo):
     assert TEL2_FMT in txt
     assert "Maria" in txt and "morno" in txt and "Plano anual" in txt
     assert "tenho interesse no plano anual" in txt  # últimas mensagens
+    assert "⏱ Sua vez até " in txt and "Maria Souza · cliente morno" in txt  # 1.12.8: prazo à vista, ficha curta
+    assert "Motivo:" not in txt and "Nome:" not in txt
     assert not [p for p in externo.privado("bruno") if f"#{ch}" in p["json"].get("text", "")]
 
 

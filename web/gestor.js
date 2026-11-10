@@ -19,7 +19,7 @@
   // ---------- Ao vivo: equipe | em atendimento | fila ----------
   function opcoesTransf(atual) {
     const ordem = {livre: 0, atendendo: 1, ocupado: 2, fora: 3};
-    return '<option value="">Transferir para…</option>' + (cfg ? cfg.equipe : []).filter(m => m.id !== atual)
+    return '<option value="">Para quem…</option>' + (cfg ? cfg.equipe : []).filter(m => m.id !== atual)
       .map(m => '<option value="' + esc(m.id) + '">' + esc(m.nome) + '</option>').join('');
   }
   function transf(ch, atual) {
@@ -80,7 +80,7 @@
     const ordem = {livre: 0, atendendo: 1, ocupado: 2, fora: 3};
     const eq = p.equipe.slice().sort((a, b) => (b.proximo - a.proximo) || (ordem[a.status] - ordem[b.status]));
     const atendendoDe = {}; p.atendendo.forEach(ch => { (atendendoDe[ch.dono] = atendendoDe[ch.dono] || []).push(ch.lead_nome || 'Lead'); });
-    $('av-livres').textContent = p.equipe.filter(e => e.status === 'livre').length + ' livre(s)';
+    $('av-livres').textContent = p.equipe.filter(e => e.status === 'livre').length + (p.equipe.filter(e => e.status === 'livre').length === 1 ? ' livre' : ' livres');
     $('av-equipe').innerHTML = eq.length ? eq.map(e => '<div class="it"><div class="l1">' + AL.ponto(e.status) + '<strong>' + esc(e.nome) + '</strong>' +
       '<span class="dir">' + esc(AL.COLAB[e.status] || e.status) + (e.status === 'atendendo' ? ' ' + (atendendoDe[e.id] || []).length : ' há ' + esc(AL.dur(e.minutos))) + '</span></div>' +
       '<p>' + (e.proximo ? '<strong>Próximo da vez</strong>' : '') + (atendendoDe[e.id] ? esc(atendendoDe[e.id].join(' · ')) : '') + '</p>' +

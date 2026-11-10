@@ -38,7 +38,20 @@
   function bolha(texto, classe, rotulo, hora) {
     const d = document.createElement('div');
     d.className = 'b ' + (classe || '');
+    document.querySelectorAll('#log .opcoes').forEach(o => o.remove());
+    let ops = [];
+    if (classe !== 'minha') {
+      const linhas = String(texto).split('\n'), resto = [];
+      linhas.forEach(l => { const m = l.match(/^\s*(\d+)\s*-\s*(.+)$/); if (m) ops.push(m); else resto.push(l); });
+      if (ops.length >= 2) texto = resto.join('\n').trim(); else ops = [];
+    }
     d.innerHTML = (rotulo ? '<small>' + AL.esc(rotulo) + '</small>' : '') + AL.esc(texto) + '<time>' + AL.esc(hora || agoraHM()) + '</time>';
+    if (ops.length) {
+      const o = document.createElement('div'); o.className = 'opcoes';
+      o.innerHTML = ops.map(m => '<button type="button" data-op="' + m[1] + '">' + AL.esc(m[2]) + '</button>').join('');
+      o.addEventListener('click', ev => { const b = ev.target.closest('[data-op]'); if (!b) return; o.remove(); bolha(b.textContent, 'minha'); enviar(b.dataset.op, false); });
+      $('log').appendChild(d); $('log').appendChild(o); aoFim(); return;
+    }
     $('log').appendChild(d);
     aoFim();
   }
